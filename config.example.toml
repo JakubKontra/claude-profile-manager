@@ -1,0 +1,27 @@
+# Claude Code Multi-Account Profile Configuration
+# Copy to ~/.claude-profiles/config.toml and edit
+#
+# Profile names become CLI commands: claude-<name>
+
+# Source directory for shared configuration (default: ~/.claude)
+source_dir = "~/.claude"
+
+# Where to install wrapper scripts (default: ~/.local/bin)
+bin_dir = "~/.local/bin"
+
+[profiles.personal]
+description = "Personal Anthropic account"
+
+[profiles.work]
+description = "Company team subscription"
+model = "sonnet"
+add_dirs = ["~/Work/company"]
+
+# [profiles.work.attribution]
+# commit = "Co-Authored-By: Claude <noreply@anthropic.com>"
+# pr = "Generated with [Claude Code](https://claude.ai/code)"
+
+# [profiles.work-vertex]
+# description = "Company via Google Cloud Vertex AI"
+# add_dirs = ["~/Work/company"]
+# env = { CLAUDE_CODE_USE_VERTEX = "1", ANTHROPIC_VERTEX_PROJECT_ID = "your-project-id", CLOUD_ML_REGION = "europe-west1" }

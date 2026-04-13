@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 140" fill="none">
+  <rect width="140" height="140" rx="28" fill="#7c3aed"/>
+  <text x="70" y="78" text-anchor="middle" font-family="SF Mono, Menlo, Monaco, monospace" font-weight="800" font-size="52" fill="white">cpm</text>
+  <text x="70" y="108" text-anchor="middle" font-family="SF Mono, Menlo, Monaco, monospace" font-weight="400" font-size="13" fill="rgba(255,255,255,0.7)">profiles</text>
+</svg>

@@ -1,0 +1,43 @@
+version: 2
+
+builds:
+  - binary: cpm
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/jakubkontra/cpm/internal.Version={{.Version}}
+      - -X github.com/jakubkontra/cpm/internal.Commit={{.ShortCommit}}
+
+archives:
+  - format: binary
+    name_template: "cpm_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+brews:
+  - repository:
+      owner: jakubkontra
+      name: homebrew-tap
+    name: cpm
+    homepage: "https://github.com/jakubkontra/claude-profile-manager"
+    description: "Claude Profile Manager — manage multiple Claude Code accounts"
+    license: "MIT"
+    install: |
+      bin.install "cpm"
+    test: |
+      system "#{bin}/cpm", "version"

@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 460">
+  <style>
+    @keyframes blink { 0%,50% { opacity: 1; } 51%,100% { opacity: 0; } }
+    @keyframes fadeIn1 { 0%,8% { opacity: 0; } 10% { opacity: 1; } }
+    @keyframes fadeIn2 { 0%,18% { opacity: 0; } 20% { opacity: 1; } }
+    @keyframes fadeIn3 { 0%,28% { opacity: 0; } 30% { opacity: 1; } }
+    @keyframes fadeIn4 { 0%,40% { opacity: 0; } 42% { opacity: 1; } }
+    @keyframes fadeIn5 { 0%,52% { opacity: 0; } 54% { opacity: 1; } }
+    @keyframes fadeIn6 { 0%,62% { opacity: 0; } 64% { opacity: 1; } }
+    @keyframes fadeIn7 { 0%,72% { opacity: 0; } 74% { opacity: 1; } }
+    @keyframes fadeIn8 { 0%,82% { opacity: 0; } 84% { opacity: 1; } }
+    .term-bg { fill: #1a1b26; }
+    .term-bar { fill: #24283b; }
+    .term-title { fill: #a9b1d6; font-family: SF Mono, Menlo, Monaco, monospace; font-size: 12px; }
+    .term-dot-red { fill: #f7768e; }
+    .term-dot-yellow { fill: #e0af68; }
+    .term-dot-green { fill: #9ece6a; }
+    .prompt { fill: #7c3aed; font-family: SF Mono, Menlo, Monaco, monospace; font-size: 13px; font-weight: bold; }
+    .cmd { fill: #c0caf5; font-family: SF Mono, Menlo, Monaco, monospace; font-size: 13px; }
+    .output { fill: #a9b1d6; font-family: SF Mono, Menlo, Monaco, monospace; font-size: 13px; }
+    .ok { fill: #9ece6a; font-family: SF Mono, Menlo, Monaco, monospace; font-size: 13px; }
+    .warn { fill: #e0af68; font-family: SF Mono, Menlo, Monaco, monospace; font-size: 13px; }
+    .accent { fill: #bb9af7; font-family: SF Mono, Menlo, Monaco, monospace; font-size: 13px; }
+    .cursor { fill: #c0caf5; animation: blink 1s infinite; }
+    .line1 { animation: fadeIn1 12s infinite; }
+    .line2 { animation: fadeIn2 12s infinite; }
+    .line3 { animation: fadeIn3 12s infinite; }
+    .line4 { animation: fadeIn4 12s infinite; }
+    .line5 { animation: fadeIn5 12s infinite; }
+    .line6 { animation: fadeIn6 12s infinite; }
+    .line7 { animation: fadeIn7 12s infinite; }
+    .line8 { animation: fadeIn8 12s infinite; }
+  </style>
+
+  <!-- Terminal window -->
+  <rect class="term-bg" width="700" height="460" rx="10"/>
+  <rect class="term-bar" width="700" height="36" rx="10 10 0 0"/>
+  <circle class="term-dot-red" cx="20" cy="18" r="6"/>
+  <circle class="term-dot-yellow" cx="40" cy="18" r="6"/>
+  <circle class="term-dot-green" cx="60" cy="18" r="6"/>
+  <text class="term-title" x="350" y="22" text-anchor="middle">Terminal — cpm</text>
+
+  <!-- Line 1: cpm list -->
+  <g class="line1">
+    <text class="prompt" x="20" y="70">$</text>
+    <text class="cmd" x="35" y="70">cpm list</text>
+  </g>
+
+  <!-- Line 2-3: list output -->
+  <g class="line2">
+    <text class="ok" x="20" y="95">*</text>
+    <text class="output" x="35" y="95">claude-personal          Personal account         [authenticated]</text>
+  </g>
+  <g class="line3">
+    <text class="output" x="35" y="115">  claude-work               Company team             [authenticated]</text>
+  </g>
+
+  <!-- Line 4: cpm link -->
+  <g class="line4">
+    <text class="prompt" x="20" y="155">$</text>
+    <text class="cmd" x="35" y="155">cpm link work</text>
+  </g>
+
+  <!-- Line 5: link output -->
+  <g class="line5">
+    <text class="ok" x="20" y="180">  added .claude-profile to .gitignore</text>
+    <text class="output" x="20" y="200">Linked profile "work" to ~/Work/company-project</text>
+  </g>
+
+  <!-- Line 6: cd + auto switch -->
+  <g class="line6">
+    <text class="prompt" x="20" y="240">$</text>
+    <text class="cmd" x="35" y="240">cd ~/personal-project</text>
+  </g>
+
+  <g class="line7">
+    <text class="accent" x="20" y="265">[cpm] using profile: personal</text>
+  </g>
+
+  <!-- Line 7: doctor -->
+  <g class="line8">
+    <text class="prompt" x="20" y="305">$</text>
+    <text class="cmd" x="35" y="305">cpm doctor</text>
+    <text class="output" x="20" y="335">[  OK] claude binary                       ~/.local/bin/claude</text>
+    <text class="output" x="20" y="355">[  OK] source directory                    ~/.claude</text>
+    <text class="output" x="20" y="375">[  OK] profile/personal/credentials        last updated 2h ago</text>
+    <text class="ok" x="20" y="395">[  OK] profile/personal/wrapper            ~/.local/bin/claude-personal</text>
+    <text class="warn" x="20" y="415">[WARN] profile/work/credentials            credentials last updated 5d ago</text>
+    <text class="ok" x="20" y="440">All checks passed.</text>
+  </g>
+</svg>
