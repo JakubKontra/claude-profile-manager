@@ -33,6 +33,7 @@ brews:
   - repository:
       owner: jakubkontra
       name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     name: cpm
     homepage: "https://github.com/jakubkontra/claude-profile-manager"
     description: "Claude Profile Manager — manage multiple Claude Code accounts"
