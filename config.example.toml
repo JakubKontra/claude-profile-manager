@@ -25,3 +25,9 @@ add_dirs = ["~/Work/company"]
 # description = "Company via Google Cloud Vertex AI"
 # add_dirs = ["~/Work/company"]
 # env = { CLAUDE_CODE_USE_VERTEX = "1", ANTHROPIC_VERTEX_PROJECT_ID = "your-project-id", CLOUD_ML_REGION = "europe-west1" }
+
+# Cloud sync — sync settings across devices via git
+# [cloud]
+# remote = "git@github.com:your-user/claude-settings.git"
+# auto_push = false
+# exclude = ["CLAUDE.md", "commands/"]  # optional: exclude specific files/dirs from sync

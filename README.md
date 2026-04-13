@@ -176,6 +176,49 @@ The `.claude-profile` file is automatically added to `.gitignore`.
 | `cpm init` | Interactive config wizard |
 | `cpm version` | Show version + check for updates |
 | `cpm upgrade` | Self-update from GitHub Releases |
+| `cpm cloud init [--remote <url>]` | Initialize cloud sync repo |
+| `cpm cloud push [-m "msg"]` | Push local settings to cloud |
+| `cpm cloud pull [--dry-run]` | Pull settings from cloud |
+| `cpm cloud status` | Show cloud sync status |
+| `cpm cloud remote <url>` | Set/update git remote URL |
+
+## Cloud sync
+
+Sync your Claude Code settings (plugins, skills, commands, `settings.json`) across machines via a private git repository.
+
+```bash
+# On your first machine — initialize and push
+cpm cloud init --remote git@github.com:you/claude-settings.git
+cpm cloud push
+
+# On another machine — clone and pull
+cpm cloud init --remote git@github.com:you/claude-settings.git
+# Files are automatically distributed on clone
+
+# Later — sync changes
+cpm cloud push   # from the machine where you changed settings
+cpm cloud pull   # on the other machine
+```
+
+### What gets synced
+
+| Synced | Not synced |
+|--------|------------|
+| `settings.json`, `settings.local.json` | Credentials (`.credentials.json`) |
+| `CLAUDE.md` | Sessions, caches |
+| `commands/`, `agents/` | `projects/` (cache, ~2 GB) |
+| `plugins/installed_plugins.json` | Telemetry |
+| `plugins/known_marketplaces.json` | |
+| `.skill-lock.json` | |
+| CPM `config.toml` | |
+
+### Exclude files from sync
+
+```toml
+[cloud]
+remote = "git@github.com:you/claude-settings.git"
+exclude = ["CLAUDE.md", "commands/"]
+```
 
 ## Configuration
 
@@ -219,6 +262,9 @@ CLOUD_ML_REGION = "europe-west1"
 | `profiles.<name>.env` | | Environment variables |
 | `profiles.<name>.attribution.commit` | | Git commit attribution text |
 | `profiles.<name>.attribution.pr` | | PR description attribution text |
+| `cloud.remote` | | Git remote URL for cloud sync |
+| `cloud.auto_push` | `false` | Auto-push on `cpm install` |
+| `cloud.exclude` | `[]` | Files/dirs to exclude from sync |
 
 ### Shared file handling
 

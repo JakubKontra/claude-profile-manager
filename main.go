@@ -51,6 +51,7 @@ func main() {
 	root.AddCommand(unlinkCmd())
 	root.AddCommand(versionCmd())
 	root.AddCommand(upgradeCmd())
+	root.AddCommand(cloudCmd())
 
 	if err := root.Execute(); err != nil {
 		os.Exit(1)
@@ -589,6 +590,92 @@ func upgradeCmd() *cobra.Command {
 				return internal.Upgrade(filepath.Join(home, ".local", "bin"))
 			}
 			return internal.Upgrade(cfg.BinDir)
+		},
+	}
+}
+
+func cloudCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "cloud",
+		Short: "Sync settings across machines via git",
+		Long:  "Synchronize Claude Code settings, plugins, skills, and commands across devices\nusing a private git repository.",
+	}
+
+	cmd.AddCommand(cloudInitCmd())
+	cmd.AddCommand(cloudPushCmd())
+	cmd.AddCommand(cloudPullCmd())
+	cmd.AddCommand(cloudStatusCmd())
+	cmd.AddCommand(cloudRemoteCmd())
+
+	return cmd
+}
+
+func cloudInitCmd() *cobra.Command {
+	var remote string
+
+	cmd := &cobra.Command{
+		Use:   "init",
+		Short: "Initialize cloud sync repo",
+		Long:  "Initialize a local git repo for syncing settings.\nIf --remote points to an existing repo, it will be cloned instead.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return internal.CloudInit(configPath, remote)
+		},
+	}
+
+	cmd.Flags().StringVar(&remote, "remote", "", "git remote URL (e.g. git@github.com:user/claude-settings.git)")
+
+	return cmd
+}
+
+func cloudPushCmd() *cobra.Command {
+	var message string
+
+	cmd := &cobra.Command{
+		Use:   "push",
+		Short: "Push local settings to cloud repo",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return internal.CloudPush(configPath, message)
+		},
+	}
+
+	cmd.Flags().StringVarP(&message, "message", "m", "", "custom commit message")
+
+	return cmd
+}
+
+func cloudPullCmd() *cobra.Command {
+	var dryRun bool
+
+	cmd := &cobra.Command{
+		Use:   "pull",
+		Short: "Pull settings from cloud repo and apply locally",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return internal.CloudPull(configPath, dryRun)
+		},
+	}
+
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "show what would change without applying")
+
+	return cmd
+}
+
+func cloudStatusCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "status",
+		Short: "Show cloud sync status",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return internal.CloudStatus(configPath)
+		},
+	}
+}
+
+func cloudRemoteCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "remote <url>",
+		Short: "Set or update the git remote URL",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return internal.CloudRemote(configPath, args[0])
 		},
 	}
 }
