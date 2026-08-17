@@ -66,7 +66,7 @@ func TestGenerateWrapperWithEnv(t *testing.T) {
 		Description: "Vertex",
 		Env: map[string]string{
 			"CLAUDE_CODE_USE_VERTEX": "1",
-			"CLOUD_ML_REGION":       "europe-west1",
+			"CLOUD_ML_REGION":        "europe-west1",
 		},
 	}
 
@@ -160,5 +160,43 @@ func TestCleanupStaleScripts(t *testing.T) {
 	}
 	if _, err := os.Stat(other); err != nil {
 		t.Error("non-cpm script should be kept")
+	}
+}
+
+func TestCleanupStaleScriptsKeepsCpmBinary(t *testing.T) {
+	dir := t.TempDir()
+
+	// The cpm binary embeds the marker as a compiled-in string constant, so a
+	// naive "content contains marker" check makes cpm install delete cpm.
+	binary := filepath.Join(dir, "cpm")
+	content := append([]byte{0x7f, 'E', 'L', 'F', 0x00, 0x01}, []byte("...\x00"+marker+"\x00...")...)
+	os.WriteFile(binary, content, 0o755)
+
+	// Same trap under a claude- name: a wrapper-looking file whose marker sits
+	// past the header is not something cpm generated.
+	notAWrapper := filepath.Join(dir, "claude-something-else")
+	body := "#!/bin/bash\n# line 2\n# line 3\n# line 4\n# line 5\n# line 6\n" + marker + "\n"
+	os.WriteFile(notAWrapper, []byte(body), 0o755)
+
+	CleanupStaleScripts(dir, map[string]bool{})
+
+	if _, err := os.Stat(binary); err != nil {
+		t.Error("cpm binary must not be removed by its own cleanup")
+	}
+	if _, err := os.Stat(notAWrapper); err != nil {
+		t.Error("file with marker outside the header should be kept")
+	}
+}
+
+func TestCleanupStaleScriptsRemovesLegacyWrapper(t *testing.T) {
+	dir := t.TempDir()
+
+	legacy := filepath.Join(dir, "claude-legacy")
+	os.WriteFile(legacy, []byte("#!/usr/bin/env bash\n"+legacyMarker+"\necho legacy\n"), 0o755)
+
+	CleanupStaleScripts(dir, map[string]bool{})
+
+	if _, err := os.Stat(legacy); !os.IsNotExist(err) {
+		t.Error("wrapper from a pre-rename version should be removed")
 	}
 }

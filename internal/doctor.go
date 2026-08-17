@@ -76,18 +76,18 @@ func RunDoctor(cfg *Config, profilesBase string) []Check {
 			}
 		}
 
-		// Check credentials
-		credPath := filepath.Join(profileDir, ".credentials.json")
-		credInfo, err := os.Stat(credPath)
-		if os.IsNotExist(err) {
-			checks = append(checks, Check{fmt.Sprintf("profile/%s/credentials", name), "warn", "not authenticated (run claude-" + name + ")"})
-		} else if err == nil {
-			age := time.Since(credInfo.ModTime())
-			if age > 7*24*time.Hour {
-				checks = append(checks, Check{fmt.Sprintf("profile/%s/credentials", name), "warn", fmt.Sprintf("credentials last updated %s ago", formatDuration(age))})
-			} else {
-				checks = append(checks, Check{fmt.Sprintf("profile/%s/credentials", name), "ok", fmt.Sprintf("last updated %s ago", formatDuration(age))})
-			}
+		// Check credentials (Keychain on macOS, .credentials.json elsewhere)
+		checkName := fmt.Sprintf("profile/%s/credentials", name)
+		status, err := GetCredentialStatus(profileDir)
+		switch {
+		case err != nil:
+			checks = append(checks, Check{checkName, "warn", "not authenticated (run claude-" + name + " auth login)"})
+		case status.Expired:
+			checks = append(checks, Check{checkName, "warn", fmt.Sprintf("credentials expired (run claude-%s auth login)", name)})
+		case status.Source == "file" && time.Since(status.LastUpdated) > 7*24*time.Hour:
+			checks = append(checks, Check{checkName, "warn", describeCredentials(status)})
+		default:
+			checks = append(checks, Check{checkName, "ok", describeCredentials(status)})
 		}
 
 		// Check wrapper script
@@ -115,6 +115,19 @@ func PrintChecks(checks []Check) {
 		}
 		fmt.Printf("  [%s] %-35s %s\n", icon, c.Name, c.Detail)
 	}
+}
+
+// describeCredentials renders "<source> — <account> (updated 3h ago)", leaving
+// out the parts a profile doesn't have yet.
+func describeCredentials(s CredentialStatus) string {
+	detail := s.Source
+	if s.Account != "" {
+		detail += " — " + s.Account
+	}
+	if !s.LastUpdated.IsZero() {
+		detail += fmt.Sprintf(" (updated %s ago)", formatDuration(time.Since(s.LastUpdated)))
+	}
+	return detail
 }
 
 func formatDuration(d time.Duration) string {
