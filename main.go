@@ -476,17 +476,22 @@ func credentialsCmd() *cobra.Command {
 
 			for _, name := range names {
 				profileDir := filepath.Join(profilesBase, name)
-				account, expired, err := internal.GetCredentialInfo(profileDir)
+				status, err := internal.GetCredentialStatus(profileDir)
 
 				if err != nil {
 					fmt.Printf("  claude-%-20s %s\n", name, err)
-				} else {
-					status := "valid"
-					if expired {
-						status = "EXPIRED"
-					}
-					fmt.Printf("  claude-%-20s %s  [%s]\n", name, account, status)
+					continue
 				}
+
+				account := status.Account
+				if account == "" {
+					account = "(unknown account)"
+				}
+				state := "valid"
+				if status.Expired {
+					state = "EXPIRED"
+				}
+				fmt.Printf("  claude-%-20s %s  [%s, %s]\n", name, account, state, status.Source)
 			}
 
 			return nil
