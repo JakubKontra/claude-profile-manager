@@ -63,11 +63,31 @@ Each profile gets an isolated `CLAUDE_CONFIG_DIR` with its own credentials, whil
 │   ├── skills/   -> ~/.claude/skills/     # Symlinked
 │   ├── plugins/  -> ~/.claude/plugins/    # Symlinked
 │   ├── projects/ -> ~/.claude/projects/   # Symlinked
-│   ├── .credentials.json    # Per-profile (created by Claude)
+│   ├── .credentials.json    # Per-profile (Linux/CI — on macOS the token lives in the Keychain)
 │   └── .claude.json         # Per-profile (created by Claude)
 └── work/
     └── ...
 ```
+
+## Credentials
+
+Where the OAuth token ends up depends on the platform:
+
+- **macOS** — in the Keychain, under a service derived from the profile's `CLAUDE_CONFIG_DIR`:
+  `Claude Code-credentials-<first 8 hex of sha256(configDir)>`. The default `~/.claude` login uses the bare `Claude Code-credentials`, so profiles never overwrite each other or your default session. No `.credentials.json` is written.
+- **Linux / CI** — in `<profile>/.credentials.json`.
+
+`cpm doctor` and `cpm credentials` check both, and report which one a profile is using.
+
+Switching a profile to a different account always goes through its wrapper, so only that profile's entry is touched:
+
+```bash
+claude-work auth status    # which account this profile is on
+claude-work auth logout    # clears only the work entry
+claude-work auth login     # OAuth in the browser
+```
+
+A bare `claude auth logout` has no `CLAUDE_CONFIG_DIR` set and logs out your default profile instead.
 
 ## Install
 
