@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -65,23 +66,26 @@ func CloudInit(configPath string, remote string) error {
 		return fmt.Errorf("git not found on PATH — install git first")
 	}
 
+	cfg, err := LoadCloudConfig(configPath)
+	if err != nil {
+		return err
+	}
+
 	// If remote is provided, try cloning first
 	if remote != "" {
-		hasRefs, _ := checkRemoteHasRefs(remote)
+		hasRefs, err := checkRemoteHasRefs(remote)
+		if err != nil {
+			return fmt.Errorf("cannot reach remote %s: %w", remote, err)
+		}
 		if hasRefs {
 			outf("Cloning from %s...\n", remote)
 			if _, err := gitExecDir("", "clone", remote, repoDir); err != nil {
 				return fmt.Errorf("cannot clone remote: %w", err)
 			}
-			// Distribute files from cloned repo
-			cfg, err := LoadCloudConfig(configPath)
-			if err != nil {
-				return err
-			}
-			if err := DistributeSyncFiles(repoDir, cfg); err != nil {
+			plan := PlanDistribute(repoDir, cfg, configPath)
+			if err := ApplyDistribute(plan); err != nil {
 				return fmt.Errorf("distributing files: %w", err)
 			}
-			// Save remote to config
 			if err := saveCloudRemote(configPath, remote); err != nil {
 				return fmt.Errorf("saving remote to config: %w", err)
 			}
@@ -105,22 +109,15 @@ func CloudInit(configPath string, remote string) error {
 		return fmt.Errorf("cannot write .gitignore: %w", err)
 	}
 
-	// Gather and copy syncable files
-	cfg, err := LoadCloudConfig(configPath)
-	if err != nil {
-		return err
-	}
 	files, err := GatherSyncFiles(cfg, configPath)
 	if err != nil {
 		return err
 	}
 
 	copied := 0
-	for repoPath, srcPath := range files {
+	for _, repoPath := range sortedKeys(files) {
+		srcPath := files[repoPath]
 		dst := filepath.Join(repoDir, repoPath)
-		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-			return err
-		}
 		if err := copyFile(srcPath, dst); err != nil {
 			outf("  skipped %s (%v)\n", repoPath, err)
 			continue
@@ -129,17 +126,15 @@ func CloudInit(configPath string, remote string) error {
 		copied++
 	}
 
-	if copied == 0 {
+	if copied > 0 {
+		if _, err := gitExec(repoDir, "add", "-A"); err != nil {
+			return err
+		}
+		if _, err := gitExec(repoDir, "commit", "-m", "Initial cloud sync"); err != nil {
+			return err
+		}
+	} else {
 		outln("\nNo syncable files found. The repo is empty.")
-		return nil
-	}
-
-	// Initial commit
-	if _, err := gitExec(repoDir, "add", "-A"); err != nil {
-		return err
-	}
-	if _, err := gitExec(repoDir, "commit", "-m", "Initial cloud sync"); err != nil {
-		return err
 	}
 
 	// Add remote if provided
@@ -260,17 +255,14 @@ func CloudPull(configPath string, dryRun bool) error {
 		return fmt.Errorf("no remote configured — add one with: cpm cloud remote <url>")
 	}
 
-	// Pull with --ff-only
-	output, err := gitExec(repoDir, "pull", "--ff-only", "origin", "HEAD")
-	if err != nil {
-		return fmt.Errorf("pull failed (possible divergence): %w\nResolve manually in %s\nor force overwrite with: cd %s && git reset --hard origin/main", err, repoDir, repoDir)
+	before, _ := gitExec(repoDir, "rev-parse", "HEAD")
+	if _, err := gitExec(repoDir, "pull", "--ff-only", "origin", "HEAD"); err != nil {
+		branch := currentBranch(repoDir)
+		return fmt.Errorf("pull failed (possible divergence): %w\nResolve manually in %s\nor force overwrite with: cd %s && git reset --hard origin/%s", err, repoDir, repoDir, branch)
 	}
-
-	if strings.Contains(output, "Already up to date") {
-		outln("Already up to date.")
-		if !dryRun {
-			return nil
-		}
+	after, _ := gitExec(repoDir, "rev-parse", "HEAD")
+	if strings.TrimSpace(before) == strings.TrimSpace(after) {
+		outln("Repo already up to date.")
 	}
 
 	cfg, err := LoadCloudConfig(configPath)
@@ -278,21 +270,17 @@ func CloudPull(configPath string, dryRun bool) error {
 		return err
 	}
 
+	plan := PlanDistribute(repoDir, cfg, configPath)
 	if dryRun {
-		outln("\nDry run — files that would be updated:")
-		return showPullDiff(repoDir, cfg, configPath)
-	}
-
-	if err := DistributeSyncFiles(repoDir, cfg); err != nil {
-		return err
-	}
-
-	// Also distribute cpm config.toml with merge
-	repoConfigPath := filepath.Join(repoDir, "cpm", "config.toml")
-	if _, err := os.Stat(repoConfigPath); err == nil {
-		if err := mergeConfigTOML(repoConfigPath, configPath); err != nil {
-			outf("  warning: could not merge config.toml: %v\n", err)
+		outln("\nDry run — files that would change:")
+		if !printPlan(plan) {
+			outln("  (no changes)")
 		}
+		return nil
+	}
+
+	if err := ApplyDistribute(plan); err != nil {
+		return err
 	}
 
 	outln("\nFiles distributed from cloud repo.")
@@ -434,69 +422,124 @@ func GatherSyncFiles(cfg *Config, configPath string) (map[string]string, error) 
 	return files, nil
 }
 
-// DistributeSyncFiles copies files from the cloud repo back to their live locations.
-func DistributeSyncFiles(repoDir string, cfg *Config) error {
-	home, _ := os.UserHomeDir()
+// DistributeAction is one step of applying the cloud repo locally.
+type DistributeAction struct {
+	// RepoPath is the path inside the cloud repo.
+	RepoPath string
+	// Source is the absolute file in the cloud repo (empty for deletes).
+	Source string
+	// Dest is the live path that changes.
+	Dest string
+	// Kind is create, update, delete, merge, unchanged or excluded.
+	Kind string
+}
 
-	// Files to source_dir
-	for _, name := range cloudSyncFiles {
-		src := filepath.Join(repoDir, name)
+// PlanDistribute compares the cloud repo with the live files and returns
+// what applying it would do. Deletions are only planned inside the synced
+// directories (commands/, agents/, ...), never for top-level files.
+func PlanDistribute(repoDir string, cfg *Config, configPath string) []DistributeAction {
+	home, _ := os.UserHomeDir()
+	var plan []DistributeAction
+
+	add := func(repoPath, dest string, excluded bool) {
+		src := filepath.Join(repoDir, repoPath)
 		if _, err := os.Stat(src); os.IsNotExist(err) {
-			continue
+			return
 		}
-		dst := filepath.Join(cfg.SourceDir, name)
-		if err := copyFile(src, dst); err != nil {
-			outf("  warning: cannot write %s: %v\n", name, err)
-			continue
+		kind := "unchanged"
+		switch {
+		case excluded:
+			kind = "excluded"
+		case !fileExistsAt(dest):
+			kind = "create"
+		case filesAreDifferent(src, dest):
+			kind = "update"
 		}
-		outf("  restored %s\n", name)
+		plan = append(plan, DistributeAction{RepoPath: repoPath, Source: src, Dest: dest, Kind: kind})
 	}
 
-	// Directories to source_dir
+	for _, name := range cloudSyncFiles {
+		add(name, filepath.Join(cfg.SourceDir, name), isExcluded(name, cfg))
+	}
+
 	for _, dirname := range cloudSyncDirs {
-		srcDir := filepath.Join(repoDir, dirname)
-		if _, err := os.Stat(srcDir); os.IsNotExist(err) {
+		repoSubDir := filepath.Join(repoDir, dirname)
+		if _, err := os.Stat(repoSubDir); os.IsNotExist(err) {
 			continue
 		}
-		dstDir := filepath.Join(cfg.SourceDir, dirname)
-		if err := os.MkdirAll(dstDir, 0o755); err != nil {
-			continue
-		}
-		_ = filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
+		excluded := isExcluded(dirname+"/", cfg)
+		liveDir := filepath.Join(cfg.SourceDir, dirname)
+
+		inRepo := map[string]bool{}
+		_ = filepath.Walk(repoSubDir, func(path string, info os.FileInfo, err error) error {
 			if err != nil || info.IsDir() {
 				return nil
 			}
-			rel, _ := filepath.Rel(srcDir, path)
-			dst := filepath.Join(dstDir, rel)
-			if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+			rel, _ := filepath.Rel(repoSubDir, path)
+			inRepo[rel] = true
+			add(filepath.Join(dirname, rel), filepath.Join(liveDir, rel), excluded)
+			return nil
+		})
+		if excluded {
+			continue
+		}
+		// Files that exist live but no longer in the repo were deleted
+		// on another machine.
+		_ = filepath.Walk(liveDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil || info.IsDir() {
 				return nil
 			}
-			if err := copyFile(path, dst); err != nil {
-				return nil
+			rel, _ := filepath.Rel(liveDir, path)
+			if !inRepo[rel] {
+				plan = append(plan, DistributeAction{RepoPath: filepath.Join(dirname, rel), Dest: path, Kind: "delete"})
 			}
-			outf("  restored %s/%s\n", dirname, rel)
 			return nil
 		})
 	}
 
-	// External files
 	for _, ext := range cloudSyncExternal {
-		src := filepath.Join(repoDir, ext.RepoPath)
-		if _, err := os.Stat(src); os.IsNotExist(err) {
-			continue
-		}
-		dst := filepath.Join(home, ext.HomePath)
-		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-			continue
-		}
-		if err := copyFile(src, dst); err != nil {
-			outf("  warning: cannot write %s: %v\n", ext.HomePath, err)
-			continue
-		}
-		outf("  restored %s\n", ext.RepoPath)
+		add(ext.RepoPath, filepath.Join(home, ext.HomePath), isExcluded(ext.RepoPath, cfg))
 	}
 
+	if configPath != "" && !isExcluded("cpm/config.toml", cfg) {
+		src := filepath.Join(repoDir, "cpm", "config.toml")
+		if _, err := os.Stat(src); err == nil {
+			plan = append(plan, DistributeAction{RepoPath: "cpm/config.toml", Source: src, Dest: ExpandPath(configPath), Kind: "merge"})
+		}
+	}
+
+	sort.SliceStable(plan, func(i, j int) bool { return plan[i].RepoPath < plan[j].RepoPath })
+	return plan
+}
+
+// ApplyDistribute executes a plan.
+func ApplyDistribute(plan []DistributeAction) error {
+	for _, a := range plan {
+		switch a.Kind {
+		case "create", "update":
+			if err := copyFile(a.Source, a.Dest); err != nil {
+				outf("  warning: cannot write %s: %v\n", a.RepoPath, err)
+				continue
+			}
+			outf("  restored %s\n", a.RepoPath)
+		case "delete":
+			if err := os.Remove(a.Dest); err != nil && !os.IsNotExist(err) {
+				outf("  warning: cannot delete %s: %v\n", a.Dest, err)
+				continue
+			}
+			outf("  deleted %s\n", a.RepoPath)
+		case "merge":
+			if err := mergeConfigTOML(a.Source, a.Dest); err != nil {
+				outf("  warning: could not merge config.toml: %v\n", err)
+			}
+		}
+	}
 	return nil
+}
+
+// DistributeSyncFiles applies the repo to the live locations (no config merge).
+func DistributeSyncFiles(repoDir string, cfg *Config) error {
+	return ApplyDistribute(PlanDistribute(repoDir, cfg, ""))
 }
 
 // --- helpers ---
@@ -529,12 +572,50 @@ func hasOriginRemote(repoDir string) bool {
 	return err == nil
 }
 
+// checkRemoteHasRefs reports whether the remote already has branches. A
+// remote that cannot be reached is an error, not "empty".
 func checkRemoteHasRefs(remote string) (bool, error) {
 	out, err := gitExecDir("", "ls-remote", "--heads", remote)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("%s", strings.TrimSpace(out))
 	}
 	return strings.TrimSpace(out) != "", nil
+}
+
+func currentBranch(repoDir string) string {
+	out, err := gitExec(repoDir, "rev-parse", "--abbrev-ref", "HEAD")
+	if err != nil {
+		return "main"
+	}
+	return strings.TrimSpace(out)
+}
+
+// printPlan prints the actions that change something and reports whether
+// there were any.
+func printPlan(plan []DistributeAction) bool {
+	any := false
+	for _, a := range plan {
+		switch a.Kind {
+		case "create", "update", "delete", "merge":
+			outf("  would %s: %s\n", a.Kind, a.RepoPath)
+			any = true
+		}
+	}
+	return any
+}
+
+func fileExistsAt(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+func sortedKeys(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func cleanDeletedFiles(repoSubDir, srcDir string) {
@@ -570,34 +651,6 @@ func isExcluded(path string, cfg *Config) bool {
 		}
 	}
 	return false
-}
-
-func showPullDiff(repoDir string, cfg *Config, configPath string) error {
-	home, _ := os.UserHomeDir()
-
-	for _, name := range cloudSyncFiles {
-		src := filepath.Join(repoDir, name)
-		dst := filepath.Join(cfg.SourceDir, name)
-		if _, err := os.Stat(src); os.IsNotExist(err) {
-			continue
-		}
-		if filesAreDifferent(src, dst) {
-			outf("  would update: %s\n", name)
-		}
-	}
-
-	for _, ext := range cloudSyncExternal {
-		src := filepath.Join(repoDir, ext.RepoPath)
-		dst := filepath.Join(home, ext.HomePath)
-		if _, err := os.Stat(src); os.IsNotExist(err) {
-			continue
-		}
-		if filesAreDifferent(src, dst) {
-			outf("  would update: %s\n", ext.RepoPath)
-		}
-	}
-
-	return nil
 }
 
 func saveCloudRemote(configPath string, remote string) error {
