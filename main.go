@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"syscall"
 
 	"github.com/jakubkontra/cpm/internal"
@@ -352,12 +351,7 @@ func upgradeCmd() *cobra.Command {
 		Use:   "upgrade",
 		Short: "Upgrade cpm to the latest version from GitHub Releases",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := internal.LoadConfig(configPath)
-			if err != nil {
-				home, _ := os.UserHomeDir()
-				return internal.Upgrade(filepath.Join(home, ".local", "bin"))
-			}
-			return internal.Upgrade(cfg.BinDir)
+			return internal.Upgrade()
 		},
 	}
 }
