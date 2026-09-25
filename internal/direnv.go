@@ -1,11 +1,17 @@
 package internal
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
-func GenerateDirenvSnippet(name, profileDir string) string {
-	return fmt.Sprintf(`# Claude Code profile: %s
-# Add this to your .envrc file
-export CLAUDE_CONFIG_DIR="%s"
-export CLAUDE_PROFILE="%s"
-`, name, profileDir, name)
+// GenerateDirenvSnippet renders the .envrc lines for a profile.
+func GenerateDirenvSnippet(name, profileDir string, profile *Profile) string {
+	spec := BuildLaunchSpec(name, profileDir, profile)
+	var b strings.Builder
+	fmt.Fprintf(&b, "# Claude Code profile: %s\n# Add this to your .envrc file\n", name)
+	for _, v := range spec.Env {
+		fmt.Fprintf(&b, "export %s=%s\n", v.Key, ShellQuote(v.Value))
+	}
+	return b.String()
 }

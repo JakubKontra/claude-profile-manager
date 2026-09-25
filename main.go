@@ -34,6 +34,7 @@ func main() {
 		initCmd(),
 		doctorCmd(),
 		runCmd(),
+		execCmd(),
 		cloneCmd(),
 		promptCmd(),
 		credentialsCmd(),
@@ -226,6 +227,28 @@ func runCmd() *cobra.Command {
 		},
 	}
 	// Everything after the profile name belongs to claude, including flags.
+	cmd.Flags().SetInterspersed(false)
+	return cmd
+}
+
+func execCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "exec <profile> -- <command> [args...]",
+		Short: "Run any command with a profile's environment",
+		Long:  "Run an arbitrary command with the profile's CLAUDE_CONFIG_DIR, CLAUDE_PROFILE\nand env variables set. Useful for scripts, git hooks or CI.",
+		Args:  cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, base, err := loadCfg()
+			if err != nil {
+				return err
+			}
+			spec, err := internal.BuildExecExec(cfg, base, args[0], args[1:])
+			if err != nil {
+				return err
+			}
+			return syscall.Exec(spec.Path, spec.Argv, spec.Env)
+		},
+	}
 	cmd.Flags().SetInterspersed(false)
 	return cmd
 }

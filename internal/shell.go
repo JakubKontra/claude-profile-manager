@@ -10,19 +10,17 @@ import (
 // GenerateUseOutput outputs shell commands to be eval'd by the user's shell.
 // Usage: eval "$(cpm use <profile>)"
 func GenerateUseOutput(name string, profileDir string, profile *Profile) string {
+	spec := BuildLaunchSpec(name, profileDir, profile)
 	var b strings.Builder
 
 	// Unset CLAUDE_*/ANTHROPIC_* vars
 	b.WriteString("unset $(env | grep -E '^(CLAUDE_|ANTHROPIC_)' | cut -d= -f1) 2>/dev/null;\n")
 
-	fmt.Fprintf(&b, "export CLAUDE_CONFIG_DIR=\"%s\";\n", profileDir)
-	fmt.Fprintf(&b, "export CLAUDE_PROFILE=\"%s\";\n", name)
-
-	for _, k := range sortedEnvKeys(profile.Env) {
-		fmt.Fprintf(&b, "export %s=\"%s\";\n", k, profile.Env[k])
+	for _, v := range spec.Env {
+		fmt.Fprintf(&b, "export %s=%s;\n", v.Key, ShellQuote(v.Value))
 	}
 
-	fmt.Fprintf(&b, "echo \"Switched to profile: %s\";\n", name)
+	fmt.Fprintf(&b, "echo %s;\n", ShellQuote("Switched to profile: "+name))
 
 	return b.String()
 }

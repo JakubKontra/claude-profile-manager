@@ -219,7 +219,7 @@ func TestUseAutoAndDirenv(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(snippet, `CLAUDE_PROFILE="work"`) {
+	if !strings.Contains(snippet, `CLAUDE_PROFILE='work'`) {
 		t.Errorf("auto should resolve to work: %q", snippet)
 	}
 	if _, err := Use(env.load(t), env.profilesBase(), "auto", t.TempDir()); err == nil {
@@ -230,7 +230,7 @@ func TestUseAutoAndDirenv(t *testing.T) {
 	}
 
 	out, err := Direnv(env.load(t), env.profilesBase(), "personal")
-	if err != nil || !strings.Contains(out, `CLAUDE_PROFILE="personal"`) {
+	if err != nil || !strings.Contains(out, `CLAUDE_PROFILE='personal'`) {
 		t.Errorf("direnv: %v %q", err, out)
 	}
 }

@@ -18,9 +18,9 @@ func TestGenerateUseOutput(t *testing.T) {
 	out := GenerateUseOutput("test", "/profiles/test", profile)
 
 	mustContain := []string{
-		`CLAUDE_CONFIG_DIR="/profiles/test"`,
-		`CLAUDE_PROFILE="test"`,
-		`CUSTOM_VAR="value"`,
+		`CLAUDE_CONFIG_DIR='/profiles/test'`,
+		`CLAUDE_PROFILE='test'`,
+		`CUSTOM_VAR='value'`,
 		"Switched to profile: test",
 	}
 

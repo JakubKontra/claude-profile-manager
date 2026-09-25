@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 )
 
 // ExecSpec is a fully resolved command for the caller to exec.
@@ -21,17 +20,9 @@ func BuildRunExec(cfg *Config, profilesBase, name string, userArgs []string) (Ex
 	if err != nil {
 		return ExecSpec{}, err
 	}
-	profileDir := filepath.Join(profilesBase, name)
+	spec := BuildLaunchSpec(name, filepath.Join(profilesBase, name), profile)
 
-	env := profileEnviron(os.Environ(), name, profileDir, profile)
-
-	argv := []string{"claude"}
-	for _, d := range profile.AddDirs {
-		argv = append(argv, "--add-dir", ExpandPath(d))
-	}
-	if profile.Model != "" && !hasModelArg(userArgs) {
-		argv = append(argv, "--model", profile.Model)
-	}
+	argv := append([]string{"claude"}, spec.ClaudeArgs(userArgs)...)
 	argv = append(argv, userArgs...)
 
 	claudePath, err := exec.LookPath("claude")
@@ -39,34 +30,24 @@ func BuildRunExec(cfg *Config, profilesBase, name string, userArgs []string) (Ex
 		return ExecSpec{}, fmt.Errorf("claude not found on PATH")
 	}
 
-	return ExecSpec{Path: claudePath, Argv: argv, Env: env}, nil
+	return ExecSpec{Path: claudePath, Argv: argv, Env: spec.Environ(os.Environ())}, nil
 }
 
-// profileEnviron returns base with every CLAUDE_*/ANTHROPIC_* variable removed
-// and the profile's variables appended.
-func profileEnviron(base []string, name, profileDir string, profile *Profile) []string {
-	filtered := make([]string, 0, len(base)+2+len(profile.Env))
-	for _, e := range base {
-		if strings.HasPrefix(e, "CLAUDE_") || strings.HasPrefix(e, "ANTHROPIC_") {
-			continue
-		}
-		filtered = append(filtered, e)
+// BuildExecExec resolves `cpm exec <profile> -- <command...>`: any command
+// run with the profile's environment.
+func BuildExecExec(cfg *Config, profilesBase, name string, argv []string) (ExecSpec, error) {
+	if len(argv) == 0 {
+		return ExecSpec{}, fmt.Errorf("no command given (usage: cpm exec <profile> -- <command...>)")
 	}
-	filtered = append(filtered,
-		"CLAUDE_CONFIG_DIR="+profileDir,
-		"CLAUDE_PROFILE="+name,
-	)
-	for _, k := range sortedEnvKeys(profile.Env) {
-		filtered = append(filtered, k+"="+profile.Env[k])
+	profile, err := lookupProfile(cfg, name)
+	if err != nil {
+		return ExecSpec{}, err
 	}
-	return filtered
-}
+	spec := BuildLaunchSpec(name, filepath.Join(profilesBase, name), profile)
 
-func hasModelArg(args []string) bool {
-	for _, a := range args {
-		if a == "--model" || strings.HasPrefix(a, "--model=") {
-			return true
-		}
+	path, err := exec.LookPath(argv[0])
+	if err != nil {
+		return ExecSpec{}, fmt.Errorf("%s not found on PATH", argv[0])
 	}
-	return false
+	return ExecSpec{Path: path, Argv: argv, Env: spec.Environ(os.Environ())}, nil
 }

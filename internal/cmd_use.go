@@ -30,8 +30,9 @@ func Use(cfg *Config, profilesBase, name, cwd string) (string, error) {
 
 // Direnv returns the .envrc snippet for a profile.
 func Direnv(cfg *Config, profilesBase, name string) (string, error) {
-	if _, err := lookupProfile(cfg, name); err != nil {
+	profile, err := lookupProfile(cfg, name)
+	if err != nil {
 		return "", err
 	}
-	return GenerateDirenvSnippet(name, filepath.Join(profilesBase, name)), nil
+	return GenerateDirenvSnippet(name, filepath.Join(profilesBase, name), profile), nil
 }
