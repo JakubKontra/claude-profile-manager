@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -15,6 +16,13 @@ func SetOutput(w io.Writer) io.Writer {
 	prev := stdout
 	stdout = w
 	return prev
+}
+
+// PrintJSON writes v as indented JSON to the output writer.
+func PrintJSON(v any) error {
+	enc := json.NewEncoder(stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(v)
 }
 
 func outf(format string, a ...any) { fmt.Fprintf(stdout, format, a...) }

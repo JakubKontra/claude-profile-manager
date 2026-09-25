@@ -9,9 +9,9 @@ import (
 )
 
 type Check struct {
-	Name   string
-	Status string // "ok", "warn", "error"
-	Detail string
+	Name   string `json:"name"`
+	Status string `json:"status"` // "ok", "warn", "error"
+	Detail string `json:"detail"`
 }
 
 func RunDoctor(cfg *Config, profilesBase string) []Check {

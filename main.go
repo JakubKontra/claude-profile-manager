@@ -94,7 +94,8 @@ func installCmd() *cobra.Command {
 }
 
 func listCmd() *cobra.Command {
-	return &cobra.Command{
+	var asJSON bool
+	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List all configured profiles",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -102,10 +103,16 @@ func listCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			internal.RenderProfileList(internal.ListProfiles(cfg, base))
+			entries := internal.ListProfiles(cfg, base)
+			if asJSON {
+				return internal.PrintJSON(entries)
+			}
+			internal.RenderProfileList(entries)
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&asJSON, "json", false, "output as JSON")
+	return cmd
 }
 
 func statusCmd() *cobra.Command {
@@ -169,7 +176,8 @@ func useCmd() *cobra.Command {
 }
 
 func whichCmd() *cobra.Command {
-	return &cobra.Command{
+	var asJSON bool
+	cmd := &cobra.Command{
 		Use:   "which",
 		Short: "Show the currently active profile",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -177,10 +185,16 @@ func whichCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			internal.RenderWhich(internal.Which(dir))
+			result := internal.Which(dir)
+			if asJSON {
+				return internal.PrintJSON(result)
+			}
+			internal.RenderWhich(result)
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&asJSON, "json", false, "output as JSON")
+	return cmd
 }
 
 func initCmd() *cobra.Command {
@@ -194,7 +208,8 @@ func initCmd() *cobra.Command {
 }
 
 func doctorCmd() *cobra.Command {
-	return &cobra.Command{
+	var asJSON bool
+	cmd := &cobra.Command{
 		Use:   "doctor",
 		Short: "Diagnose issues with profiles and configuration",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -203,13 +218,21 @@ func doctorCmd() *cobra.Command {
 				return err
 			}
 			report := internal.DoctorReportFor(cfg, base)
-			internal.RenderDoctorReport(report)
+			if asJSON {
+				if err := internal.PrintJSON(report); err != nil {
+					return err
+				}
+			} else {
+				internal.RenderDoctorReport(report)
+			}
 			if !report.OK {
 				return internal.ErrDoctorFailed
 			}
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&asJSON, "json", false, "output as JSON")
+	return cmd
 }
 
 func runCmd() *cobra.Command {
@@ -357,7 +380,8 @@ func promptCmd() *cobra.Command {
 }
 
 func credentialsCmd() *cobra.Command {
-	return &cobra.Command{
+	var asJSON bool
+	cmd := &cobra.Command{
 		Use:   "credentials",
 		Short: "Show credential status for all profiles",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -365,10 +389,16 @@ func credentialsCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			internal.RenderCredentialReport(internal.CredentialReport(cfg, base))
+			entries := internal.CredentialReport(cfg, base)
+			if asJSON {
+				return internal.PrintJSON(entries)
+			}
+			internal.RenderCredentialReport(entries)
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&asJSON, "json", false, "output as JSON")
+	return cmd
 }
 
 func hookCmd() *cobra.Command {
