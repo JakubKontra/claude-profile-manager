@@ -46,6 +46,11 @@ func CloneProfile(sourceName, targetName, configPath string, cfg *Config) error 
 		if err := copyFile(src, dst); err != nil {
 			return fmt.Errorf("cannot copy %s: %w", filename, err)
 		}
+		if base := baselinePath(srcDir, filename); fileExistsAt(base) {
+			if err := copyFile(base, baselinePath(dstDir, filename)); err != nil {
+				return fmt.Errorf("cannot copy baseline for %s: %w", filename, err)
+			}
+		}
 		outf("  copied %s\n", filename)
 	}
 

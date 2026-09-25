@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -101,5 +102,39 @@ effortLevel = "high"
 	mustWrite(t, filepath.Join(env.profilesBase(), "work", "settings.json"), `{"model": "opus", "effortLevel": "high", "local": 1}`)
 	if d := CheckDivergence(env.load(t), env.profilesBase()); len(d) != 1 {
 		t.Errorf("real local change not detected: %v", d)
+	}
+}
+
+func TestCheckDivergenceUsesBaseline(t *testing.T) {
+	env := newTestEnv(t, "[profiles.work]\n")
+	mustWrite(t, filepath.Join(env.SourceDir, "settings.json"), "{\n  \"v\": 1\n}\n")
+	captureOutput(t)
+	if err := InstallProfiles(env.load(t), env.ConfigPath, InstallOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if !fileExists(filepath.Join(env.profilesBase(), "work", ".cpm", "baseline", "settings.json")) {
+		t.Fatal("baseline not recorded")
+	}
+
+	// Upstream changes, profile untouched: not diverged, sync overwrites.
+	mustWrite(t, filepath.Join(env.SourceDir, "settings.json"), "{\n  \"v\": 2\n}\n")
+	if d := CheckDivergence(env.load(t), env.profilesBase()); len(d) != 0 {
+		t.Errorf("upstream change must not count as local divergence: %v", d)
+	}
+	if err := InstallProfiles(env.load(t), env.ConfigPath, InstallOptions{Sync: true}); err != nil {
+		t.Fatalf("sync should succeed: %v", err)
+	}
+	data, _ := os.ReadFile(filepath.Join(env.profilesBase(), "work", "settings.json"))
+	if string(data) != "{\n  \"v\": 2\n}\n" {
+		t.Errorf("profile not synced: %q", data)
+	}
+
+	// Local edit: diverged, sync refuses without --force.
+	mustWrite(t, filepath.Join(env.profilesBase(), "work", "settings.json"), "{\n  \"v\": 2,\n  \"mine\": true\n}\n")
+	if d := CheckDivergence(env.load(t), env.profilesBase()); len(d) != 1 {
+		t.Errorf("local edit not detected: %v", d)
+	}
+	if err := InstallProfiles(env.load(t), env.ConfigPath, InstallOptions{Sync: true}); err == nil {
+		t.Error("sync must refuse to overwrite local edits")
 	}
 }

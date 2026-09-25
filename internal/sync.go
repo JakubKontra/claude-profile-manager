@@ -236,60 +236,63 @@ func CheckDivergence(cfg *Config, profilesBase string) []DivergedFile {
 	for _, name := range SortedProfileNames(cfg) {
 		profile := cfg.Profiles[name]
 		profileDir := filepath.Join(profilesBase, name)
+		overrides := EffectiveSettingsOverrides(profile)
 
 		for _, filename := range copyFiles {
-			src := filepath.Join(cfg.SourceDir, filename)
-			dst := filepath.Join(profileDir, filename)
-
-			srcData, err := os.ReadFile(src)
-			if err != nil {
-				continue
-			}
-			dstData, err := os.ReadFile(dst)
+			dstData, err := os.ReadFile(filepath.Join(profileDir, filename))
 			if err != nil {
 				continue
 			}
 
-			// For settings.json, apply the profile's overrides before comparing
-			expectedData := srcData
-			if filename == "settings.json" {
-				if overrides := EffectiveSettingsOverrides(profile); len(overrides) > 0 {
-					expectedData, _ = applySettingsToSource(srcData, overrides)
+			var hasLocalChanges bool
+			if baseData, err := os.ReadFile(baselinePath(profileDir, filename)); err == nil {
+				// Three-way: the file diverged only if it differs from what
+				// cpm wrote (baseline plus overrides), regardless of what the
+				// source looks like now.
+				expected := baseData
+				if filename == "settings.json" && len(overrides) > 0 {
+					expected, _ = applySettingsToSource(baseData, overrides)
 				}
+				hasLocalChanges = string(expected) != string(dstData)
+			} else {
+				// No baseline (profile installed by an older cpm): fall back
+				// to comparing against the current source.
+				srcData, err := os.ReadFile(filepath.Join(cfg.SourceDir, filename))
+				if err != nil {
+					continue
+				}
+				expected := srcData
+				if filename == "settings.json" && len(overrides) > 0 {
+					expected, _ = applySettingsToSource(srcData, overrides)
+				}
+				hasLocalChanges = string(expected) != string(dstData) && hasLinesNotIn(dstData, expected)
 			}
 
-			if string(expectedData) != string(dstData) {
-				// Check if profile has additions not in source
-				srcLines := strings.Split(string(expectedData), "\n")
-				dstLines := strings.Split(string(dstData), "\n")
-
-				hasAdditions := false
-				for _, dl := range dstLines {
-					found := false
-					for _, sl := range srcLines {
-						if dl == sl {
-							found = true
-							break
-						}
-					}
-					if !found && strings.TrimSpace(dl) != "" {
-						hasAdditions = true
-						break
-					}
-				}
-
-				if hasAdditions {
-					diverged = append(diverged, DivergedFile{
-						Profile:  name,
-						Filename: filename,
-						Details:  fmt.Sprintf("Profile '%s' — %s has local changes", name, filename),
-					})
-				}
+			if hasLocalChanges {
+				diverged = append(diverged, DivergedFile{
+					Profile:  name,
+					Filename: filename,
+					Details:  fmt.Sprintf("Profile '%s' — %s has local changes", name, filename),
+				})
 			}
 		}
 	}
 
 	return diverged
+}
+
+// hasLinesNotIn reports whether data has non-blank lines absent from ref.
+func hasLinesNotIn(data, ref []byte) bool {
+	refLines := map[string]bool{}
+	for _, l := range strings.Split(string(ref), "\n") {
+		refLines[l] = true
+	}
+	for _, l := range strings.Split(string(data), "\n") {
+		if strings.TrimSpace(l) != "" && !refLines[l] {
+			return true
+		}
+	}
+	return false
 }
 
 // applySettingsToSource returns data with overrides merged in and whether

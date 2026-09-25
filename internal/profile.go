@@ -74,6 +74,9 @@ func SetupProfile(name string, profileDir, sourceDir string, shareDirs []string,
 		if err := copyFile(src, dst); err != nil {
 			return fmt.Errorf("cannot copy %s: %w", filename, err)
 		}
+		if err := copyFile(src, baselinePath(profileDir, filename)); err != nil {
+			return fmt.Errorf("cannot record baseline for %s: %w", filename, err)
+		}
 		action := "copied"
 		if forceSync {
 			action = "synced"
@@ -141,6 +144,12 @@ func SetupProfile(name string, profileDir, sourceDir string, shareDirs []string,
 	}
 
 	return nil
+}
+
+// baselinePath is where cpm keeps the source version a profile file was
+// copied from, so local edits can be told apart from upstream changes.
+func baselinePath(profileDir, filename string) string {
+	return filepath.Join(profileDir, ".cpm", "baseline", filename)
 }
 
 // resolveLinkTarget returns the absolute path a symlink at link points to;
