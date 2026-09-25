@@ -31,6 +31,10 @@ var keychainLookup = defaultKeychainLookup
 // keychainDelete removes a Keychain entry. Replaced in tests.
 var keychainDelete = defaultKeychainDelete
 
+// keychainRead returns the token blob. Only used with 'doctor --verify',
+// because reading the secret may trigger a macOS access prompt.
+var keychainRead = defaultKeychainRead
+
 // CredentialStatus describes where a profile's login lives and which account
 // it belongs to.
 type CredentialStatus struct {
@@ -153,6 +157,18 @@ func defaultKeychainLookup(service, account string) bool {
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 	return cmd.Run() == nil
+}
+
+// defaultKeychainRead reads the password field (-w) of the entry.
+func defaultKeychainRead(service, account string) ([]byte, error) {
+	if runtime.GOOS != "darwin" {
+		return nil, fmt.Errorf("keychain is only available on macOS")
+	}
+	out, err := exec.Command("security", "find-generic-password", "-a", account, "-s", service, "-w").Output()
+	if err != nil {
+		return nil, err
+	}
+	return []byte(strings.TrimSpace(string(out))), nil
 }
 
 // defaultKeychainDelete removes the entry; a missing entry is not an error.

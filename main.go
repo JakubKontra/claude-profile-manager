@@ -209,6 +209,7 @@ func initCmd() *cobra.Command {
 
 func doctorCmd() *cobra.Command {
 	var asJSON bool
+	var opts internal.DoctorOptions
 	cmd := &cobra.Command{
 		Use:   "doctor",
 		Short: "Diagnose issues with profiles and configuration",
@@ -217,7 +218,7 @@ func doctorCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			report := internal.DoctorReportFor(cfg, base)
+			report := internal.DoctorReportFor(cfg, base, opts)
 			if asJSON {
 				if err := internal.PrintJSON(report); err != nil {
 					return err
@@ -232,6 +233,7 @@ func doctorCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "output as JSON")
+	cmd.Flags().BoolVar(&opts.Verify, "verify", false, "read Keychain tokens to check expiry (macOS, may prompt)")
 	return cmd
 }
 

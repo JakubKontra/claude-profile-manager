@@ -156,7 +156,7 @@ func TestDoctorReportCountsAndExitCondition(t *testing.T) {
 	cfg.SourceDir = filepath.Join(env.Root, "missing") // forces an error check
 	stubKeychain(t, false)
 
-	report := DoctorReportFor(cfg, env.profilesBase())
+	report := DoctorReportFor(cfg, env.profilesBase(), DoctorOptions{})
 	if report.OK || report.Errors == 0 {
 		t.Errorf("expected failing report, got %+v", report)
 	}

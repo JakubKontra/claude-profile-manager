@@ -15,8 +15,8 @@ type DoctorReport struct {
 }
 
 // DoctorReportFor runs all checks and summarizes them.
-func DoctorReportFor(cfg *Config, profilesBase string) DoctorReport {
-	checks := RunDoctor(cfg, profilesBase)
+func DoctorReportFor(cfg *Config, profilesBase string, opts DoctorOptions) DoctorReport {
+	checks := RunDoctorWithOptions(cfg, profilesBase, opts)
 	report := DoctorReport{Checks: checks}
 	for _, c := range checks {
 		switch c.Status {

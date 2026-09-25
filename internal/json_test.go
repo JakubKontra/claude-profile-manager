@@ -56,7 +56,7 @@ func TestJSONShapes(t *testing.T) {
 	}
 
 	buf.Reset()
-	if err := PrintJSON(DoctorReportFor(env.load(t), env.profilesBase())); err != nil {
+	if err := PrintJSON(DoctorReportFor(env.load(t), env.profilesBase(), DoctorOptions{})); err != nil {
 		t.Fatal(err)
 	}
 	var doctor map[string]any
