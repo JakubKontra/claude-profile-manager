@@ -64,10 +64,13 @@ Each profile gets an isolated `CLAUDE_CONFIG_DIR` with its own credentials, whil
 │   ├── plugins/  -> ~/.claude/plugins/    # Symlinked
 │   ├── projects/ -> ~/.claude/projects/   # Symlinked
 │   ├── .credentials.json    # Per-profile (Linux/CI — on macOS the token lives in the Keychain)
-│   └── .claude.json         # Per-profile (created by Claude)
+│   ├── .claude.json         # Per-profile (seeded by cpm, maintained by Claude)
+│   └── .cpm/baseline/       # What cpm copied, to tell local edits from upstream changes
 └── work/
     └── ...
 ```
+
+Which directories are shared is configurable (`share` / `isolate`, see below). Everything else Claude writes into the profile — `plans/`, `history.jsonl`, `file-history/`, `shell-snapshots/`, `tasks/`, `teams/`, `sessions/` — stays per profile.
 
 ## Credentials
 
@@ -77,7 +80,7 @@ Where the OAuth token ends up depends on the platform:
   `Claude Code-credentials-<first 8 hex of sha256(configDir)>`. The default `~/.claude` login uses the bare `Claude Code-credentials`, so profiles never overwrite each other or your default session. No `.credentials.json` is written.
 - **Linux / CI** — in `<profile>/.credentials.json`.
 
-`cpm doctor` and `cpm credentials` check both, and report which one a profile is using.
+`cpm doctor` and `cpm credentials` check both, and report which one a profile is using. On Linux the file also tells expiry and subscription type; on macOS `cpm doctor --verify` reads the Keychain token to report the same (this may trigger an access prompt).
 
 Switching a profile to a different account always goes through its wrapper, so only that profile's entry is touched:
 
@@ -139,7 +142,14 @@ cpm install
 # 4. Authenticate each profile (first time only)
 claude-personal    # Opens browser for OAuth
 claude-work        # Opens browser for OAuth
+
+# Later: add or remove profiles without touching the TOML by hand
+cpm add client -d "Client X" -m opus --add-dir ~/Work/client -e CLAUDE_CODE_USE_VERTEX=1
+cpm remove client --purge     # also deletes its directory, credentials and Keychain entry
+cpm edit                      # open config.toml in $EDITOR
 ```
+
+New profiles skip Claude's onboarding wizard and get your MCP servers right away: `cpm install` seeds `.claude.json` from `~/.claude.json` (theme, onboarding flags — never your account or project state).
 
 ## Per-project profiles (like .nvmrc)
 
@@ -179,26 +189,32 @@ The `.claude-profile` file is automatically added to `.gitignore`.
 | Command | Description |
 |---------|-------------|
 | `cpm install` | Create profile directories and wrapper scripts |
-| `cpm install --sync` | Re-sync mutable files from `~/.claude` |
+| `cpm install --sync` | Re-sync mutable files from `~/.claude` (refuses to overwrite local edits) |
 | `cpm install --sync --force` | Force overwrite diverged files |
-| `cpm list` | List all profiles with status |
-| `cpm which` | Show active profile (from env or `.claude-profile`) |
+| `cpm add <name> [-d desc] [-m model] [--add-dir dir] [-e K=V] [--no-install]` | Add a profile to `config.toml` and install it |
+| `cpm remove <name> [--purge] [--yes]` | Remove a profile; `--purge` deletes its directory, credentials and Keychain entry |
+| `cpm edit` | Open `config.toml` in `$VISUAL` / `$EDITOR` |
+| `cpm list [--json]` | List all profiles with status |
+| `cpm which [--json]` | Show active profile (from env or `.claude-profile`) |
 | `cpm status` | Check sync divergence |
-| `cpm doctor` | Diagnose issues (broken symlinks, expired creds, ...) |
-| `cpm credentials` | Show OAuth token status for all profiles |
-| `cpm use <profile>` | Switch shell: `eval "$(cpm use work)"` |
+| `cpm doctor [--json] [--verify]` | Diagnose issues; exit code 1 on errors |
+| `cpm credentials [--json]` | Show account, expiry and subscription for all profiles |
+| `cpm use <profile\|auto> [--shell fish] [--quiet]` | Switch shell: `eval "$(cpm use work)"`; no argument shows a picker |
 | `cpm run <profile> [args]` | One-shot: `cpm run work -p "explain this"` |
+| `cpm exec <profile> -- <cmd>` | Run any command with the profile's environment |
 | `cpm link <profile>` | Create `.claude-profile` in current dir |
 | `cpm unlink` | Remove `.claude-profile` |
-| `cpm hook` | Print shell hook for auto-switch |
+| `cpm hook [--shell fish] [--default <profile>]` | Print shell hook for auto-switch |
 | `cpm direnv <profile>` | Print `.envrc` snippet |
-| `cpm clone <src> <dst>` | Clone profile (without credentials) |
+| `cpm clone <src> <dst>` | Clone profile (without credentials) and register it in config |
 | `cpm init` | Interactive config wizard |
+| `cpm completion <shell>` | Shell completions (bash, zsh, fish, powershell) |
 | `cpm version` | Show version + check for updates |
-| `cpm upgrade` | Self-update from GitHub Releases |
+| `cpm upgrade` | Self-update from GitHub Releases (checksum-verified; Homebrew installs use `brew upgrade`) |
 | `cpm cloud init [--remote <url>]` | Initialize cloud sync repo |
-| `cpm cloud push [-m "msg"]` | Push local settings to cloud |
-| `cpm cloud pull [--dry-run]` | Pull settings from cloud |
+| `cpm cloud push [-m "msg"] [--dry-run] [--allow-secrets]` | Push local settings to cloud |
+| `cpm cloud pull [--dry-run]` | Pull settings from cloud and re-sync profiles |
+| `cpm cloud diff` | Show local changes since the last sync |
 | `cpm cloud status` | Show cloud sync status |
 | `cpm cloud remote <url>` | Set/update git remote URL |
 
@@ -224,20 +240,25 @@ cpm cloud pull   # on the other machine
 
 | Synced | Not synced |
 |--------|------------|
-| `settings.json`, `settings.local.json` | Credentials (`.credentials.json`) |
-| `CLAUDE.md` | Sessions, caches |
-| `commands/`, `agents/` | `projects/` (cache, ~2 GB) |
+| `settings.json` | Credentials (`.credentials.json`, Keychain) |
+| `CLAUDE.md` | `settings.local.json` (machine-specific; opt in with `include`) |
+| `commands/`, `agents/`, `skills/` | Sessions, caches, `projects/` |
 | `plugins/installed_plugins.json` | Telemetry |
 | `plugins/known_marketplaces.json` | |
-| `.skill-lock.json` | |
-| CPM `config.toml` | |
+| `~/.agents/.skill-lock.json` (as `skills/skill-lock.json`) | |
+| CPM `config.toml` (profiles are merged, never overwritten) | |
 
-### Exclude files from sync
+Before pushing, cpm scans the `env` block of every synced `settings*.json` for values that look like API keys or tokens and refuses to push them. Keep secrets in the profile's `env` in `config.toml` (which is synced as plain text too — use a private repo) or pass `--allow-secrets`.
+
+### Tune what gets synced
 
 ```toml
 [cloud]
 remote = "git@github.com:you/claude-settings.git"
-exclude = ["CLAUDE.md", "commands/"]
+exclude = ["CLAUDE.md", "commands/"]     # drop from the sync set
+include = ["settings.local.json"]        # add files relative to ~/.claude
+auto_push = true                         # push after every `cpm install`
+auto_pull_on_install = true              # pull before every `cpm install`
 ```
 
 ## Configuration
@@ -255,10 +276,20 @@ description = "Personal Anthropic account"
 description = "Company team subscription"
 model = "sonnet"
 add_dirs = ["~/Work/company"]
+isolate = ["projects"]             # keep work session history separate from personal
+mcp_exclude = ["personal-notion"]  # global MCP server this profile must not see
 
 [profiles.work.attribution]
 commit = "Co-Authored-By: Claude <noreply@anthropic.com>"
 pr = "Generated with [Claude Code](https://claude.ai/code)"
+
+[profiles.work.settings]           # deep-merged into the profile's settings.json
+effortLevel = "high"
+permissions.allow = ["Bash(gh *)"]
+
+[profiles.work.mcp_servers.jira]   # profile-specific MCP server
+command = "npx"
+args = ["-y", "@example/jira-mcp"]
 
 [profiles.vertex]
 description = "Company via Vertex AI"
@@ -282,17 +313,28 @@ CLOUD_ML_REGION = "europe-west1"
 | `profiles.<name>.env` | | Environment variables |
 | `profiles.<name>.attribution.commit` | | Git commit attribution text |
 | `profiles.<name>.attribution.pr` | | PR description attribution text |
+| `profiles.<name>.settings` | | Table deep-merged into the profile's `settings.json` (maps merge, other values replace) |
+| `profiles.<name>.share` | inherits | Directories symlinked from `source_dir` (replaces the global list) |
+| `profiles.<name>.isolate` | `[]` | Directories removed from the share list for this profile |
+| `profiles.<name>.mcp_exclude` | `[]` | Global MCP servers this profile does not get |
+| `profiles.<name>.mcp_servers.<id>` | | Profile-specific MCP server (same keys as in `~/.claude.json`) |
+| `share` | `["commands", "skills", "agents", "plugins", "projects"]` | Default shared directories |
 | `cloud.remote` | | Git remote URL for cloud sync |
-| `cloud.auto_push` | `false` | Auto-push on `cpm install` |
+| `cloud.auto_push` | `false` | Push after `cpm install` |
+| `cloud.auto_pull_on_install` | `false` | Pull before `cpm install` |
 | `cloud.exclude` | `[]` | Files/dirs to exclude from sync |
+| `cloud.include` | `[]` | Extra files (relative to `source_dir`) to sync |
+| `cloud.allow_secrets` | `false` | Skip the API-key check before pushing |
+
+Profile names may contain letters, digits, `-` and `_` only.
 
 ### Shared file handling
 
 | Type | Files | Behavior |
 |------|-------|----------|
-| **Copied** | `settings.json`, `settings.local.json`, `CLAUDE.md` | Copied on first install. `--sync` to refresh. |
-| **Symlinked** | `commands/`, `skills/`, `agents/`, `plugins/`, `projects/` | Shared across all profiles |
-| **Per-profile** | `.credentials.json`, `.claude.json`, `teams/` | Created by Claude on first use |
+| **Copied** | `settings.json`, `settings.local.json`, `CLAUDE.md` | Copied on first install. `--sync` refreshes files you have not edited locally; `--force` overwrites the rest. |
+| **Symlinked** | `commands/`, `skills/`, `agents/`, `plugins/`, `projects/` (configurable via `share` / `isolate`) | Shared across profiles |
+| **Per-profile** | `.credentials.json`, `.claude.json`, `plans/`, `history.jsonl`, `teams/`, ... | Created by Claude on first use |
 
 ## Shell integration
 
@@ -312,12 +354,50 @@ format = "[$output]($style) "
 style = "purple"
 ```
 
+### Auto-switch hook
+
+```bash
+# .zshrc / .bashrc
+eval "$(cpm hook)"
+eval "$(cpm hook --default personal)"   # use "personal" outside linked projects
+
+# fish (~/.config/fish/config.fish)
+cpm hook --shell fish | source
+```
+
+The hook only unsets the variables it set itself (tracked in `CPM_MANAGED_VARS`), so your own `CLAUDE_*` / `ANTHROPIC_*` variables survive a `cd`. In bash it runs from `PROMPT_COMMAND`, so `pushd`/`popd` and scripts are covered too.
+
+### Manual switching
+
+```bash
+eval "$(cpm use work)"            # bash / zsh
+eval "$(cpm use auto)"            # from the nearest .claude-profile
+eval "$(cpm use)"                 # interactive picker
+cpm use --shell fish work | source
+```
+
+### Completions
+
+```bash
+cpm completion zsh > "${fpath[1]}/_cpm"      # zsh
+cpm completion bash > /etc/bash_completion.d/cpm
+cpm completion fish > ~/.config/fish/completions/cpm.fish
+```
+
 ### direnv
 
 ```bash
 # Generate .envrc for a project
 cpm direnv work >> ~/Work/company-project/.envrc
 direnv allow ~/Work/company-project
+```
+
+### Scripts and CI
+
+```bash
+cpm exec work -- git commit -m "..."     # any command with the profile's env
+cpm list --json | jq -r '.[] | select(.current) .name'
+cpm doctor --json && echo healthy       # exit code 1 on errors
 ```
 
 ## Upgrading
