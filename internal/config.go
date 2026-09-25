@@ -27,6 +27,10 @@ type Profile struct {
 	// MCPServers are profile-specific servers ([profiles.x.mcp_servers.<name>]);
 	// they win over a same-named global server.
 	MCPServers map[string]map[string]any `toml:"mcp_servers,omitempty"`
+
+	// Settings are deep-merged into the profile's settings.json
+	// ([profiles.x.settings]); maps merge, everything else is replaced.
+	Settings map[string]any `toml:"settings,omitempty"`
 }
 
 type CloudConfig struct {

@@ -50,8 +50,8 @@ func InstallProfiles(cfg *Config, configPath string, opts InstallOptions) error 
 		if err := SetupProfile(name, profileDir, cfg.SourceDir, opts.Sync); err != nil {
 			return fmt.Errorf("profile %s: %w", name, err)
 		}
-		if err := PatchAttribution(profileDir, profile.Attribution); err != nil {
-			return fmt.Errorf("profile %s attribution: %w", name, err)
+		if err := PatchSettings(profileDir, EffectiveSettingsOverrides(profile)); err != nil {
+			return fmt.Errorf("profile %s settings: %w", name, err)
 		}
 		if _, err := SeedClaudeJSON(profileDir, claudeJSONPath); err != nil {
 			return fmt.Errorf("profile %s seed: %w", name, err)

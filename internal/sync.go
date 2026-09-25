@@ -131,8 +131,78 @@ func SyncMCPServers(profileDir string, p *Profile, sourcePath string) error {
 	return nil
 }
 
+// attributionMap renders the attribution block for settings.json.
+func attributionMap(attr *Attribution) map[string]any {
+	m := map[string]any{}
+	if attr.Commit != "" {
+		m["commit"] = attr.Commit
+	}
+	if attr.PR != "" {
+		m["pr"] = attr.PR
+	}
+	return m
+}
+
+// EffectiveSettingsOverrides is what a profile layers onto settings.json:
+// its [profiles.x.settings] plus attribution, which wins on conflict.
+func EffectiveSettingsOverrides(p *Profile) map[string]any {
+	if p == nil {
+		return nil
+	}
+	overrides := deepCopyMap(p.Settings)
+	if p.Attribution != nil {
+		if overrides == nil {
+			overrides = map[string]any{}
+		}
+		overrides["attribution"] = attributionMap(p.Attribution)
+	}
+	return overrides
+}
+
+// deepMerge merges src into dst: nested maps merge recursively, every other
+// value (including arrays) replaces the destination. dst may be nil.
+func deepMerge(dst, src map[string]any) map[string]any {
+	if dst == nil {
+		dst = map[string]any{}
+	}
+	for k, v := range src {
+		srcMap, srcIsMap := v.(map[string]any)
+		dstMap, dstIsMap := dst[k].(map[string]any)
+		if srcIsMap && dstIsMap {
+			dst[k] = deepMerge(dstMap, srcMap)
+			continue
+		}
+		dst[k] = v
+	}
+	return dst
+}
+
+func deepCopyMap(m map[string]any) map[string]any {
+	if m == nil {
+		return nil
+	}
+	out := make(map[string]any, len(m))
+	for k, v := range m {
+		if sub, ok := v.(map[string]any); ok {
+			out[k] = deepCopyMap(sub)
+			continue
+		}
+		out[k] = v
+	}
+	return out
+}
+
+// PatchAttribution keeps the old entry point; attribution is one override.
 func PatchAttribution(profileDir string, attr *Attribution) error {
 	if attr == nil {
+		return nil
+	}
+	return PatchSettings(profileDir, map[string]any{"attribution": attributionMap(attr)})
+}
+
+// PatchSettings deep-merges overrides into the profile's settings.json.
+func PatchSettings(profileDir string, overrides map[string]any) error {
+	if len(overrides) == 0 {
 		return nil
 	}
 
@@ -142,38 +212,15 @@ func PatchAttribution(profileDir string, attr *Attribution) error {
 		return nil
 	}
 
-	var settings map[string]any
-	if err := json.Unmarshal(data, &settings); err != nil {
+	merged, changed := applySettingsToSource(data, overrides)
+	if !changed {
 		return nil
 	}
-
-	attrMap := map[string]string{}
-	if attr.Commit != "" {
-		attrMap["commit"] = attr.Commit
-	}
-	if attr.PR != "" {
-		attrMap["pr"] = attr.PR
-	}
-
-	// Check if already matches
-	existingJSON, _ := json.Marshal(settings["attribution"])
-	newJSON, _ := json.Marshal(attrMap)
-	if string(existingJSON) == string(newJSON) {
-		return nil
-	}
-
-	settings["attribution"] = attrMap
-
-	out, err := json.MarshalIndent(settings, "", "  ")
-	if err != nil {
+	if err := os.WriteFile(settingsPath, merged, 0o644); err != nil {
 		return err
 	}
 
-	if err := os.WriteFile(settingsPath, append(out, '\n'), 0o644); err != nil {
-		return err
-	}
-
-	outln("  patched attribution in settings.json")
+	outln("  patched settings.json")
 	return nil
 }
 
@@ -203,10 +250,12 @@ func CheckDivergence(cfg *Config, profilesBase string) []DivergedFile {
 				continue
 			}
 
-			// For settings.json, apply attribution patch before comparing
+			// For settings.json, apply the profile's overrides before comparing
 			expectedData := srcData
-			if filename == "settings.json" && profile.Attribution != nil {
-				expectedData = applyAttributionToSource(srcData, profile.Attribution)
+			if filename == "settings.json" {
+				if overrides := EffectiveSettingsOverrides(profile); len(overrides) > 0 {
+					expectedData, _ = applySettingsToSource(srcData, overrides)
+				}
 			}
 
 			if string(expectedData) != string(dstData) {
@@ -243,26 +292,26 @@ func CheckDivergence(cfg *Config, profilesBase string) []DivergedFile {
 	return diverged
 }
 
-func applyAttributionToSource(data []byte, attr *Attribution) []byte {
+// applySettingsToSource returns data with overrides merged in and whether
+// that changed anything. Unparseable input is returned unchanged.
+func applySettingsToSource(data []byte, overrides map[string]any) ([]byte, bool) {
 	var settings map[string]any
 	if err := json.Unmarshal(data, &settings); err != nil {
-		return data
+		return data, false
+	}
+	before, _ := json.Marshal(settings)
+
+	merged := deepMerge(settings, deepCopyMap(overrides))
+	after, _ := json.Marshal(merged)
+	if string(before) == string(after) {
+		return data, false
 	}
 
-	attrMap := map[string]string{}
-	if attr.Commit != "" {
-		attrMap["commit"] = attr.Commit
-	}
-	if attr.PR != "" {
-		attrMap["pr"] = attr.PR
-	}
-	settings["attribution"] = attrMap
-
-	out, err := json.MarshalIndent(settings, "", "  ")
+	out, err := json.MarshalIndent(merged, "", "  ")
 	if err != nil {
-		return data
+		return data, false
 	}
-	return append(out, '\n')
+	return append(out, '\n'), true
 }
 
 func pluralS(n int) string {

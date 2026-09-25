@@ -21,6 +21,11 @@ add_dirs = ["~/Work/company"]
 # commit = "Co-Authored-By: Claude <noreply@anthropic.com>"
 # pr = "Generated with [Claude Code](https://claude.ai/code)"
 
+# Per-profile settings.json overrides (maps merge, other values replace)
+# [profiles.work.settings]
+# effortLevel = "high"
+# permissions.allow = ["Bash(gh *)"]
+
 # Per-profile MCP servers: drop global ones, add profile-specific ones
 # [profiles.work]
 # mcp_exclude = ["personal-notion"]
