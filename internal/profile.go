@@ -45,7 +45,7 @@ func SetupProfile(name string, profileDir, sourceDir string, forceSync bool) err
 		if forceSync {
 			action = "synced"
 		}
-		fmt.Printf("  %s %s\n", action, filename)
+		outf("  %s %s\n", action, filename)
 	}
 
 	for _, dirname := range symlinkDirs {
@@ -67,14 +67,14 @@ func SetupProfile(name string, profileDir, sourceDir string, forceSync bool) err
 			os.Remove(dst)
 		} else if _, err := os.Stat(dst); err == nil {
 			// Real directory exists, don't replace
-			fmt.Printf("  skipped %s/ (real directory exists)\n", dirname)
+			outf("  skipped %s/ (real directory exists)\n", dirname)
 			continue
 		}
 
 		if err := os.Symlink(src, dst); err != nil {
 			return fmt.Errorf("cannot symlink %s: %w", dirname, err)
 		}
-		fmt.Printf("  symlinked %s/ -> %s\n", dirname, src)
+		outf("  symlinked %s/ -> %s\n", dirname, src)
 	}
 
 	return nil

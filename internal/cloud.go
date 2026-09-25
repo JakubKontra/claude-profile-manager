@@ -70,7 +70,7 @@ func CloudInit(configPath string, remote string) error {
 	if remote != "" {
 		hasRefs, _ := checkRemoteHasRefs(remote)
 		if hasRefs {
-			fmt.Printf("Cloning from %s...\n", remote)
+			outf("Cloning from %s...\n", remote)
 			if _, err := gitExecDir("", "clone", remote, repoDir); err != nil {
 				return fmt.Errorf("cannot clone remote: %w", err)
 			}
@@ -86,8 +86,8 @@ func CloudInit(configPath string, remote string) error {
 			if err := saveCloudRemote(configPath, remote); err != nil {
 				return fmt.Errorf("saving remote to config: %w", err)
 			}
-			fmt.Println("\nCloud repo cloned and files distributed.")
-			fmt.Println("Run 'cpm cloud status' to verify.")
+			outln("\nCloud repo cloned and files distributed.")
+			outln("Run 'cpm cloud status' to verify.")
 			return nil
 		}
 	}
@@ -123,15 +123,15 @@ func CloudInit(configPath string, remote string) error {
 			return err
 		}
 		if err := cloudCopyFile(srcPath, dst); err != nil {
-			fmt.Printf("  skipped %s (%v)\n", repoPath, err)
+			outf("  skipped %s (%v)\n", repoPath, err)
 			continue
 		}
-		fmt.Printf("  added %s\n", repoPath)
+		outf("  added %s\n", repoPath)
 		copied++
 	}
 
 	if copied == 0 {
-		fmt.Println("\nNo syncable files found. The repo is empty.")
+		outln("\nNo syncable files found. The repo is empty.")
 		return nil
 	}
 
@@ -151,14 +151,14 @@ func CloudInit(configPath string, remote string) error {
 		if err := saveCloudRemote(configPath, remote); err != nil {
 			return fmt.Errorf("saving remote to config: %w", err)
 		}
-		fmt.Printf("\nRemote set to: %s\n", remote)
+		outf("\nRemote set to: %s\n", remote)
 	}
 
-	fmt.Printf("\nCloud repo initialized at %s (%d files)\n", repoDir, copied)
+	outf("\nCloud repo initialized at %s (%d files)\n", repoDir, copied)
 	if remote == "" {
-		fmt.Println("\nTo add a remote: cpm cloud remote <url>")
+		outln("\nTo add a remote: cpm cloud remote <url>")
 	} else {
-		fmt.Println("Push with: cpm cloud push")
+		outln("Push with: cpm cloud push")
 	}
 
 	return nil
@@ -216,7 +216,7 @@ func CloudPush(configPath string, message string) error {
 		return err
 	}
 	if strings.TrimSpace(status) == "" {
-		fmt.Println("Already up to date — no changes to push.")
+		outln("Already up to date — no changes to push.")
 		return nil
 	}
 
@@ -232,7 +232,7 @@ func CloudPush(configPath string, message string) error {
 	// Show what changed
 	diff, _ := gitExec(repoDir, "diff", "--stat", "HEAD~1..HEAD")
 	if diff != "" {
-		fmt.Println(strings.TrimSpace(diff))
+		outln(strings.TrimSpace(diff))
 	}
 
 	// Push if remote configured
@@ -242,9 +242,9 @@ func CloudPush(configPath string, message string) error {
 		if _, err := gitExec(repoDir, "push", "-u", "origin", "HEAD"); err != nil {
 			return fmt.Errorf("push failed: %w\nResolve manually in %s", err, repoDir)
 		}
-		fmt.Println("\nPushed to remote.")
+		outln("\nPushed to remote.")
 	} else {
-		fmt.Println("\nCommitted locally. Add a remote with: cpm cloud remote <url>")
+		outln("\nCommitted locally. Add a remote with: cpm cloud remote <url>")
 	}
 
 	return nil
@@ -268,7 +268,7 @@ func CloudPull(configPath string, dryRun bool) error {
 	}
 
 	if strings.Contains(output, "Already up to date") {
-		fmt.Println("Already up to date.")
+		outln("Already up to date.")
 		if !dryRun {
 			return nil
 		}
@@ -280,7 +280,7 @@ func CloudPull(configPath string, dryRun bool) error {
 	}
 
 	if dryRun {
-		fmt.Println("\nDry run — files that would be updated:")
+		outln("\nDry run — files that would be updated:")
 		return showPullDiff(repoDir, cfg, configPath)
 	}
 
@@ -292,11 +292,11 @@ func CloudPull(configPath string, dryRun bool) error {
 	repoConfigPath := filepath.Join(repoDir, "cpm", "config.toml")
 	if _, err := os.Stat(repoConfigPath); err == nil {
 		if err := mergeConfigTOML(repoConfigPath, configPath); err != nil {
-			fmt.Printf("  warning: could not merge config.toml: %v\n", err)
+			outf("  warning: could not merge config.toml: %v\n", err)
 		}
 	}
 
-	fmt.Println("\nFiles distributed from cloud repo.")
+	outln("\nFiles distributed from cloud repo.")
 	return nil
 }
 
@@ -306,27 +306,27 @@ func CloudStatus(configPath string) error {
 
 	// Check if initialized
 	if _, err := os.Stat(filepath.Join(repoDir, ".git")); os.IsNotExist(err) {
-		fmt.Println("Cloud sync not initialized.")
-		fmt.Println("Run 'cpm cloud init' to get started.")
+		outln("Cloud sync not initialized.")
+		outln("Run 'cpm cloud init' to get started.")
 		return nil
 	}
 
-	fmt.Printf("Cloud repo: %s\n", repoDir)
+	outf("Cloud repo: %s\n", repoDir)
 
 	// Remote
 	if hasOriginRemote(repoDir) {
 		remote, _ := gitExec(repoDir, "remote", "get-url", "origin")
-		fmt.Printf("Remote:     %s", remote)
+		outf("Remote:     %s", remote)
 	} else {
-		fmt.Println("Remote:     (none)")
+		outln("Remote:     (none)")
 	}
 
 	// Last commit
 	log, _ := gitExec(repoDir, "log", "--oneline", "-5")
 	if log != "" {
-		fmt.Printf("\nRecent syncs:\n")
+		outf("\nRecent syncs:\n")
 		for _, line := range strings.Split(strings.TrimSpace(log), "\n") {
-			fmt.Printf("  %s\n", line)
+			outf("  %s\n", line)
 		}
 	}
 
@@ -336,18 +336,18 @@ func CloudStatus(configPath string) error {
 		return err
 	}
 
-	fmt.Println("\nLocal changes (not yet pushed):")
+	outln("\nLocal changes (not yet pushed):")
 	hasChanges := false
 	files, _ := GatherSyncFiles(cfg, configPath)
 	for repoPath, srcPath := range files {
 		dstPath := filepath.Join(repoDir, repoPath)
 		if filesAreDifferent(srcPath, dstPath) {
-			fmt.Printf("  modified: %s\n", repoPath)
+			outf("  modified: %s\n", repoPath)
 			hasChanges = true
 		}
 	}
 	if !hasChanges {
-		fmt.Println("  (no changes)")
+		outln("  (no changes)")
 	}
 
 	return nil
@@ -374,7 +374,7 @@ func CloudRemote(configPath string, url string) error {
 		return fmt.Errorf("saving remote to config: %w", err)
 	}
 
-	fmt.Printf("Remote set to: %s\n", url)
+	outf("Remote set to: %s\n", url)
 	return nil
 }
 
@@ -447,10 +447,10 @@ func DistributeSyncFiles(repoDir string, cfg *Config) error {
 		}
 		dst := filepath.Join(cfg.SourceDir, name)
 		if err := cloudCopyFile(src, dst); err != nil {
-			fmt.Printf("  warning: cannot write %s: %v\n", name, err)
+			outf("  warning: cannot write %s: %v\n", name, err)
 			continue
 		}
-		fmt.Printf("  restored %s\n", name)
+		outf("  restored %s\n", name)
 	}
 
 	// Directories to source_dir
@@ -475,7 +475,7 @@ func DistributeSyncFiles(repoDir string, cfg *Config) error {
 			if err := cloudCopyFile(path, dst); err != nil {
 				return nil
 			}
-			fmt.Printf("  restored %s/%s\n", dirname, rel)
+			outf("  restored %s/%s\n", dirname, rel)
 			return nil
 		})
 	}
@@ -491,10 +491,10 @@ func DistributeSyncFiles(repoDir string, cfg *Config) error {
 			continue
 		}
 		if err := cloudCopyFile(src, dst); err != nil {
-			fmt.Printf("  warning: cannot write %s: %v\n", ext.HomePath, err)
+			outf("  warning: cannot write %s: %v\n", ext.HomePath, err)
 			continue
 		}
-		fmt.Printf("  restored %s\n", ext.RepoPath)
+		outf("  restored %s\n", ext.RepoPath)
 	}
 
 	return nil
@@ -604,7 +604,7 @@ func showPullDiff(repoDir string, cfg *Config, configPath string) error {
 			continue
 		}
 		if filesAreDifferent(src, dst) {
-			fmt.Printf("  would update: %s\n", name)
+			outf("  would update: %s\n", name)
 		}
 	}
 
@@ -615,7 +615,7 @@ func showPullDiff(repoDir string, cfg *Config, configPath string) error {
 			continue
 		}
 		if filesAreDifferent(src, dst) {
-			fmt.Printf("  would update: %s\n", ext.RepoPath)
+			outf("  would update: %s\n", ext.RepoPath)
 		}
 	}
 
@@ -705,7 +705,7 @@ func mergeConfigTOML(pulledPath, localConfigPath string) error {
 	for name, profile := range pulled.Profiles {
 		if _, exists := local.Profiles[name]; !exists {
 			local.Profiles[name] = profile
-			fmt.Printf("  added profile from cloud: %s\n", name)
+			outf("  added profile from cloud: %s\n", name)
 			merged = true
 		}
 	}

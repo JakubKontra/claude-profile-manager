@@ -8,6 +8,10 @@ import (
 )
 
 func CloneProfile(sourceName, targetName, profilesBase, sourceDir string, cfg *Config) error {
+	if _, err := lookupProfile(cfg, sourceName); err != nil {
+		return fmt.Errorf("unknown source profile %q", sourceName)
+	}
+
 	srcDir := filepath.Join(profilesBase, sourceName)
 	dstDir := filepath.Join(profilesBase, targetName)
 
@@ -35,7 +39,7 @@ func CloneProfile(sourceName, targetName, profilesBase, sourceDir string, cfg *C
 		if err := cloneCopyFile(src, dst); err != nil {
 			return fmt.Errorf("cannot copy %s: %w", filename, err)
 		}
-		fmt.Printf("  copied %s\n", filename)
+		outf("  copied %s\n", filename)
 	}
 
 	// Re-create symlinks pointing to the original source dir
@@ -50,14 +54,14 @@ func CloneProfile(sourceName, targetName, profilesBase, sourceDir string, cfg *C
 		if err := os.Symlink(target, link); err != nil {
 			return fmt.Errorf("cannot symlink %s: %w", dirname, err)
 		}
-		fmt.Printf("  symlinked %s/ -> %s\n", dirname, target)
+		outf("  symlinked %s/ -> %s\n", dirname, target)
 	}
 
-	fmt.Printf("\nProfile %q cloned from %q.\n", targetName, sourceName)
-	fmt.Println("Note: credentials are NOT cloned — authenticate with: claude-" + targetName)
-	fmt.Println("\nAdd the new profile to your config.toml:")
-	fmt.Printf("\n  [profiles.%s]\n  description = \"\"\n\n", targetName)
-	fmt.Println("Then run 'cpm install' to generate the wrapper script.")
+	outf("\nProfile %q cloned from %q.\n", targetName, sourceName)
+	outln("Note: credentials are NOT cloned — authenticate with: claude-" + targetName)
+	outln("\nAdd the new profile to your config.toml:")
+	outf("\n  [profiles.%s]\n  description = \"\"\n\n", targetName)
+	outln("Then run 'cpm install' to generate the wrapper script.")
 
 	return nil
 }

@@ -56,7 +56,7 @@ func RunDoctor(cfg *Config, profilesBase string) []Check {
 	}
 
 	// Check each profile
-	for name := range cfg.Profiles {
+	for _, name := range SortedProfileNames(cfg) {
 		profileDir := filepath.Join(profilesBase, name)
 
 		if _, err := os.Stat(profileDir); os.IsNotExist(err) {
@@ -113,7 +113,7 @@ func PrintChecks(checks []Check) {
 		case "error":
 			icon = " ERR"
 		}
-		fmt.Printf("  [%s] %-35s %s\n", icon, c.Name, c.Detail)
+		outf("  [%s] %-35s %s\n", icon, c.Name, c.Detail)
 	}
 }
 

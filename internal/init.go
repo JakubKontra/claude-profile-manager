@@ -22,10 +22,10 @@ func RunInit(configPath string) error {
 
 	reader := bufio.NewReader(os.Stdin)
 
-	fmt.Print("Welcome to cpm (Claude Profile Manager) setup!\n\n")
+	out("Welcome to cpm (Claude Profile Manager) setup!\n\n")
 
 	// Source dir
-	fmt.Print("Source directory [~/.claude]: ")
+	out("Source directory [~/.claude]: ")
 	sourceDir, _ := reader.ReadString('\n')
 	sourceDir = strings.TrimSpace(sourceDir)
 	if sourceDir == "" {
@@ -33,7 +33,7 @@ func RunInit(configPath string) error {
 	}
 
 	// Bin dir
-	fmt.Print("Bin directory [~/.local/bin]: ")
+	out("Bin directory [~/.local/bin]: ")
 	binDir, _ := reader.ReadString('\n')
 	binDir = strings.TrimSpace(binDir)
 	if binDir == "" {
@@ -42,26 +42,26 @@ func RunInit(configPath string) error {
 
 	// Profiles
 	var profiles []profileEntry
-	fmt.Print("\nLet's add your profiles. Enter an empty name to finish.\n\n")
+	out("\nLet's add your profiles. Enter an empty name to finish.\n\n")
 
 	for i := 1; ; i++ {
-		fmt.Printf("Profile %d name (e.g. personal, work): ", i)
+		outf("Profile %d name (e.g. personal, work): ", i)
 		name, _ := reader.ReadString('\n')
 		name = strings.TrimSpace(name)
 		if name == "" {
 			break
 		}
 
-		fmt.Printf("  Description: ")
+		outf("  Description: ")
 		desc, _ := reader.ReadString('\n')
 		desc = strings.TrimSpace(desc)
 
-		fmt.Printf("  Default model (leave empty for none): ")
+		outf("  Default model (leave empty for none): ")
 		model, _ := reader.ReadString('\n')
 		model = strings.TrimSpace(model)
 
 		profiles = append(profiles, profileEntry{name, desc, model})
-		fmt.Println()
+		outln()
 	}
 
 	if len(profiles) == 0 {
@@ -85,8 +85,8 @@ func RunInit(configPath string) error {
 		return fmt.Errorf("cannot write config: %w", err)
 	}
 
-	fmt.Printf("\nConfig written to %s\n", configPath)
-	fmt.Println("Run 'cpm install' to create profiles and wrapper scripts.")
+	outf("\nConfig written to %s\n", configPath)
+	outln("Run 'cpm install' to create profiles and wrapper scripts.")
 
 	return nil
 }

@@ -60,7 +60,7 @@ func SyncMCPServers(profileDir string) error {
 	if m, ok := servers.(map[string]any); ok {
 		count = len(m)
 	}
-	fmt.Printf("  synced mcpServers (%d server%s)\n", count, pluralS(count))
+	outf("  synced mcpServers (%d server%s)\n", count, pluralS(count))
 	return nil
 }
 
@@ -106,7 +106,7 @@ func PatchAttribution(profileDir string, attr *Attribution) error {
 		return err
 	}
 
-	fmt.Println("  patched attribution in settings.json")
+	outln("  patched attribution in settings.json")
 	return nil
 }
 
@@ -119,7 +119,8 @@ type DivergedFile struct {
 func CheckDivergence(cfg *Config, profilesBase string) []DivergedFile {
 	var diverged []DivergedFile
 
-	for name, profile := range cfg.Profiles {
+	for _, name := range SortedProfileNames(cfg) {
+		profile := cfg.Profiles[name]
 		profileDir := filepath.Join(profilesBase, name)
 
 		for _, filename := range copyFiles {

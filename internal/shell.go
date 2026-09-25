@@ -18,8 +18,8 @@ func GenerateUseOutput(name string, profileDir string, profile *Profile) string 
 	fmt.Fprintf(&b, "export CLAUDE_CONFIG_DIR=\"%s\";\n", profileDir)
 	fmt.Fprintf(&b, "export CLAUDE_PROFILE=\"%s\";\n", name)
 
-	for k, v := range profile.Env {
-		fmt.Fprintf(&b, "export %s=\"%s\";\n", k, v)
+	for _, k := range sortedEnvKeys(profile.Env) {
+		fmt.Fprintf(&b, "export %s=\"%s\";\n", k, profile.Env[k])
 	}
 
 	fmt.Fprintf(&b, "echo \"Switched to profile: %s\";\n", name)
@@ -125,7 +125,7 @@ func LinkProfile(dir, profileName string) error {
 			if err := os.WriteFile(gitignorePath, append(data, []byte(entry)...), 0o644); err != nil {
 				return fmt.Errorf("cannot update .gitignore: %w", err)
 			}
-			fmt.Println("  added .claude-profile to .gitignore")
+			outln("  added .claude-profile to .gitignore")
 		}
 	}
 

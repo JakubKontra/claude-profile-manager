@@ -70,7 +70,7 @@ func Upgrade(binDir string) error {
 	}
 
 	if release.TagName == "v"+Version || release.TagName == Version {
-		fmt.Printf("Already at latest version: %s\n", Version)
+		outf("Already at latest version: %s\n", Version)
 		return nil
 	}
 
@@ -88,7 +88,7 @@ func Upgrade(binDir string) error {
 		return fmt.Errorf("no binary found for %s/%s in release %s", runtime.GOOS, runtime.GOARCH, release.TagName)
 	}
 
-	fmt.Printf("Downloading %s...\n", release.TagName)
+	outf("Downloading %s...\n", release.TagName)
 
 	resp, err = http.Get(downloadURL)
 	if err != nil {
@@ -127,6 +127,6 @@ func Upgrade(binDir string) error {
 		return fmt.Errorf("cannot replace binary: %w", err)
 	}
 
-	fmt.Printf("Updated to %s\n", release.TagName)
+	outf("Updated to %s\n", release.TagName)
 	return nil
 }

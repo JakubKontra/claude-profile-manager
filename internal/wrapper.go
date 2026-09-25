@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 )
 
@@ -42,12 +41,7 @@ func GenerateWrapper(name string, profileDir string, profile *Profile) string {
 
 	// Custom env vars
 	if len(profile.Env) > 0 {
-		keys := make([]string, 0, len(profile.Env))
-		for k := range profile.Env {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		for _, k := range keys {
+		for _, k := range sortedEnvKeys(profile.Env) {
 			fmt.Fprintf(&b, "export %s=\"%s\"\n", k, profile.Env[k])
 		}
 	}
@@ -100,7 +94,7 @@ func InstallWrapper(scriptPath, content string) error {
 	if err := os.WriteFile(scriptPath, []byte(content), 0o755); err != nil {
 		return err
 	}
-	fmt.Printf("  installed %s\n", scriptPath)
+	outf("  installed %s\n", scriptPath)
 	return nil
 }
 
@@ -128,7 +122,7 @@ func CleanupStaleScripts(binDir string, activeNames map[string]bool) {
 			continue
 		}
 		os.Remove(path)
-		fmt.Printf("  removed stale script %s\n", path)
+		outf("  removed stale script %s\n", path)
 	}
 }
 
