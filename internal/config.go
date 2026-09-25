@@ -21,6 +21,12 @@ type Profile struct {
 	AddDirs     []string          `toml:"add_dirs,omitempty"`
 	Env         map[string]string `toml:"env,omitempty"`
 	Attribution *Attribution      `toml:"attribution,omitempty"`
+
+	// MCPExclude lists servers from ~/.claude.json this profile must not get.
+	MCPExclude []string `toml:"mcp_exclude,omitempty"`
+	// MCPServers are profile-specific servers ([profiles.x.mcp_servers.<name>]);
+	// they win over a same-named global server.
+	MCPServers map[string]map[string]any `toml:"mcp_servers,omitempty"`
 }
 
 type CloudConfig struct {

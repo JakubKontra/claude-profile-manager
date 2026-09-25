@@ -21,6 +21,13 @@ add_dirs = ["~/Work/company"]
 # commit = "Co-Authored-By: Claude <noreply@anthropic.com>"
 # pr = "Generated with [Claude Code](https://claude.ai/code)"
 
+# Per-profile MCP servers: drop global ones, add profile-specific ones
+# [profiles.work]
+# mcp_exclude = ["personal-notion"]
+# [profiles.work.mcp_servers.jira]
+# command = "npx"
+# args = ["-y", "@example/jira-mcp"]
+
 # [profiles.work-vertex]
 # description = "Company via Google Cloud Vertex AI"
 # add_dirs = ["~/Work/company"]

@@ -37,6 +37,7 @@ func InstallProfiles(cfg *Config, configPath string, opts InstallOptions) error 
 	}
 
 	activeNames := make(map[string]bool)
+	claudeJSONPath := DefaultClaudeJSONPath()
 
 	for _, name := range SortedProfileNames(cfg) {
 		profile := cfg.Profiles[name]
@@ -52,7 +53,10 @@ func InstallProfiles(cfg *Config, configPath string, opts InstallOptions) error 
 		if err := PatchAttribution(profileDir, profile.Attribution); err != nil {
 			return fmt.Errorf("profile %s attribution: %w", name, err)
 		}
-		if err := SyncMCPServers(profileDir); err != nil {
+		if _, err := SeedClaudeJSON(profileDir, claudeJSONPath); err != nil {
+			return fmt.Errorf("profile %s seed: %w", name, err)
+		}
+		if err := SyncMCPServers(profileDir, profile, claudeJSONPath); err != nil {
 			return fmt.Errorf("profile %s mcp sync: %w", name, err)
 		}
 

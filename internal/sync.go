@@ -8,22 +8,94 @@ import (
 	"strings"
 )
 
-func SyncMCPServers(profileDir string) error {
+// DefaultClaudeJSONPath is where Claude Code keeps the global ~/.claude.json.
+func DefaultClaudeJSONPath() string {
 	home, _ := os.UserHomeDir()
-	sourcePath := filepath.Join(home, ".claude.json")
+	return filepath.Join(home, ".claude.json")
+}
+
+// claudeJSONSeedKeys are the keys copied from ~/.claude.json into a new
+// profile so it starts without the onboarding wizard. Account, identity,
+// project state and caches are deliberately left out.
+var claudeJSONSeedKeys = []string{
+	"hasCompletedOnboarding",
+	"lastOnboardingVersion",
+	"theme",
+	"preferredNotifChannel",
+	"editorMode",
+	"autoUpdates",
+	"autoUpdatesProtectedForNative",
+	"installMethod",
+}
+
+// SeedClaudeJSON creates <profileDir>/.claude.json from the whitelisted keys
+// of sourcePath when the profile has none yet. It reports whether it wrote.
+func SeedClaudeJSON(profileDir, sourcePath string) (bool, error) {
+	profilePath := filepath.Join(profileDir, ".claude.json")
+	if _, err := os.Stat(profilePath); err == nil {
+		return false, nil
+	}
 
 	sourceData, err := os.ReadFile(sourcePath)
 	if err != nil {
-		return nil // No source file, skip silently
+		return false, nil // nothing to seed from
 	}
-
 	var source map[string]any
 	if err := json.Unmarshal(sourceData, &source); err != nil {
-		return nil
+		return false, nil
 	}
 
-	servers, ok := source["mcpServers"]
-	if !ok {
+	seed := make(map[string]any)
+	for _, key := range claudeJSONSeedKeys {
+		if v, ok := source[key]; ok {
+			seed[key] = v
+		}
+	}
+	if len(seed) == 0 {
+		return false, nil
+	}
+
+	out, err := json.MarshalIndent(seed, "", "  ")
+	if err != nil {
+		return false, err
+	}
+	if err := os.WriteFile(profilePath, append(out, '\n'), 0o600); err != nil {
+		return false, err
+	}
+	outln("  seeded .claude.json (onboarding skipped)")
+	return true, nil
+}
+
+// MergeMCPServers computes a profile's servers: the global ones minus
+// mcp_exclude, overlaid with the profile's own mcp_servers.
+func MergeMCPServers(source map[string]any, p *Profile) map[string]any {
+	merged := make(map[string]any, len(source))
+	for name, server := range source {
+		merged[name] = server
+	}
+	if p != nil {
+		for _, name := range p.MCPExclude {
+			delete(merged, name)
+		}
+		for name, server := range p.MCPServers {
+			merged[name] = server
+		}
+	}
+	return merged
+}
+
+// SyncMCPServers writes the merged MCP server set into the profile's
+// .claude.json. It is a no-op until the profile file exists.
+func SyncMCPServers(profileDir string, p *Profile, sourcePath string) error {
+	var source map[string]any
+	if sourceData, err := os.ReadFile(sourcePath); err == nil {
+		_ = json.Unmarshal(sourceData, &source)
+	}
+	var globalServers map[string]any
+	if s, ok := source["mcpServers"].(map[string]any); ok {
+		globalServers = s
+	}
+	if globalServers == nil && (p == nil || len(p.MCPServers) == 0) {
 		return nil
 	}
 
@@ -32,13 +104,13 @@ func SyncMCPServers(profileDir string) error {
 	if err != nil {
 		return nil // Profile .claude.json doesn't exist yet (first run)
 	}
-
 	var profile map[string]any
 	if err := json.Unmarshal(profileData, &profile); err != nil {
 		return nil
 	}
 
-	// Check if already in sync
+	servers := MergeMCPServers(globalServers, p)
+
 	existingJSON, _ := json.Marshal(profile["mcpServers"])
 	newJSON, _ := json.Marshal(servers)
 	if string(existingJSON) == string(newJSON) {
@@ -51,16 +123,11 @@ func SyncMCPServers(profileDir string) error {
 	if err != nil {
 		return err
 	}
-
-	if err := os.WriteFile(profilePath, append(out, '\n'), 0o644); err != nil {
+	if err := os.WriteFile(profilePath, append(out, '\n'), 0o600); err != nil {
 		return err
 	}
 
-	count := 0
-	if m, ok := servers.(map[string]any); ok {
-		count = len(m)
-	}
-	outf("  synced mcpServers (%d server%s)\n", count, pluralS(count))
+	outf("  synced mcpServers (%d server%s)\n", len(servers), pluralS(len(servers)))
 	return nil
 }
 
