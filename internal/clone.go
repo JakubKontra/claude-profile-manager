@@ -6,7 +6,9 @@ import (
 	"path/filepath"
 )
 
-func CloneProfile(sourceName, targetName, profilesBase, sourceDir string, cfg *Config) error {
+func CloneProfile(sourceName, targetName, configPath string, cfg *Config) error {
+	profilesBase := ProfilesBaseDir(configPath)
+	sourceDir := cfg.SourceDir
 	if _, err := lookupProfile(cfg, sourceName); err != nil {
 		return fmt.Errorf("unknown source profile %q", sourceName)
 	}
@@ -62,11 +64,28 @@ func CloneProfile(sourceName, targetName, profilesBase, sourceDir string, cfg *C
 		outf("  symlinked %s/ -> %s\n", dirname, target)
 	}
 
+	// Register the new profile in config.toml with the source's settings.
+	source := cfg.Profiles[sourceName]
+	newProfile := *source
+	if newProfile.Description != "" {
+		newProfile.Description += " (clone)"
+	}
+	data, err := os.ReadFile(ExpandPath(configPath))
+	if err != nil {
+		return fmt.Errorf("cannot read config: %w", err)
+	}
+	updated, err := AppendProfileTable(data, targetName, &newProfile)
+	if err != nil {
+		return err
+	}
+	if err := writeConfigAtomic(configPath, updated); err != nil {
+		return err
+	}
+	outf("  added [profiles.%s] to %s\n", targetName, configPath)
+
 	outf("\nProfile %q cloned from %q.\n", targetName, sourceName)
 	outln("Note: credentials are NOT cloned — authenticate with: claude-" + targetName)
-	outln("\nAdd the new profile to your config.toml:")
-	outf("\n  [profiles.%s]\n  description = \"\"\n\n", targetName)
-	outln("Then run 'cpm install' to generate the wrapper script.")
+	outln("Run 'cpm install' to generate the wrapper script.")
 
 	return nil
 }

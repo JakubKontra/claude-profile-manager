@@ -3,120 +3,79 @@ package internal
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
 func TestCloneProfile(t *testing.T) {
-	tmpDir := t.TempDir()
-	sourceDir := filepath.Join(tmpDir, "source")
-	profilesBase := filepath.Join(tmpDir, "profiles")
-	srcProfile := filepath.Join(profilesBase, "original")
-
-	os.MkdirAll(sourceDir, 0o755)
-	os.MkdirAll(srcProfile, 0o755)
-
-	// Create source files
-	os.WriteFile(filepath.Join(srcProfile, "settings.json"), []byte(`{"test": true}`), 0o644)
-	os.WriteFile(filepath.Join(srcProfile, "CLAUDE.md"), []byte("# Claude"), 0o644)
-
-	// Create source dirs for symlinks
+	env := newTestEnv(t, "[profiles.original]\ndescription = \"Original\"\nmodel = \"sonnet\"\n")
+	srcProfile := filepath.Join(env.profilesBase(), "original")
+	mustWrite(t, filepath.Join(srcProfile, "settings.json"), `{"test": true}`)
+	mustWrite(t, filepath.Join(srcProfile, "CLAUDE.md"), "# Claude")
 	for _, dir := range []string{"skills", "plugins"} {
-		os.MkdirAll(filepath.Join(sourceDir, dir), 0o755)
+		mustMkdir(t, filepath.Join(env.SourceDir, dir))
 	}
+	captureOutput(t)
 
-	cfg := &Config{
-		SourceDir: sourceDir,
-		Profiles: map[string]*Profile{
-			"original": {Description: "Original"},
-		},
-	}
-
-	err := CloneProfile("original", "cloned", profilesBase, sourceDir, cfg)
-	if err != nil {
+	if err := CloneProfile("original", "cloned", env.ConfigPath, env.load(t)); err != nil {
 		t.Fatalf("CloneProfile failed: %v", err)
 	}
 
-	clonedDir := filepath.Join(profilesBase, "cloned")
-
-	// Check copied files
+	clonedDir := filepath.Join(env.profilesBase(), "cloned")
 	data, err := os.ReadFile(filepath.Join(clonedDir, "settings.json"))
-	if err != nil {
-		t.Fatal("settings.json not cloned")
+	if err != nil || string(data) != `{"test": true}` {
+		t.Errorf("cloned settings.json = %q (%v)", data, err)
 	}
-	if string(data) != `{"test": true}` {
-		t.Errorf("cloned settings.json = %q", string(data))
-	}
-
-	// Check symlinks point to source dir (not the original profile)
 	for _, dir := range []string{"skills", "plugins"} {
 		target, err := os.Readlink(filepath.Join(clonedDir, dir))
-		if err != nil {
-			t.Errorf("%s should be a symlink", dir)
-			continue
+		if err != nil || target != filepath.Join(env.SourceDir, dir) {
+			t.Errorf("%s symlink = %q (%v)", dir, target, err)
 		}
-		expected := filepath.Join(sourceDir, dir)
-		if target != expected {
-			t.Errorf("%s symlink = %q, want %q", dir, target, expected)
-		}
+	}
+
+	// The clone is registered in config.toml with the source's settings.
+	cfg := env.load(t)
+	cloned := cfg.Profiles["cloned"]
+	if cloned == nil || cloned.Model != "sonnet" || !strings.Contains(cloned.Description, "Original") {
+		t.Errorf("clone not registered in config: %+v", cloned)
 	}
 }
 
-func TestCloneProfileSourceNotInstalled(t *testing.T) {
-	tmpDir := t.TempDir()
+func TestCloneProfileErrors(t *testing.T) {
+	env := newTestEnv(t, "[profiles.source]\n[profiles.taken]\n")
+	cfg := env.load(t)
+	captureOutput(t)
 
-	cfg := &Config{
-		Profiles: map[string]*Profile{
-			"missing": {Description: "Missing"},
-		},
+	if err := CloneProfile("missing", "new", env.ConfigPath, cfg); err == nil {
+		t.Error("expected error for unknown source profile")
 	}
-
-	err := CloneProfile("missing", "new", tmpDir, tmpDir, cfg)
-	if err == nil {
+	if err := CloneProfile("source", "new", env.ConfigPath, cfg); err == nil {
 		t.Error("expected error for uninstalled source profile")
 	}
-}
-
-func TestCloneProfileTargetExists(t *testing.T) {
-	tmpDir := t.TempDir()
-	os.MkdirAll(filepath.Join(tmpDir, "source"), 0o755)
-	os.MkdirAll(filepath.Join(tmpDir, "target"), 0o755)
-
-	cfg := &Config{
-		Profiles: map[string]*Profile{
-			"source": {Description: "Source"},
-		},
+	mustMkdir(t, filepath.Join(env.profilesBase(), "source"))
+	if err := CloneProfile("source", "taken", env.ConfigPath, cfg); err == nil {
+		t.Error("expected error when target exists in config")
 	}
-
-	err := CloneProfile("source", "target", tmpDir, tmpDir, cfg)
-	if err == nil {
-		t.Error("expected error when target profile already exists")
+	if err := CloneProfile("source", "bad name", env.ConfigPath, cfg); err == nil {
+		t.Error("expected error for invalid target name")
+	}
+	mustMkdir(t, filepath.Join(env.profilesBase(), "dirtaken"))
+	if err := CloneProfile("source", "dirtaken", env.ConfigPath, cfg); err == nil {
+		t.Error("expected error when target directory exists")
 	}
 }
 
 func TestCloneProfileDoesNotCopyCredentials(t *testing.T) {
-	tmpDir := t.TempDir()
-	sourceDir := filepath.Join(tmpDir, "source")
-	profilesBase := filepath.Join(tmpDir, "profiles")
-	srcProfile := filepath.Join(profilesBase, "original")
+	env := newTestEnv(t, "[profiles.original]\n")
+	srcProfile := filepath.Join(env.profilesBase(), "original")
+	mustWrite(t, filepath.Join(srcProfile, ".credentials.json"), `{"token": "secret"}`)
+	mustWrite(t, filepath.Join(srcProfile, "settings.json"), `{}`)
+	captureOutput(t)
 
-	os.MkdirAll(sourceDir, 0o755)
-	os.MkdirAll(srcProfile, 0o755)
-
-	// Create credentials in source profile
-	os.WriteFile(filepath.Join(srcProfile, ".credentials.json"), []byte(`{"token": "secret"}`), 0o644)
-	os.WriteFile(filepath.Join(srcProfile, "settings.json"), []byte(`{}`), 0o644)
-
-	cfg := &Config{
-		SourceDir: sourceDir,
-		Profiles: map[string]*Profile{
-			"original": {Description: "Original"},
-		},
+	if err := CloneProfile("original", "cloned", env.ConfigPath, env.load(t)); err != nil {
+		t.Fatal(err)
 	}
-
-	CloneProfile("original", "cloned", profilesBase, sourceDir, cfg)
-
-	clonedDir := filepath.Join(profilesBase, "cloned")
-	if _, err := os.Stat(filepath.Join(clonedDir, ".credentials.json")); !os.IsNotExist(err) {
+	if fileExists(filepath.Join(env.profilesBase(), "cloned", ".credentials.json")) {
 		t.Error("credentials should NOT be cloned")
 	}
 }

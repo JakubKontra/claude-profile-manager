@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -26,6 +27,9 @@ var keychainAccountPattern = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
 // keychainLookup reports whether a Keychain entry exists. Replaced in tests.
 var keychainLookup = defaultKeychainLookup
+
+// keychainDelete removes a Keychain entry. Replaced in tests.
+var keychainDelete = defaultKeychainDelete
 
 // CredentialStatus describes where a profile's login lives and which account
 // it belongs to.
@@ -149,6 +153,36 @@ func defaultKeychainLookup(service, account string) bool {
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 	return cmd.Run() == nil
+}
+
+// defaultKeychainDelete removes the entry; a missing entry is not an error.
+func defaultKeychainDelete(service, account string) error {
+	if runtime.GOOS != "darwin" {
+		return nil
+	}
+	cmd := exec.Command("security", "delete-generic-password", "-a", account, "-s", service)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		// security exits 44 (errSecItemNotFound) when there is nothing to delete.
+		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 44 {
+			return nil
+		}
+		return fmt.Errorf("security delete-generic-password: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// DeleteProfileCredentials removes the Keychain entry (macOS) and the
+// .credentials.json file for a profile directory.
+func DeleteProfileCredentials(profileDir string) error {
+	if err := keychainDelete(KeychainServiceName(profileDir), keychainAccount()); err != nil {
+		return err
+	}
+	credPath := filepath.Join(profileDir, ".credentials.json")
+	if err := os.Remove(credPath); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 // GetCredentialStatus reports whether a profile is logged in, checking the

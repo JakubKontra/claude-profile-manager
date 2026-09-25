@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"syscall"
 
 	"github.com/jakubkontra/cpm/internal"
@@ -35,6 +36,9 @@ func main() {
 		runCmd(),
 		execCmd(),
 		cloneCmd(),
+		addCmd(),
+		removeCmd(),
+		editCmd(),
 		promptCmd(),
 		credentialsCmd(),
 		hookCmd(),
@@ -258,13 +262,88 @@ func cloneCmd() *cobra.Command {
 		Short: "Clone an existing profile (without credentials)",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, base, err := loadCfg()
+			cfg, _, err := loadCfg()
 			if err != nil {
 				return err
 			}
-			return internal.CloneProfile(args[0], args[1], base, cfg.SourceDir, cfg)
+			return internal.CloneProfile(args[0], args[1], configPath, cfg)
 		},
 	}
+}
+
+func addCmd() *cobra.Command {
+	var opts internal.AddOptions
+	var envFlags []string
+
+	cmd := &cobra.Command{
+		Use:   "add <profile>",
+		Short: "Add a profile to config.toml and install it",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			env, err := internal.ParseEnvFlag(envFlags)
+			if err != nil {
+				return err
+			}
+			opts.Env = env
+			return internal.AddProfile(configPath, args[0], opts)
+		},
+	}
+
+	cmd.Flags().StringVarP(&opts.Description, "description", "d", "", "human-readable description")
+	cmd.Flags().StringVarP(&opts.Model, "model", "m", "", "default model (e.g. sonnet, opus)")
+	cmd.Flags().StringArrayVar(&opts.AddDirs, "add-dir", nil, "extra directory passed via --add-dir (repeatable)")
+	cmd.Flags().StringArrayVarP(&envFlags, "env", "e", nil, "environment variable KEY=VALUE (repeatable)")
+	cmd.Flags().BoolVar(&opts.NoInstall, "no-install", false, "only update config.toml, do not run install")
+
+	return cmd
+}
+
+func removeCmd() *cobra.Command {
+	var opts internal.RemoveOptions
+
+	cmd := &cobra.Command{
+		Use:   "remove <profile>",
+		Short: "Remove a profile (config entry and wrapper; --purge deletes its data too)",
+		Long: `Remove a profile's wrapper script and its [profiles.<name>] section from
+config.toml. Comment lines inside that section are removed with it.
+
+With --purge the profile directory, its .credentials.json and (on macOS)
+its Keychain entry are deleted as well. This asks for confirmation unless
+--yes is given.`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, _, err := loadCfg()
+			if err != nil {
+				return err
+			}
+			opts.Stdin = os.Stdin
+			opts.IsTerminal = stdinIsTerminal()
+			return internal.RemoveProfile(cfg, configPath, args[0], opts)
+		},
+	}
+
+	cmd.Flags().BoolVar(&opts.Purge, "purge", false, "also delete the profile directory and credentials")
+	cmd.Flags().BoolVarP(&opts.Yes, "yes", "y", false, "do not ask for confirmation")
+
+	return cmd
+}
+
+func editCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "edit",
+		Short: "Open config.toml in $VISUAL / $EDITOR",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return internal.EditConfig(configPath, os.Getenv, func(c *exec.Cmd) error { return c.Run() })
+		},
+	}
+}
+
+func stdinIsTerminal() bool {
+	st, err := os.Stdin.Stat()
+	if err != nil {
+		return false
+	}
+	return st.Mode()&os.ModeCharDevice != 0
 }
 
 func promptCmd() *cobra.Command {
