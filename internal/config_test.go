@@ -3,6 +3,7 @@ package internal
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -194,5 +195,62 @@ func TestProfilesBaseDir(t *testing.T) {
 	got := ProfilesBaseDir("/home/user/.claude-profiles/config.toml")
 	if got != "/home/user/.claude-profiles" {
 		t.Errorf("ProfilesBaseDir = %q, want /home/user/.claude-profiles", got)
+	}
+}
+
+func TestValidateProfileName(t *testing.T) {
+	valid := []string{"work", "personal", "work-vertex", "client_2", "A1"}
+	for _, n := range valid {
+		if err := ValidateProfileName(n); err != nil {
+			t.Errorf("%q should be valid: %v", n, err)
+		}
+	}
+	invalid := []string{"", "../x", "my profile", "a/b", "auto", "ünï", strings.Repeat("a", 65)}
+	for _, n := range invalid {
+		if err := ValidateProfileName(n); err == nil {
+			t.Errorf("%q should be invalid", n)
+		}
+	}
+}
+
+func TestLoadConfigRejectsInvalidProfileName(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+	os.WriteFile(path, []byte("[profiles.\"../x\"]\ndescription = \"bad\"\n"), 0o644)
+	if _, err := LoadConfig(path); err == nil || !strings.Contains(err.Error(), "invalid profile name") {
+		t.Errorf("expected invalid profile name error, got %v", err)
+	}
+}
+
+func TestLoadConfigRejectsInvalidEnvName(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+	os.WriteFile(path, []byte("[profiles.work]\n[profiles.work.env]\n\"BAD-NAME\" = \"1\"\n"), 0o644)
+	if _, err := LoadConfig(path); err == nil || !strings.Contains(err.Error(), "environment variable") {
+		t.Errorf("expected env name error, got %v", err)
+	}
+}
+
+func TestLoadConfigRecordsUndecodedKeys(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+	os.WriteFile(path, []byte("sourcedir = \"x\"\n[profiles.work]\nmodl = \"sonnet\"\n"), 0o644)
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Join(cfg.Undecoded, ",")
+	if got != "profiles.work.modl,sourcedir" {
+		t.Errorf("Undecoded = %q", got)
+	}
+}
+
+func TestLoadCloudConfigMissingFileUsesDefaults(t *testing.T) {
+	cfg, err := LoadCloudConfig(filepath.Join(t.TempDir(), "nope.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.SourceDir == "" || cfg.BinDir == "" || len(cfg.Profiles) != 0 {
+		t.Errorf("unexpected defaults: %+v", cfg)
 	}
 }

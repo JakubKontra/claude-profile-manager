@@ -11,6 +11,12 @@ func CloneProfile(sourceName, targetName, profilesBase, sourceDir string, cfg *C
 	if _, err := lookupProfile(cfg, sourceName); err != nil {
 		return fmt.Errorf("unknown source profile %q", sourceName)
 	}
+	if err := ValidateProfileName(targetName); err != nil {
+		return err
+	}
+	if _, exists := cfg.Profiles[targetName]; exists {
+		return fmt.Errorf("target profile %q already exists in config", targetName)
+	}
 
 	srcDir := filepath.Join(profilesBase, sourceName)
 	dstDir := filepath.Join(profilesBase, targetName)

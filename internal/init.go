@@ -51,6 +51,11 @@ func RunInit(configPath string) error {
 		if name == "" {
 			break
 		}
+		if err := ValidateProfileName(name); err != nil {
+			outf("  %v — try again\n\n", err)
+			i--
+			continue
+		}
 
 		outf("  Description: ")
 		desc, _ := reader.ReadString('\n')
