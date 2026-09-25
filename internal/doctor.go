@@ -1,7 +1,6 @@
 package internal
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -138,43 +137,4 @@ func formatDuration(d time.Duration) string {
 		return fmt.Sprintf("%dh", int(d.Hours()))
 	}
 	return fmt.Sprintf("%dd", int(d.Hours()/24))
-}
-
-func GetCredentialInfo(profileDir string) (account string, expired bool, err error) {
-	credPath := filepath.Join(profileDir, ".credentials.json")
-	data, err := os.ReadFile(credPath)
-	if err != nil {
-		return "", false, fmt.Errorf("no credentials found")
-	}
-
-	var creds map[string]any
-	if err := json.Unmarshal(data, &creds); err != nil {
-		return "", false, fmt.Errorf("cannot parse credentials")
-	}
-
-	// Try to extract account info
-	if email, ok := creds["email"].(string); ok {
-		account = email
-	} else if sub, ok := creds["subject"].(string); ok {
-		account = sub
-	} else if id, ok := creds["account_uuid"].(string); ok {
-		account = id
-	} else {
-		account = "(unknown account)"
-	}
-
-	// Check expiry
-	if expiresAt, ok := creds["expires_at"].(float64); ok {
-		expTime := time.Unix(int64(expiresAt), 0)
-		expired = time.Now().After(expTime)
-	} else if expiresIn, ok := creds["expires_in"].(float64); ok {
-		// expires_in is relative — check file mod time
-		info, statErr := os.Stat(credPath)
-		if statErr == nil {
-			expTime := info.ModTime().Add(time.Duration(expiresIn) * time.Second)
-			expired = time.Now().After(expTime)
-		}
-	}
-
-	return account, expired, nil
 }

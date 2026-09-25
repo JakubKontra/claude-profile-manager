@@ -95,7 +95,7 @@ func TestRunDoctorProfileNotInstalled(t *testing.T) {
 
 func TestGetCredentialInfoNoFile(t *testing.T) {
 	dir := t.TempDir()
-	_, _, err := GetCredentialInfo(dir)
+	_, err := GetCredentialInfo(dir)
 	if err == nil {
 		t.Error("expected error for missing credentials")
 	}
@@ -110,14 +110,14 @@ func TestGetCredentialInfoWithEmail(t *testing.T) {
 	data, _ := json.Marshal(creds)
 	os.WriteFile(filepath.Join(dir, ".credentials.json"), data, 0o644)
 
-	account, expired, err := GetCredentialInfo(dir)
+	info, err := GetCredentialInfo(dir)
 	if err != nil {
 		t.Fatalf("GetCredentialInfo failed: %v", err)
 	}
-	if account != "user@example.com" {
-		t.Errorf("account = %q, want user@example.com", account)
+	if info.Account != "user@example.com" {
+		t.Errorf("account = %q, want user@example.com", info.Account)
 	}
-	if expired {
+	if info.Expired {
 		t.Error("credentials should not be expired")
 	}
 }
@@ -131,11 +131,11 @@ func TestGetCredentialInfoExpired(t *testing.T) {
 	data, _ := json.Marshal(creds)
 	os.WriteFile(filepath.Join(dir, ".credentials.json"), data, 0o644)
 
-	_, expired, err := GetCredentialInfo(dir)
+	info, err := GetCredentialInfo(dir)
 	if err != nil {
 		t.Fatalf("GetCredentialInfo failed: %v", err)
 	}
-	if !expired {
+	if !info.Expired {
 		t.Error("credentials should be expired")
 	}
 }

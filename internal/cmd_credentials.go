@@ -1,16 +1,21 @@
 package internal
 
-import "path/filepath"
+import (
+	"path/filepath"
+	"time"
+)
 
 // CredentialEntry is one row of `cpm credentials`.
 type CredentialEntry struct {
-	Name          string `json:"name"`
-	Authenticated bool   `json:"authenticated"`
-	Source        string `json:"source,omitempty"`
-	Account       string `json:"account,omitempty"`
-	Organization  string `json:"organization,omitempty"`
-	Expired       bool   `json:"expired"`
-	Error         string `json:"error,omitempty"`
+	Name          string     `json:"name"`
+	Authenticated bool       `json:"authenticated"`
+	Source        string     `json:"source,omitempty"`
+	Account       string     `json:"account,omitempty"`
+	Organization  string     `json:"organization,omitempty"`
+	Subscription  string     `json:"subscription_type,omitempty"`
+	Expired       bool       `json:"expired"`
+	ExpiresAt     *time.Time `json:"expires_at,omitempty"`
+	Error         string     `json:"error,omitempty"`
 }
 
 // CredentialReport gathers the credential status of every profile.
@@ -28,7 +33,12 @@ func CredentialReport(cfg *Config, profilesBase string) []CredentialEntry {
 			entry.Source = status.Source
 			entry.Account = status.Account
 			entry.Organization = status.Organization
+			entry.Subscription = status.SubscriptionType
 			entry.Expired = status.Expired
+			if !status.ExpiresAt.IsZero() {
+				expires := status.ExpiresAt
+				entry.ExpiresAt = &expires
+			}
 		}
 		entries = append(entries, entry)
 	}
@@ -47,10 +57,17 @@ func RenderCredentialReport(entries []CredentialEntry) {
 			account = "(unknown account)"
 		}
 		state := "valid"
-		if e.Expired {
+		switch {
+		case e.Expired:
 			state = "EXPIRED"
+		case e.ExpiresAt != nil:
+			state = "valid until " + e.ExpiresAt.Local().Format("2006-01-02 15:04")
 		}
-		detail := state + ", " + e.Source
+		detail := state
+		if e.Subscription != "" {
+			detail += ", " + e.Subscription
+		}
+		detail += ", " + e.Source
 		if e.Organization != "" {
 			detail += ", org " + e.Organization
 		}

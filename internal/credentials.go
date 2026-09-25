@@ -30,12 +30,86 @@ var keychainLookup = defaultKeychainLookup
 // CredentialStatus describes where a profile's login lives and which account
 // it belongs to.
 type CredentialStatus struct {
-	Authenticated bool
-	Source        string // "keychain" or "file"
-	Account       string
-	Organization  string
-	Expired       bool
-	LastUpdated   time.Time
+	Authenticated    bool
+	Source           string // "keychain" or "file"
+	Account          string
+	Organization     string
+	SubscriptionType string
+	Expired          bool
+	ExpiresAt        time.Time
+	LastUpdated      time.Time
+}
+
+// CredentialFileInfo is what a .credentials.json file (or a Keychain token
+// blob, which has the same shape) tells us.
+type CredentialFileInfo struct {
+	Account          string
+	SubscriptionType string
+	ExpiresAt        time.Time
+	Expired          bool
+}
+
+// credentialsJSON mirrors the parts of Claude Code's credential blob we read.
+// Tokens are deliberately not decoded.
+type credentialsJSON struct {
+	ClaudeAiOauth struct {
+		ExpiresAt        int64  `json:"expiresAt"` // milliseconds since epoch
+		SubscriptionType string `json:"subscriptionType"`
+	} `json:"claudeAiOauth"`
+
+	// Legacy / alternative shapes.
+	Email       string  `json:"email"`
+	Subject     string  `json:"subject"`
+	AccountUUID string  `json:"account_uuid"`
+	ExpiresAt   float64 `json:"expires_at"` // seconds since epoch
+	ExpiresIn   float64 `json:"expires_in"` // seconds, relative to file mtime
+}
+
+// parseCredentialsJSON extracts account and expiry from a credential blob.
+// now is injected for tests.
+func parseCredentialsJSON(data []byte, fileModTime, now time.Time) (CredentialFileInfo, error) {
+	var creds credentialsJSON
+	if err := json.Unmarshal(data, &creds); err != nil {
+		return CredentialFileInfo{}, fmt.Errorf("cannot parse credentials")
+	}
+
+	info := CredentialFileInfo{SubscriptionType: creds.ClaudeAiOauth.SubscriptionType}
+
+	switch {
+	case creds.Email != "":
+		info.Account = creds.Email
+	case creds.Subject != "":
+		info.Account = creds.Subject
+	case creds.AccountUUID != "":
+		info.Account = creds.AccountUUID
+	}
+
+	switch {
+	case creds.ClaudeAiOauth.ExpiresAt > 0:
+		info.ExpiresAt = time.UnixMilli(creds.ClaudeAiOauth.ExpiresAt)
+	case creds.ExpiresAt > 0:
+		info.ExpiresAt = time.Unix(int64(creds.ExpiresAt), 0)
+	case creds.ExpiresIn > 0 && !fileModTime.IsZero():
+		info.ExpiresAt = fileModTime.Add(time.Duration(creds.ExpiresIn) * time.Second)
+	}
+	if !info.ExpiresAt.IsZero() {
+		info.Expired = now.After(info.ExpiresAt)
+	}
+	return info, nil
+}
+
+// GetCredentialInfo reads <profileDir>/.credentials.json.
+func GetCredentialInfo(profileDir string) (CredentialFileInfo, error) {
+	credPath := filepath.Join(profileDir, ".credentials.json")
+	data, err := os.ReadFile(credPath)
+	if err != nil {
+		return CredentialFileInfo{}, fmt.Errorf("no credentials found")
+	}
+	var modTime time.Time
+	if st, err := os.Stat(credPath); err == nil {
+		modTime = st.ModTime()
+	}
+	return parseCredentialsJSON(data, modTime, time.Now())
 }
 
 // KeychainServiceName returns the Keychain service Claude Code uses for a
@@ -94,24 +168,26 @@ func GetCredentialStatus(profileDir string) (CredentialStatus, error) {
 		}, nil
 	}
 
-	fileAccount, expired, err := GetCredentialInfo(profileDir)
+	fileInfo, err := GetCredentialInfo(profileDir)
 	if err != nil {
 		return CredentialStatus{}, err
 	}
 	if account == "" {
-		account = fileAccount
+		account = fileInfo.Account
 	}
 	if info, statErr := os.Stat(filepath.Join(profileDir, ".credentials.json")); statErr == nil {
 		updated = info.ModTime()
 	}
 
 	return CredentialStatus{
-		Authenticated: true,
-		Source:        "file",
-		Account:       account,
-		Organization:  org,
-		Expired:       expired,
-		LastUpdated:   updated,
+		Authenticated:    true,
+		Source:           "file",
+		Account:          account,
+		Organization:     org,
+		SubscriptionType: fileInfo.SubscriptionType,
+		Expired:          fileInfo.Expired,
+		ExpiresAt:        fileInfo.ExpiresAt,
+		LastUpdated:      updated,
 	}, nil
 }
 
