@@ -120,7 +120,7 @@ func TestDistributeSyncFilesRoundTrip(t *testing.T) {
 	for repoPath, srcPath := range files {
 		dst := filepath.Join(repoDir, repoPath)
 		os.MkdirAll(filepath.Dir(dst), 0o755)
-		cloudCopyFile(srcPath, dst)
+		copyFile(srcPath, dst)
 	}
 
 	// Distribute from repo to restore dir

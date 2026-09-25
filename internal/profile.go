@@ -60,8 +60,7 @@ func SetupProfile(name string, profileDir, sourceDir string, forceSync bool) err
 		if err == nil {
 			// Existing symlink — check if target matches
 			absSrc, _ := filepath.Abs(src)
-			absLink, _ := filepath.Abs(linkTarget)
-			if absSrc == absLink {
+			if absSrc == resolveLinkTarget(dst, linkTarget) {
 				continue
 			}
 			os.Remove(dst)
@@ -80,6 +79,20 @@ func SetupProfile(name string, profileDir, sourceDir string, forceSync bool) err
 	return nil
 }
 
+// resolveLinkTarget returns the absolute path a symlink at link points to;
+// relative targets are resolved against the link's own directory.
+func resolveLinkTarget(link, target string) string {
+	if !filepath.IsAbs(target) {
+		target = filepath.Join(filepath.Dir(link), target)
+	}
+	abs, err := filepath.Abs(target)
+	if err != nil {
+		return target
+	}
+	return abs
+}
+
+// copyFile copies src to dst, creating dst's parent directory as needed.
 func copyFile(src, dst string) error {
 	in, err := os.Open(src)
 	if err != nil {
@@ -87,12 +100,18 @@ func copyFile(src, dst string) error {
 	}
 	defer in.Close()
 
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+
 	out, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
-	defer out.Close()
 
-	_, err = io.Copy(out, in)
-	return err
+	if _, err := io.Copy(out, in); err != nil {
+		out.Close()
+		return err
+	}
+	return out.Close()
 }

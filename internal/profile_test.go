@@ -3,6 +3,7 @@ package internal
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -140,5 +141,43 @@ func TestSetupProfileSkipsSymlinkForRealDir(t *testing.T) {
 	data, _ := os.ReadFile(filepath.Join(profileDir, "commands", "custom.md"))
 	if string(data) != "custom" {
 		t.Error("custom file should be preserved")
+	}
+}
+
+func TestSetupProfileAcceptsRelativeSymlink(t *testing.T) {
+	root := t.TempDir()
+	sourceDir := filepath.Join(root, "source")
+	profileDir := filepath.Join(root, "profiles", "test")
+	mustMkdir(t, filepath.Join(sourceDir, "skills"))
+	mustMkdir(t, profileDir)
+
+	// A relative symlink that resolves to the right place must be kept.
+	if err := os.Symlink("../../source/skills", filepath.Join(profileDir, "skills")); err != nil {
+		t.Fatal(err)
+	}
+	buf := captureOutput(t)
+	if err := SetupProfile("test", profileDir, sourceDir, false); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(buf.String(), "symlinked skills/") {
+		t.Errorf("relative symlink should have been recognised as up to date: %s", buf.String())
+	}
+	target, _ := os.Readlink(filepath.Join(profileDir, "skills"))
+	if target != "../../source/skills" {
+		t.Errorf("symlink was replaced: %s", target)
+	}
+}
+
+func TestCopyFileCreatesParent(t *testing.T) {
+	root := t.TempDir()
+	src := filepath.Join(root, "a.txt")
+	mustWrite(t, src, "hello")
+	dst := filepath.Join(root, "deep", "nested", "b.txt")
+	if err := copyFile(src, dst); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(dst)
+	if string(data) != "hello" {
+		t.Errorf("copied content = %q", data)
 	}
 }

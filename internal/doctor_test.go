@@ -167,3 +167,28 @@ func TestPrintChecks(t *testing.T) {
 	}
 	PrintChecks(checks)
 }
+
+func TestRunDoctorRelativeSymlinkNotBroken(t *testing.T) {
+	env := newTestEnv(t, "[profiles.test]\n")
+	mustMkdir(t, filepath.Join(env.SourceDir, "skills"))
+	profileDir := filepath.Join(env.profilesBase(), "test")
+	mustMkdir(t, profileDir)
+	if err := os.Symlink("../../claude/skills", filepath.Join(profileDir, "skills")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("../../claude/missing", filepath.Join(profileDir, "plugins")); err != nil {
+		t.Fatal(err)
+	}
+	stubKeychain(t, false)
+
+	for _, c := range RunDoctor(env.load(t), env.profilesBase()) {
+		switch c.Name {
+		case "profile/test/skills":
+			t.Errorf("valid relative symlink reported: %+v", c)
+		case "profile/test/plugins":
+			if c.Status != "error" {
+				t.Errorf("broken symlink not reported: %+v", c)
+			}
+		}
+	}
+}

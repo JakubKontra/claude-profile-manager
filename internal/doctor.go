@@ -71,7 +71,7 @@ func RunDoctor(cfg *Config, profilesBase string) []Check {
 			if err != nil {
 				continue // Not a symlink or doesn't exist
 			}
-			if _, err := os.Stat(target); os.IsNotExist(err) {
+			if _, err := os.Stat(resolveLinkTarget(link, target)); os.IsNotExist(err) {
 				checks = append(checks, Check{fmt.Sprintf("profile/%s/%s", name, dir), "error", fmt.Sprintf("broken symlink -> %s", target)})
 			}
 		}

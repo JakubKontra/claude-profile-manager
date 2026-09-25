@@ -2,7 +2,6 @@ package internal
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 )
@@ -42,7 +41,7 @@ func CloneProfile(sourceName, targetName, profilesBase, sourceDir string, cfg *C
 			continue
 		}
 
-		if err := cloneCopyFile(src, dst); err != nil {
+		if err := copyFile(src, dst); err != nil {
 			return fmt.Errorf("cannot copy %s: %w", filename, err)
 		}
 		outf("  copied %s\n", filename)
@@ -70,21 +69,4 @@ func CloneProfile(sourceName, targetName, profilesBase, sourceDir string, cfg *C
 	outln("Then run 'cpm install' to generate the wrapper script.")
 
 	return nil
-}
-
-func cloneCopyFile(src, dst string) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-
-	out, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	_, err = io.Copy(out, in)
-	return err
 }

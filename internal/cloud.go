@@ -2,7 +2,6 @@ package internal
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -122,7 +121,7 @@ func CloudInit(configPath string, remote string) error {
 		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 			return err
 		}
-		if err := cloudCopyFile(srcPath, dst); err != nil {
+		if err := copyFile(srcPath, dst); err != nil {
 			outf("  skipped %s (%v)\n", repoPath, err)
 			continue
 		}
@@ -187,7 +186,7 @@ func CloudPush(configPath string, message string) error {
 		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 			return err
 		}
-		if err := cloudCopyFile(srcPath, dst); err != nil {
+		if err := copyFile(srcPath, dst); err != nil {
 			continue // skip missing files silently
 		}
 	}
@@ -230,7 +229,7 @@ func CloudPush(configPath string, message string) error {
 	}
 
 	// Show what changed
-	diff, _ := gitExec(repoDir, "diff", "--stat", "HEAD~1..HEAD")
+	diff, _ := gitExec(repoDir, "show", "--stat", "--format=", "HEAD")
 	if diff != "" {
 		outln(strings.TrimSpace(diff))
 	}
@@ -446,7 +445,7 @@ func DistributeSyncFiles(repoDir string, cfg *Config) error {
 			continue
 		}
 		dst := filepath.Join(cfg.SourceDir, name)
-		if err := cloudCopyFile(src, dst); err != nil {
+		if err := copyFile(src, dst); err != nil {
 			outf("  warning: cannot write %s: %v\n", name, err)
 			continue
 		}
@@ -472,7 +471,7 @@ func DistributeSyncFiles(repoDir string, cfg *Config) error {
 			if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 				return nil
 			}
-			if err := cloudCopyFile(path, dst); err != nil {
+			if err := copyFile(path, dst); err != nil {
 				return nil
 			}
 			outf("  restored %s/%s\n", dirname, rel)
@@ -490,7 +489,7 @@ func DistributeSyncFiles(repoDir string, cfg *Config) error {
 		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 			continue
 		}
-		if err := cloudCopyFile(src, dst); err != nil {
+		if err := copyFile(src, dst); err != nil {
 			outf("  warning: cannot write %s: %v\n", ext.HomePath, err)
 			continue
 		}
@@ -536,27 +535,6 @@ func checkRemoteHasRefs(remote string) (bool, error) {
 		return false, err
 	}
 	return strings.TrimSpace(out) != "", nil
-}
-
-func cloudCopyFile(src, dst string) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		return err
-	}
-
-	out, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	_, err = io.Copy(out, in)
-	return err
 }
 
 func cleanDeletedFiles(repoSubDir, srcDir string) {
@@ -689,7 +667,7 @@ func mergeConfigTOML(pulledPath, localConfigPath string) error {
 	localData, err := os.ReadFile(localPath)
 	if err != nil {
 		// No local config, just copy
-		return cloudCopyFile(pulledPath, localPath)
+		return copyFile(pulledPath, localPath)
 	}
 
 	var local Config

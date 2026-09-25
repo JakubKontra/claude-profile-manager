@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 )
 
 // Set via ldflags at build time
@@ -16,6 +17,9 @@ var (
 	Version = "dev"
 	Commit  = "unknown"
 )
+
+// httpClient bounds every network call so 'cpm version' cannot hang offline.
+var httpClient = &http.Client{Timeout: 10 * time.Second}
 
 const repoOwner = "jakubkontra"
 const repoName = "claude-profile-manager"
@@ -33,7 +37,7 @@ type githubAsset struct {
 func CheckLatestVersion() (string, error) {
 	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", repoOwner, repoName)
 
-	resp, err := http.Get(url)
+	resp, err := httpClient.Get(url)
 	if err != nil {
 		return "", fmt.Errorf("cannot check for updates: %w", err)
 	}
@@ -54,7 +58,7 @@ func CheckLatestVersion() (string, error) {
 func Upgrade(binDir string) error {
 	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", repoOwner, repoName)
 
-	resp, err := http.Get(url)
+	resp, err := httpClient.Get(url)
 	if err != nil {
 		return fmt.Errorf("cannot fetch release info: %w", err)
 	}
@@ -90,7 +94,7 @@ func Upgrade(binDir string) error {
 
 	outf("Downloading %s...\n", release.TagName)
 
-	resp, err = http.Get(downloadURL)
+	resp, err = httpClient.Get(downloadURL)
 	if err != nil {
 		return fmt.Errorf("cannot download binary: %w", err)
 	}
