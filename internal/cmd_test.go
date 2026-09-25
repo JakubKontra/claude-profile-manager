@@ -215,17 +215,17 @@ func TestUseAutoAndDirenv(t *testing.T) {
 	dir := t.TempDir()
 	mustWrite(t, filepath.Join(dir, ".claude-profile"), "work\n")
 
-	snippet, err := Use(env.load(t), env.profilesBase(), "auto", dir)
+	snippet, err := Use(env.load(t), env.profilesBase(), "auto", dir, UseOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(snippet, `CLAUDE_PROFILE='work'`) {
 		t.Errorf("auto should resolve to work: %q", snippet)
 	}
-	if _, err := Use(env.load(t), env.profilesBase(), "auto", t.TempDir()); err == nil {
+	if _, err := Use(env.load(t), env.profilesBase(), "auto", t.TempDir(), UseOptions{}); err == nil {
 		t.Error("auto without .claude-profile should error")
 	}
-	if _, err := Use(env.load(t), env.profilesBase(), "nope", dir); err == nil {
+	if _, err := Use(env.load(t), env.profilesBase(), "nope", dir, UseOptions{}); err == nil {
 		t.Error("unknown profile should error")
 	}
 

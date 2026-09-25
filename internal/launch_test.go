@@ -156,7 +156,7 @@ func TestGenerateUseOutputEvaluates(t *testing.T) {
 	if err != nil {
 		t.Skip("bash not available")
 	}
-	snippet := GenerateUseOutput("work", "/p/work", &Profile{Env: map[string]string{"WEIRD": `it's "x" $y`}})
+	snippet := GenerateUseOutput("work", "/p/work", &Profile{Env: map[string]string{"WEIRD": `it's "x" $y`}}, UseOptions{})
 	script := snippet + "\nprintf '%s|%s|%s' \"$CLAUDE_PROFILE\" \"$CLAUDE_CONFIG_DIR\" \"$WEIRD\"\n"
 	cmd := exec.Command(bash, "-c", script)
 	cmd.Env = append(os.Environ(), "CLAUDE_PROFILE=old")

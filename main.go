@@ -151,11 +151,17 @@ func direnvCmd() *cobra.Command {
 }
 
 func useCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "use <profile>",
+	var opts internal.UseOptions
+	cmd := &cobra.Command{
+		Use:   "use [profile|auto]",
 		Short: "Switch the current shell to a profile (use with eval)",
-		Long:  "Switch the current shell to a profile.\nUsage: eval \"$(cpm use <profile>)\"\nPass \"auto\" to use the profile from the nearest .claude-profile file.",
-		Args:  cobra.ExactArgs(1),
+		Long: `Switch the current shell to a profile.
+
+  eval "$(cpm use work)"               # bash / zsh
+  cpm use --shell fish work | source   # fish
+  eval "$(cpm use auto)"               # profile from the nearest .claude-profile
+  eval "$(cpm use)"                    # interactive picker (menu on stderr)`,
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, base, err := loadCfg()
 			if err != nil {
@@ -165,7 +171,22 @@ func useCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			snippet, err := internal.Use(cfg, base, args[0], dir)
+			if opts.Shell == "" {
+				opts.Shell = internal.DetectShell(os.Getenv)
+			}
+			var name string
+			if len(args) == 1 {
+				name = args[0]
+			} else {
+				if !stdinIsTerminal() {
+					return errors.New("profile name required (or run interactively)")
+				}
+				name, err = internal.SelectProfileInteractive(cfg, os.Stdin, os.Stderr)
+				if err != nil {
+					return err
+				}
+			}
+			snippet, err := internal.Use(cfg, base, name, dir, opts)
 			if err != nil {
 				return err
 			}
@@ -173,6 +194,9 @@ func useCmd() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().StringVar(&opts.Shell, "shell", "", "shell syntax: bash, zsh or fish (default: from $SHELL)")
+	cmd.Flags().BoolVarP(&opts.Quiet, "quiet", "q", false, "do not print the 'Switched to profile' message")
+	return cmd
 }
 
 func whichCmd() *cobra.Command {
@@ -404,14 +428,25 @@ func credentialsCmd() *cobra.Command {
 }
 
 func hookCmd() *cobra.Command {
-	return &cobra.Command{
+	var opts internal.HookOptions
+	cmd := &cobra.Command{
 		Use:   "hook",
 		Short: "Print shell hook for auto-switching via .claude-profile files",
-		Long:  "Print shell hook for auto-switching.\nAdd to your .zshrc: eval \"$(cpm hook)\"",
+		Long: `Print shell hook for auto-switching.
+
+  eval "$(cpm hook)"                    # .zshrc / .bashrc
+  cpm hook --shell fish | source        # config.fish
+  eval "$(cpm hook --default personal)" # fall back to a profile outside projects`,
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Fprint(os.Stdout, internal.GenerateShellHook())
+			if opts.Shell == "" {
+				opts.Shell = internal.DetectShell(os.Getenv)
+			}
+			fmt.Fprint(os.Stdout, internal.GenerateShellHook(opts))
 		},
 	}
+	cmd.Flags().StringVar(&opts.Shell, "shell", "", "shell: bash, zsh or fish (default: from $SHELL)")
+	cmd.Flags().StringVar(&opts.DefaultProfile, "default", "", "profile to use when no .claude-profile is found")
+	return cmd
 }
 
 func linkCmd() *cobra.Command {

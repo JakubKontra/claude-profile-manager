@@ -15,7 +15,7 @@ func TestGenerateUseOutput(t *testing.T) {
 		},
 	}
 
-	out := GenerateUseOutput("test", "/profiles/test", profile)
+	out := GenerateUseOutput("test", "/profiles/test", profile, UseOptions{})
 
 	mustContain := []string{
 		`CLAUDE_CONFIG_DIR='/profiles/test'`,
@@ -162,7 +162,7 @@ func TestUnlinkProfileNotFound(t *testing.T) {
 }
 
 func TestGenerateShellHook(t *testing.T) {
-	hook := GenerateShellHook()
+	hook := GenerateShellHook(HookOptions{})
 
 	mustContain := []string{
 		"_cpm_auto_switch",
@@ -170,6 +170,10 @@ func TestGenerateShellHook(t *testing.T) {
 		"cpm use",
 		"chpwd",
 		"ZSH_VERSION",
+		"PROMPT_COMMAND",
+	}
+	if strings.Contains(hook, "alias cd") {
+		t.Error("bash hook must not alias cd")
 	}
 
 	for _, s := range mustContain {
