@@ -3,6 +3,7 @@ package internal
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -213,5 +214,97 @@ func TestCleanDeletedFiles(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(repoDir, "deleted.md")); !os.IsNotExist(err) {
 		t.Error("deleted.md should have been removed from repo")
+	}
+}
+
+func TestSaveCloudRemoteWithCommentedHeader(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	os.WriteFile(path, []byte(userConfig), 0o644)
+
+	if err := saveCloudRemote(path, "git@github.com:me/settings.git"); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadCloudConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Cloud == nil || cfg.Cloud.Remote != "git@github.com:me/settings.git" {
+		data, _ := os.ReadFile(path)
+		t.Errorf("remote not saved:\n%s", data)
+	}
+
+	// Update in place, no duplicate key.
+	if err := saveCloudRemote(path, "git@github.com:me/other.git"); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(path)
+	if strings.Count(string(data), "\nremote = ") != 1 {
+		t.Errorf("remote duplicated:\n%s", data)
+	}
+	cfg, _ = LoadCloudConfig(path)
+	if cfg.Cloud.Remote != "git@github.com:me/other.git" {
+		t.Errorf("remote not updated: %s", cfg.Cloud.Remote)
+	}
+}
+
+func TestSaveCloudRemoteCreatesConfig(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := saveCloudRemote(path, "url"); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadCloudConfig(path)
+	if err != nil || cfg.Cloud == nil || cfg.Cloud.Remote != "url" {
+		t.Errorf("config not created: %v %+v", err, cfg)
+	}
+}
+
+func TestMergeConfigTOMLAddsNewProfiles(t *testing.T) {
+	dir := t.TempDir()
+	local := filepath.Join(dir, "config.toml")
+	pulled := filepath.Join(dir, "pulled.toml")
+	os.WriteFile(local, []byte(userConfig), 0o644)
+	os.WriteFile(pulled, []byte(`source_dir = "/elsewhere"
+[profiles.work]
+description = "changed remotely"
+[profiles.client]
+description = "Client"
+model = "opus"
+add_dirs = ["~/c"]
+[profiles.client.env]
+K = "v"
+[cloud]
+remote = "git@example:x.git"
+`), 0o644)
+	captureOutput(t)
+
+	if err := mergeConfigTOML(pulled, local); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadConfig(local)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := cfg.Profiles["client"]
+	if client == nil || client.Model != "opus" || client.Env["K"] != "v" || len(client.AddDirs) != 1 {
+		t.Errorf("client profile not merged fully: %+v", client)
+	}
+	if cfg.Profiles["work"].Description != "Company team subscription" {
+		t.Error("existing profile must not be overwritten")
+	}
+	if cfg.SourceDir != ExpandPath("~/.claude") {
+		t.Errorf("local source_dir must be preserved, got %s", cfg.SourceDir)
+	}
+	if cfg.Cloud == nil || cfg.Cloud.Remote != "git@example:x.git" {
+		t.Errorf("cloud section not merged: %+v", cfg.Cloud)
+	}
+
+	// Second merge is a no-op.
+	before, _ := os.ReadFile(local)
+	if err := mergeConfigTOML(pulled, local); err != nil {
+		t.Fatal(err)
+	}
+	after, _ := os.ReadFile(local)
+	if string(before) != string(after) {
+		t.Error("merge must be idempotent")
 	}
 }

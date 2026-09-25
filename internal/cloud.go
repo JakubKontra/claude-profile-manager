@@ -603,54 +603,18 @@ func showPullDiff(repoDir string, cfg *Config, configPath string) error {
 func saveCloudRemote(configPath string, remote string) error {
 	cfgPath := ExpandPath(configPath)
 	data, err := os.ReadFile(cfgPath)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	out, err := SetTableKey(data, "cloud", "remote", quoteTOMLString(remote))
 	if err != nil {
-		// Config doesn't exist, create minimal one with cloud section
-		content := fmt.Sprintf("[cloud]\nremote = %q\n", remote)
-		return os.WriteFile(cfgPath, []byte(content), 0o644)
+		return err
 	}
-
-	content := string(data)
-	if strings.Contains(content, "[cloud]") {
-		// Update existing cloud section's remote
-		lines := strings.Split(content, "\n")
-		found := false
-		inCloud := false
-		for i, line := range lines {
-			trimmed := strings.TrimSpace(line)
-			if trimmed == "[cloud]" {
-				inCloud = true
-				continue
-			}
-			if inCloud && strings.HasPrefix(trimmed, "[") {
-				// Hit next section without finding remote
-				break
-			}
-			if inCloud && strings.HasPrefix(trimmed, "remote") {
-				lines[i] = fmt.Sprintf("remote = %q", remote)
-				found = true
-				break
-			}
-		}
-		if !found {
-			// Add remote under [cloud]
-			for i, line := range lines {
-				if strings.TrimSpace(line) == "[cloud]" {
-					lines = append(lines[:i+1], append([]string{fmt.Sprintf("remote = %q", remote)}, lines[i+1:]...)...)
-					break
-				}
-			}
-		}
-		return os.WriteFile(cfgPath, []byte(strings.Join(lines, "\n")), 0o644)
-	}
-
-	// Append cloud section
-	if !strings.HasSuffix(content, "\n") {
-		content += "\n"
-	}
-	content += fmt.Sprintf("\n[cloud]\nremote = %q\n", remote)
-	return os.WriteFile(cfgPath, []byte(content), 0o644)
+	return writeConfigAtomic(cfgPath, out)
 }
 
+// mergeConfigTOML adds profiles that exist in the pulled config but not
+// locally. source_dir, bin_dir and existing profiles are left untouched.
 func mergeConfigTOML(pulledPath, localConfigPath string) error {
 	localPath := ExpandPath(localConfigPath)
 
@@ -658,65 +622,54 @@ func mergeConfigTOML(pulledPath, localConfigPath string) error {
 	if err != nil {
 		return err
 	}
-
 	var pulled Config
-	if err := toml.Unmarshal(pulledData, &pulled); err != nil {
+	if _, err := toml.Decode(string(pulledData), &pulled); err != nil {
 		return err
 	}
 
 	localData, err := os.ReadFile(localPath)
 	if err != nil {
-		// No local config, just copy
-		return copyFile(pulledPath, localPath)
+		if os.IsNotExist(err) {
+			return copyFile(pulledPath, localPath)
+		}
+		return err
 	}
-
 	var local Config
-	if err := toml.Unmarshal(localData, &local); err != nil {
+	if _, err := toml.Decode(string(localData), &local); err != nil {
 		return err
 	}
 
-	// Merge: add missing profiles from pulled, preserve local source_dir/bin_dir
-	if local.Profiles == nil {
-		local.Profiles = make(map[string]*Profile)
-	}
-	merged := false
-	for name, profile := range pulled.Profiles {
+	// Decide what is missing before touching anything.
+	var missing []string
+	for _, name := range SortedProfileNames(&pulled) {
 		if _, exists := local.Profiles[name]; !exists {
-			local.Profiles[name] = profile
-			outf("  added profile from cloud: %s\n", name)
-			merged = true
+			missing = append(missing, name)
 		}
 	}
-
-	// Merge cloud config
-	if pulled.Cloud != nil && local.Cloud == nil {
-		local.Cloud = pulled.Cloud
-		merged = true
+	addCloud := pulled.Cloud != nil && local.Cloud == nil
+	if len(missing) == 0 && !addCloud {
+		return nil
 	}
 
-	if merged {
-		// Write back — we preserve the original file and just append new profiles
-		// to avoid losing formatting. Use simple append approach.
-		content := string(localData)
-		for name, profile := range pulled.Profiles {
-			if _, exists := local.Profiles[name]; exists {
-				// Skip already existing (handled above via the merged map check,
-				// but we re-check against the original local data)
-				continue
-			}
-			if !strings.HasSuffix(content, "\n") {
-				content += "\n"
-			}
-			content += fmt.Sprintf("\n[profiles.%s]\n", name)
-			if profile.Description != "" {
-				content += fmt.Sprintf("description = %q\n", profile.Description)
-			}
-			if profile.Model != "" {
-				content += fmt.Sprintf("model = %q\n", profile.Model)
+	out := localData
+	for _, name := range missing {
+		out, err = AppendProfileTable(out, name, pulled.Profiles[name])
+		if err != nil {
+			return err
+		}
+		outf("  added profile from cloud: %s\n", name)
+	}
+	if addCloud {
+		if pulled.Cloud.Remote != "" {
+			if out, err = SetTableKey(out, "cloud", "remote", quoteTOMLString(pulled.Cloud.Remote)); err != nil {
+				return err
 			}
 		}
-		return os.WriteFile(localPath, []byte(content), 0o644)
+		if pulled.Cloud.AutoPush {
+			if out, err = SetTableKey(out, "cloud", "auto_push", "true"); err != nil {
+				return err
+			}
+		}
 	}
-
-	return nil
+	return writeConfigAtomic(localPath, out)
 }
