@@ -6,11 +6,11 @@ import (
 )
 
 func TestGenerateDirenvSnippet(t *testing.T) {
-	out := GenerateDirenvSnippet("work", "/home/user/.claude-profiles/work")
+	out := GenerateDirenvSnippet("work", "/home/user/.claude-profiles/work", &Profile{})
 
 	mustContain := []string{
-		`CLAUDE_CONFIG_DIR="/home/user/.claude-profiles/work"`,
-		`CLAUDE_PROFILE="work"`,
+		`CLAUDE_CONFIG_DIR='/home/user/.claude-profiles/work'`,
+		`CLAUDE_PROFILE='work'`,
 	}
 
 	for _, s := range mustContain {

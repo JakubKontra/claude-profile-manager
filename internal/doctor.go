@@ -1,25 +1,50 @@
 package internal
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
 type Check struct {
-	Name   string
-	Status string // "ok", "warn", "error"
-	Detail string
+	Name   string `json:"name"`
+	Status string `json:"status"` // "ok", "warn", "error"
+	Detail string `json:"detail"`
 }
 
+// DoctorOptions tunes RunDoctor.
+type DoctorOptions struct {
+	// HomeDir is where shell rc files are looked up; empty means $HOME.
+	HomeDir string
+	// Verify reads the Keychain token (macOS) to check its expiry.
+	Verify bool
+	// LookPath is injected in tests; nil means exec.LookPath.
+	LookPath func(string) (string, error)
+}
+
+// rcFiles are the shell startup files scanned for the cpm hook.
+var rcFiles = []string{".zshrc", ".bashrc", ".bash_profile", ".config/fish/config.fish"}
+
 func RunDoctor(cfg *Config, profilesBase string) []Check {
+	return RunDoctorWithOptions(cfg, profilesBase, DoctorOptions{})
+}
+
+func RunDoctorWithOptions(cfg *Config, profilesBase string, opts DoctorOptions) []Check {
 	var checks []Check
+	lookPath := opts.LookPath
+	if lookPath == nil {
+		lookPath = exec.LookPath
+	}
+	home := opts.HomeDir
+	if home == "" {
+		home, _ = os.UserHomeDir()
+	}
 
 	// Check claude binary
-	claudePath, err := exec.LookPath("claude")
+	claudePath, err := lookPath("claude")
 	if err != nil {
 		checks = append(checks, Check{"claude binary", "error", "claude not found on PATH"})
 	} else {
@@ -55,9 +80,31 @@ func RunDoctor(cfg *Config, profilesBase string) []Check {
 		checks = append(checks, Check{"bin dir on PATH", "warn", fmt.Sprintf("%s is not on PATH", cfg.BinDir)})
 	}
 
+	// Unknown config keys are usually typos.
+	if len(cfg.Undecoded) > 0 {
+		checks = append(checks, Check{"config keys", "warn", "unknown keys (typo?): " + strings.Join(cfg.Undecoded, ", ")})
+	}
+
+	// git is needed once cloud sync is configured.
+	if cfg.Cloud != nil {
+		if gitPath, err := lookPath("git"); err != nil {
+			checks = append(checks, Check{"git binary", "error", "git not found on PATH (needed for cpm cloud)"})
+		} else {
+			checks = append(checks, Check{"git binary", "ok", gitPath})
+		}
+	}
+
+	// Shell hook installed?
+	if rc := hookInstalledIn(home); rc != "" {
+		checks = append(checks, Check{"shell hook", "ok", rc})
+	} else {
+		checks = append(checks, Check{"shell hook", "warn", "not found in shell rc files (add: eval \"$(cpm hook)\")"})
+	}
+
 	// Check each profile
-	for name := range cfg.Profiles {
+	for _, name := range SortedProfileNames(cfg) {
 		profileDir := filepath.Join(profilesBase, name)
+		profile := cfg.Profiles[name]
 
 		if _, err := os.Stat(profileDir); os.IsNotExist(err) {
 			checks = append(checks, Check{fmt.Sprintf("profile/%s", name), "warn", "not installed (run cpm install)"})
@@ -65,13 +112,13 @@ func RunDoctor(cfg *Config, profilesBase string) []Check {
 		}
 
 		// Check symlinks
-		for _, dir := range symlinkDirs {
+		for _, dir := range EffectiveShareDirs(cfg, cfg.Profiles[name]) {
 			link := filepath.Join(profileDir, dir)
 			target, err := os.Readlink(link)
 			if err != nil {
 				continue // Not a symlink or doesn't exist
 			}
-			if _, err := os.Stat(target); os.IsNotExist(err) {
+			if _, err := os.Stat(resolveLinkTarget(link, target)); os.IsNotExist(err) {
 				checks = append(checks, Check{fmt.Sprintf("profile/%s/%s", name, dir), "error", fmt.Sprintf("broken symlink -> %s", target)})
 			}
 		}
@@ -79,6 +126,9 @@ func RunDoctor(cfg *Config, profilesBase string) []Check {
 		// Check credentials (Keychain on macOS, .credentials.json elsewhere)
 		checkName := fmt.Sprintf("profile/%s/credentials", name)
 		status, err := GetCredentialStatus(profileDir)
+		if err == nil && opts.Verify && status.Source == "keychain" {
+			status = verifyKeychainToken(profileDir, status)
+		}
 		switch {
 		case err != nil:
 			checks = append(checks, Check{checkName, "warn", "not authenticated (run claude-" + name + " auth login)"})
@@ -91,15 +141,56 @@ func RunDoctor(cfg *Config, profilesBase string) []Check {
 		}
 
 		// Check wrapper script
-		scriptPath := filepath.Join(cfg.BinDir, "claude-"+name)
-		if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
-			checks = append(checks, Check{fmt.Sprintf("profile/%s/wrapper", name), "warn", "wrapper script missing (run cpm install)"})
-		} else {
-			checks = append(checks, Check{fmt.Sprintf("profile/%s/wrapper", name), "ok", scriptPath})
+		scriptPath := filepath.Join(cfg.BinDir, wrapperPrefix+name)
+		wrapperCheck := fmt.Sprintf("profile/%s/wrapper", name)
+		switch existing, err := os.ReadFile(scriptPath); {
+		case os.IsNotExist(err):
+			checks = append(checks, Check{wrapperCheck, "warn", "wrapper script missing (run cpm install)"})
+		case err != nil:
+			checks = append(checks, Check{wrapperCheck, "error", err.Error()})
+		case string(existing) != GenerateWrapper(name, profileDir, profile):
+			checks = append(checks, Check{wrapperCheck, "warn", "wrapper outdated (run cpm install)"})
+		default:
+			checks = append(checks, Check{wrapperCheck, "ok", scriptPath})
 		}
 	}
 
 	return checks
+}
+
+// hookInstalledIn returns the rc file that references the cpm hook, or "".
+func hookInstalledIn(home string) string {
+	for _, rc := range rcFiles {
+		path := filepath.Join(home, rc)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		if strings.Contains(string(data), "cpm hook") {
+			return path
+		}
+	}
+	return ""
+}
+
+// verifyKeychainToken reads the token blob from the Keychain and fills in
+// expiry and subscription. Failures leave the status as it was.
+func verifyKeychainToken(profileDir string, status CredentialStatus) CredentialStatus {
+	data, err := keychainRead(KeychainServiceName(profileDir), keychainAccount())
+	if err != nil {
+		return status
+	}
+	info, err := parseCredentialsJSON(data, time.Time{}, time.Now())
+	if err != nil {
+		return status
+	}
+	status.Expired = info.Expired
+	status.ExpiresAt = info.ExpiresAt
+	status.SubscriptionType = info.SubscriptionType
+	if status.Account == "" {
+		status.Account = info.Account
+	}
+	return status
 }
 
 func PrintChecks(checks []Check) {
@@ -113,7 +204,7 @@ func PrintChecks(checks []Check) {
 		case "error":
 			icon = " ERR"
 		}
-		fmt.Printf("  [%s] %-35s %s\n", icon, c.Name, c.Detail)
+		outf("  [%s] %-35s %s\n", icon, c.Name, c.Detail)
 	}
 }
 
@@ -123,6 +214,12 @@ func describeCredentials(s CredentialStatus) string {
 	detail := s.Source
 	if s.Account != "" {
 		detail += " — " + s.Account
+	}
+	if s.SubscriptionType != "" {
+		detail += " (" + s.SubscriptionType + ")"
+	}
+	if !s.ExpiresAt.IsZero() {
+		detail += " valid until " + s.ExpiresAt.Local().Format("2006-01-02 15:04")
 	}
 	if !s.LastUpdated.IsZero() {
 		detail += fmt.Sprintf(" (updated %s ago)", formatDuration(time.Since(s.LastUpdated)))
@@ -138,43 +235,4 @@ func formatDuration(d time.Duration) string {
 		return fmt.Sprintf("%dh", int(d.Hours()))
 	}
 	return fmt.Sprintf("%dd", int(d.Hours()/24))
-}
-
-func GetCredentialInfo(profileDir string) (account string, expired bool, err error) {
-	credPath := filepath.Join(profileDir, ".credentials.json")
-	data, err := os.ReadFile(credPath)
-	if err != nil {
-		return "", false, fmt.Errorf("no credentials found")
-	}
-
-	var creds map[string]any
-	if err := json.Unmarshal(data, &creds); err != nil {
-		return "", false, fmt.Errorf("cannot parse credentials")
-	}
-
-	// Try to extract account info
-	if email, ok := creds["email"].(string); ok {
-		account = email
-	} else if sub, ok := creds["subject"].(string); ok {
-		account = sub
-	} else if id, ok := creds["account_uuid"].(string); ok {
-		account = id
-	} else {
-		account = "(unknown account)"
-	}
-
-	// Check expiry
-	if expiresAt, ok := creds["expires_at"].(float64); ok {
-		expTime := time.Unix(int64(expiresAt), 0)
-		expired = time.Now().After(expTime)
-	} else if expiresIn, ok := creds["expires_in"].(float64); ok {
-		// expires_in is relative — check file mod time
-		info, statErr := os.Stat(credPath)
-		if statErr == nil {
-			expTime := info.ModTime().Add(time.Duration(expiresIn) * time.Second)
-			expired = time.Now().After(expTime)
-		}
-	}
-
-	return account, expired, nil
 }

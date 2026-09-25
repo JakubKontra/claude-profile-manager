@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 )
 
@@ -21,67 +20,48 @@ const wrapperPrefix = "claude-"
 // as a generated wrapper header.
 const markerScanLines = 5
 
-var subcommands = "mcp|auth|doctor|install|setup-token|update|upgrade|agents|auto-mode|plugin|plugins"
-
+// GenerateWrapper renders the bash wrapper script for a profile.
 func GenerateWrapper(name string, profileDir string, profile *Profile) string {
+	spec := BuildLaunchSpec(name, profileDir, profile)
 	var b strings.Builder
 
 	b.WriteString("#!/usr/bin/env bash\n")
 	b.WriteString(marker + "\n")
-	b.WriteString(fmt.Sprintf("# Profile: %s — %s\n", name, profile.Description))
+	fmt.Fprintf(&b, "# Profile: %s — %s\n", name, profile.Description)
 	b.WriteString("set -euo pipefail\n\n")
 
-	// Unset inherited CLAUDE_*/ANTHROPIC_* env vars
 	b.WriteString("# Unset inherited CLAUDE_*/ANTHROPIC_* env vars to avoid interference\n")
 	b.WriteString("while IFS= read -r varname; do\n")
 	b.WriteString("  unset \"$varname\"\n")
-	b.WriteString("done < <(compgen -v | grep -E \"^(CLAUDE_|ANTHROPIC_)\")\n\n")
+	b.WriteString("done < <(compgen -v | grep -E \"^(CLAUDE_|ANTHROPIC_)\" || true)\n\n")
 
-	b.WriteString(fmt.Sprintf("export CLAUDE_CONFIG_DIR=\"%s\"\n", profileDir))
-	b.WriteString(fmt.Sprintf("export CLAUDE_PROFILE=\"%s\"\n", name))
-
-	// Custom env vars
-	if len(profile.Env) > 0 {
-		keys := make([]string, 0, len(profile.Env))
-		for k := range profile.Env {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		for _, k := range keys {
-			b.WriteString(fmt.Sprintf("export %s=\"%s\"\n", k, profile.Env[k]))
-		}
+	for _, v := range spec.Env {
+		fmt.Fprintf(&b, "export %s=%s\n", v.Key, ShellQuote(v.Value))
 	}
-
 	b.WriteString("\n")
 
-	// Subcommands bypass
-	b.WriteString(fmt.Sprintf("case \"${1:-}\" in\n  %s) exec claude \"$@\" ;;\nesac\n\n", subcommands))
+	b.WriteString("# Subcommands only need the environment, not profile flags\n")
+	fmt.Fprintf(&b, "case \"${1:-}\" in\n  %s) exec claude \"$@\" ;;\nesac\n\n", strings.Join(bypassSubcommands, "|"))
 
-	// Model handling
-	if profile.Model != "" {
+	b.WriteString("extra=()\n")
+	for _, d := range spec.AddDirs {
+		fmt.Fprintf(&b, "extra+=(--add-dir %s)\n", ShellQuote(d))
+	}
+	if spec.Model != "" {
 		b.WriteString("# Default model (overridden if --model is passed on command line)\n")
 		b.WriteString("has_model=false\n")
 		b.WriteString("for arg in \"$@\"; do\n")
 		b.WriteString("  case \"$arg\" in\n")
 		b.WriteString("    --model|--model=*) has_model=true; break ;;\n")
 		b.WriteString("  esac\n")
-		b.WriteString("done\n\n")
+		b.WriteString("done\n")
+		fmt.Fprintf(&b, "if [ \"$has_model\" = false ]; then extra+=(--model %s); fi\n", ShellQuote(spec.Model))
 	}
+	b.WriteString("\n")
 
-	// Build exec command
-	var cmdParts []string
-	cmdParts = append(cmdParts, "exec claude")
-	for _, d := range profile.AddDirs {
-		expanded := ExpandPath(d)
-		cmdParts = append(cmdParts, fmt.Sprintf("--add-dir \"%s\"", expanded))
-	}
-
-	if profile.Model != "" {
-		cmdParts = append(cmdParts, fmt.Sprintf("$([ \"$has_model\" = false ] && echo '--model %s')", profile.Model))
-	}
-
-	cmdParts = append(cmdParts, "\"$@\"")
-	b.WriteString(strings.Join(cmdParts, " \\\n  ") + "\n")
+	// ${extra[@]+"${extra[@]}"} expands to nothing for an empty array without
+	// tripping `set -u` on bash 3.2 (macOS).
+	b.WriteString("exec claude ${extra[@]+\"${extra[@]}\"} \"$@\"\n")
 
 	return b.String()
 }
@@ -100,7 +80,7 @@ func InstallWrapper(scriptPath, content string) error {
 	if err := os.WriteFile(scriptPath, []byte(content), 0o755); err != nil {
 		return err
 	}
-	fmt.Printf("  installed %s\n", scriptPath)
+	outf("  installed %s\n", scriptPath)
 	return nil
 }
 
@@ -128,7 +108,7 @@ func CleanupStaleScripts(binDir string, activeNames map[string]bool) {
 			continue
 		}
 		os.Remove(path)
-		fmt.Printf("  removed stale script %s\n", path)
+		outf("  removed stale script %s\n", path)
 	}
 }
 

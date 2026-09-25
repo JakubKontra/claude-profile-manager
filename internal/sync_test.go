@@ -127,10 +127,7 @@ func TestCheckDivergenceDetectsChanges(t *testing.T) {
 
 func TestSyncMCPServersNoSourceFile(t *testing.T) {
 	dir := t.TempDir()
-	// Should not fail when ~/.claude.json doesn't exist
-	// We can't easily test this without mocking the home dir,
-	// but at least verify it doesn't panic
-	err := SyncMCPServers(dir)
+	err := SyncMCPServers(dir, &Profile{}, filepath.Join(dir, "missing.json"))
 	if err != nil {
 		t.Errorf("SyncMCPServers should not error on missing source: %v", err)
 	}

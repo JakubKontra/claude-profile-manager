@@ -9,6 +9,10 @@ source_dir = "~/.claude"
 # Where to install wrapper scripts (default: ~/.local/bin)
 bin_dir = "~/.local/bin"
 
+# Directories symlinked from source_dir into every profile.
+# Default: ["commands", "skills", "agents", "plugins", "projects"]
+# share = ["commands", "skills", "agents", "plugins", "projects"]
+
 [profiles.personal]
 description = "Personal Anthropic account"
 
@@ -16,10 +20,24 @@ description = "Personal Anthropic account"
 description = "Company team subscription"
 model = "sonnet"
 add_dirs = ["~/Work/company"]
+# Keep this profile's session history private instead of sharing projects/
+# isolate = ["projects"]
 
 # [profiles.work.attribution]
 # commit = "Co-Authored-By: Claude <noreply@anthropic.com>"
 # pr = "Generated with [Claude Code](https://claude.ai/code)"
+
+# Per-profile settings.json overrides (maps merge, other values replace)
+# [profiles.work.settings]
+# effortLevel = "high"
+# permissions.allow = ["Bash(gh *)"]
+
+# Per-profile MCP servers: drop global ones, add profile-specific ones
+# [profiles.work]
+# mcp_exclude = ["personal-notion"]
+# [profiles.work.mcp_servers.jira]
+# command = "npx"
+# args = ["-y", "@example/jira-mcp"]
 
 # [profiles.work-vertex]
 # description = "Company via Google Cloud Vertex AI"
@@ -29,5 +47,8 @@ add_dirs = ["~/Work/company"]
 # Cloud sync — sync settings across devices via git
 # [cloud]
 # remote = "git@github.com:your-user/claude-settings.git"
-# auto_push = false
-# exclude = ["CLAUDE.md", "commands/"]  # optional: exclude specific files/dirs from sync
+# auto_push = false              # push after every `cpm install`
+# auto_pull_on_install = false   # pull before every `cpm install`
+# exclude = ["CLAUDE.md", "commands/"]   # drop files/dirs from the sync set
+# include = ["settings.local.json"]      # add extra files (relative to source_dir)
+# allow_secrets = false          # skip the API-key check before pushing

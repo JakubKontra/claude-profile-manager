@@ -2,12 +2,23 @@ package internal
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 )
 
-func CloneProfile(sourceName, targetName, profilesBase, sourceDir string, cfg *Config) error {
+func CloneProfile(sourceName, targetName, configPath string, cfg *Config) error {
+	profilesBase := ProfilesBaseDir(configPath)
+	sourceDir := cfg.SourceDir
+	if _, err := lookupProfile(cfg, sourceName); err != nil {
+		return fmt.Errorf("unknown source profile %q", sourceName)
+	}
+	if err := ValidateProfileName(targetName); err != nil {
+		return err
+	}
+	if _, exists := cfg.Profiles[targetName]; exists {
+		return fmt.Errorf("target profile %q already exists in config", targetName)
+	}
+
 	srcDir := filepath.Join(profilesBase, sourceName)
 	dstDir := filepath.Join(profilesBase, targetName)
 
@@ -32,14 +43,19 @@ func CloneProfile(sourceName, targetName, profilesBase, sourceDir string, cfg *C
 			continue
 		}
 
-		if err := cloneCopyFile(src, dst); err != nil {
+		if err := copyFile(src, dst); err != nil {
 			return fmt.Errorf("cannot copy %s: %w", filename, err)
 		}
-		fmt.Printf("  copied %s\n", filename)
+		if base := baselinePath(srcDir, filename); fileExistsAt(base) {
+			if err := copyFile(base, baselinePath(dstDir, filename)); err != nil {
+				return fmt.Errorf("cannot copy baseline for %s: %w", filename, err)
+			}
+		}
+		outf("  copied %s\n", filename)
 	}
 
 	// Re-create symlinks pointing to the original source dir
-	for _, dirname := range symlinkDirs {
+	for _, dirname := range EffectiveShareDirs(cfg, cfg.Profiles[sourceName]) {
 		target := filepath.Join(sourceDir, dirname)
 		link := filepath.Join(dstDir, dirname)
 
@@ -50,31 +66,31 @@ func CloneProfile(sourceName, targetName, profilesBase, sourceDir string, cfg *C
 		if err := os.Symlink(target, link); err != nil {
 			return fmt.Errorf("cannot symlink %s: %w", dirname, err)
 		}
-		fmt.Printf("  symlinked %s/ -> %s\n", dirname, target)
+		outf("  symlinked %s/ -> %s\n", dirname, target)
 	}
 
-	fmt.Printf("\nProfile %q cloned from %q.\n", targetName, sourceName)
-	fmt.Println("Note: credentials are NOT cloned — authenticate with: claude-" + targetName)
-	fmt.Println("\nAdd the new profile to your config.toml:")
-	fmt.Printf("\n  [profiles.%s]\n  description = \"\"\n\n", targetName)
-	fmt.Println("Then run 'cpm install' to generate the wrapper script.")
+	// Register the new profile in config.toml with the source's settings.
+	source := cfg.Profiles[sourceName]
+	newProfile := *source
+	if newProfile.Description != "" {
+		newProfile.Description += " (clone)"
+	}
+	data, err := os.ReadFile(ExpandPath(configPath))
+	if err != nil {
+		return fmt.Errorf("cannot read config: %w", err)
+	}
+	updated, err := AppendProfileTable(data, targetName, &newProfile)
+	if err != nil {
+		return err
+	}
+	if err := writeConfigAtomic(configPath, updated); err != nil {
+		return err
+	}
+	outf("  added [profiles.%s] to %s\n", targetName, configPath)
+
+	outf("\nProfile %q cloned from %q.\n", targetName, sourceName)
+	outln("Note: credentials are NOT cloned — authenticate with: claude-" + targetName)
+	outln("Run 'cpm install' to generate the wrapper script.")
 
 	return nil
-}
-
-func cloneCopyFile(src, dst string) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-
-	out, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	_, err = io.Copy(out, in)
-	return err
 }

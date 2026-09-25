@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -27,15 +28,96 @@ var keychainAccountPattern = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 // keychainLookup reports whether a Keychain entry exists. Replaced in tests.
 var keychainLookup = defaultKeychainLookup
 
+// keychainDelete removes a Keychain entry. Replaced in tests.
+var keychainDelete = defaultKeychainDelete
+
+// keychainRead returns the token blob. Only used with 'doctor --verify',
+// because reading the secret may trigger a macOS access prompt.
+var keychainRead = defaultKeychainRead
+
 // CredentialStatus describes where a profile's login lives and which account
 // it belongs to.
 type CredentialStatus struct {
-	Authenticated bool
-	Source        string // "keychain" or "file"
-	Account       string
-	Organization  string
-	Expired       bool
-	LastUpdated   time.Time
+	Authenticated    bool
+	Source           string // "keychain" or "file"
+	Account          string
+	Organization     string
+	SubscriptionType string
+	Expired          bool
+	ExpiresAt        time.Time
+	LastUpdated      time.Time
+}
+
+// CredentialFileInfo is what a .credentials.json file (or a Keychain token
+// blob, which has the same shape) tells us.
+type CredentialFileInfo struct {
+	Account          string
+	SubscriptionType string
+	ExpiresAt        time.Time
+	Expired          bool
+}
+
+// credentialsJSON mirrors the parts of Claude Code's credential blob we read.
+// Tokens are deliberately not decoded.
+type credentialsJSON struct {
+	ClaudeAiOauth struct {
+		ExpiresAt        int64  `json:"expiresAt"` // milliseconds since epoch
+		SubscriptionType string `json:"subscriptionType"`
+	} `json:"claudeAiOauth"`
+
+	// Legacy / alternative shapes.
+	Email       string  `json:"email"`
+	Subject     string  `json:"subject"`
+	AccountUUID string  `json:"account_uuid"`
+	ExpiresAt   float64 `json:"expires_at"` // seconds since epoch
+	ExpiresIn   float64 `json:"expires_in"` // seconds, relative to file mtime
+}
+
+// parseCredentialsJSON extracts account and expiry from a credential blob.
+// now is injected for tests.
+func parseCredentialsJSON(data []byte, fileModTime, now time.Time) (CredentialFileInfo, error) {
+	var creds credentialsJSON
+	if err := json.Unmarshal(data, &creds); err != nil {
+		return CredentialFileInfo{}, fmt.Errorf("cannot parse credentials")
+	}
+
+	info := CredentialFileInfo{SubscriptionType: creds.ClaudeAiOauth.SubscriptionType}
+
+	switch {
+	case creds.Email != "":
+		info.Account = creds.Email
+	case creds.Subject != "":
+		info.Account = creds.Subject
+	case creds.AccountUUID != "":
+		info.Account = creds.AccountUUID
+	}
+
+	switch {
+	case creds.ClaudeAiOauth.ExpiresAt > 0:
+		info.ExpiresAt = time.UnixMilli(creds.ClaudeAiOauth.ExpiresAt)
+	case creds.ExpiresAt > 0:
+		info.ExpiresAt = time.Unix(int64(creds.ExpiresAt), 0)
+	case creds.ExpiresIn > 0 && !fileModTime.IsZero():
+		info.ExpiresAt = fileModTime.Add(time.Duration(creds.ExpiresIn) * time.Second)
+	}
+	if !info.ExpiresAt.IsZero() {
+		info.Expired = now.After(info.ExpiresAt)
+	}
+	return info, nil
+}
+
+// GetCredentialInfo reads <profileDir>/.credentials.json.
+func GetCredentialInfo(profileDir string) (CredentialFileInfo, error) {
+	credPath := filepath.Join(profileDir, ".credentials.json")
+	data, err := os.ReadFile(credPath)
+	if err != nil {
+		return CredentialFileInfo{}, fmt.Errorf("no credentials found")
+	}
+	var modTime time.Time
+	if st, err := os.Stat(credPath); err == nil {
+		modTime = st.ModTime()
+	}
+	return parseCredentialsJSON(data, modTime, time.Now())
 }
 
 // KeychainServiceName returns the Keychain service Claude Code uses for a
@@ -77,6 +159,48 @@ func defaultKeychainLookup(service, account string) bool {
 	return cmd.Run() == nil
 }
 
+// defaultKeychainRead reads the password field (-w) of the entry.
+func defaultKeychainRead(service, account string) ([]byte, error) {
+	if runtime.GOOS != "darwin" {
+		return nil, fmt.Errorf("keychain is only available on macOS")
+	}
+	out, err := exec.Command("security", "find-generic-password", "-a", account, "-s", service, "-w").Output()
+	if err != nil {
+		return nil, err
+	}
+	return []byte(strings.TrimSpace(string(out))), nil
+}
+
+// defaultKeychainDelete removes the entry; a missing entry is not an error.
+func defaultKeychainDelete(service, account string) error {
+	if runtime.GOOS != "darwin" {
+		return nil
+	}
+	cmd := exec.Command("security", "delete-generic-password", "-a", account, "-s", service)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		// security exits 44 (errSecItemNotFound) when there is nothing to delete.
+		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 44 {
+			return nil
+		}
+		return fmt.Errorf("security delete-generic-password: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// DeleteProfileCredentials removes the Keychain entry (macOS) and the
+// .credentials.json file for a profile directory.
+func DeleteProfileCredentials(profileDir string) error {
+	if err := keychainDelete(KeychainServiceName(profileDir), keychainAccount()); err != nil {
+		return err
+	}
+	credPath := filepath.Join(profileDir, ".credentials.json")
+	if err := os.Remove(credPath); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
 // GetCredentialStatus reports whether a profile is logged in, checking the
 // macOS Keychain first and falling back to .credentials.json (Linux, CI, or
 // Keychain-less setups). On macOS the file never exists, which is why a
@@ -94,24 +218,26 @@ func GetCredentialStatus(profileDir string) (CredentialStatus, error) {
 		}, nil
 	}
 
-	fileAccount, expired, err := GetCredentialInfo(profileDir)
+	fileInfo, err := GetCredentialInfo(profileDir)
 	if err != nil {
 		return CredentialStatus{}, err
 	}
 	if account == "" {
-		account = fileAccount
+		account = fileInfo.Account
 	}
 	if info, statErr := os.Stat(filepath.Join(profileDir, ".credentials.json")); statErr == nil {
 		updated = info.ModTime()
 	}
 
 	return CredentialStatus{
-		Authenticated: true,
-		Source:        "file",
-		Account:       account,
-		Organization:  org,
-		Expired:       expired,
-		LastUpdated:   updated,
+		Authenticated:    true,
+		Source:           "file",
+		Account:          account,
+		Organization:     org,
+		SubscriptionType: fileInfo.SubscriptionType,
+		Expired:          fileInfo.Expired,
+		ExpiresAt:        fileInfo.ExpiresAt,
+		LastUpdated:      updated,
 	}, nil
 }
 

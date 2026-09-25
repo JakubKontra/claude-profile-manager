@@ -1,21 +1,25 @@
 package internal
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
 )
 
-// Files copied from source_dir into the cloud repo.
+// Files copied from source_dir into the cloud repo. settings.local.json is
+// machine-specific by definition and is not synced unless listed in
+// cloud.include.
 var cloudSyncFiles = []string{
 	"settings.json",
-	"settings.local.json",
 	"CLAUDE.md",
 }
 
@@ -23,6 +27,23 @@ var cloudSyncFiles = []string{
 var cloudSyncDirs = []string{
 	"commands",
 	"agents",
+	"skills",
+}
+
+// syncFilesFor returns the top-level files to sync: the defaults plus
+// cloud.include entries, minus cloud.exclude.
+func syncFilesFor(cfg *Config) []string {
+	files := append([]string{}, cloudSyncFiles...)
+	if cfg.Cloud != nil {
+		for _, extra := range cfg.Cloud.Include {
+			extra = strings.TrimPrefix(filepath.Clean(extra), "./")
+			if extra == "" || extra == "." || strings.HasPrefix(extra, "..") || filepath.IsAbs(extra) {
+				continue
+			}
+			files = append(files, extra)
+		}
+	}
+	return files
 }
 
 // Files from other locations (relative to $HOME).
@@ -66,28 +87,31 @@ func CloudInit(configPath string, remote string) error {
 		return fmt.Errorf("git not found on PATH — install git first")
 	}
 
+	cfg, err := LoadCloudConfig(configPath)
+	if err != nil {
+		return err
+	}
+
 	// If remote is provided, try cloning first
 	if remote != "" {
-		hasRefs, _ := checkRemoteHasRefs(remote)
+		hasRefs, err := checkRemoteHasRefs(remote)
+		if err != nil {
+			return fmt.Errorf("cannot reach remote %s: %w", remote, err)
+		}
 		if hasRefs {
-			fmt.Printf("Cloning from %s...\n", remote)
+			outf("Cloning from %s...\n", remote)
 			if _, err := gitExecDir("", "clone", remote, repoDir); err != nil {
 				return fmt.Errorf("cannot clone remote: %w", err)
 			}
-			// Distribute files from cloned repo
-			cfg, err := LoadCloudConfig(configPath)
-			if err != nil {
-				return err
-			}
-			if err := DistributeSyncFiles(repoDir, cfg); err != nil {
+			plan := PlanDistribute(repoDir, cfg, configPath)
+			if err := ApplyDistribute(plan); err != nil {
 				return fmt.Errorf("distributing files: %w", err)
 			}
-			// Save remote to config
 			if err := saveCloudRemote(configPath, remote); err != nil {
 				return fmt.Errorf("saving remote to config: %w", err)
 			}
-			fmt.Println("\nCloud repo cloned and files distributed.")
-			fmt.Println("Run 'cpm cloud status' to verify.")
+			outln("\nCloud repo cloned and files distributed.")
+			outln("Run 'cpm cloud status' to verify.")
 			return nil
 		}
 	}
@@ -106,41 +130,32 @@ func CloudInit(configPath string, remote string) error {
 		return fmt.Errorf("cannot write .gitignore: %w", err)
 	}
 
-	// Gather and copy syncable files
-	cfg, err := LoadCloudConfig(configPath)
-	if err != nil {
-		return err
-	}
 	files, err := GatherSyncFiles(cfg, configPath)
 	if err != nil {
 		return err
 	}
 
 	copied := 0
-	for repoPath, srcPath := range files {
+	for _, repoPath := range sortedKeys(files) {
+		srcPath := files[repoPath]
 		dst := filepath.Join(repoDir, repoPath)
-		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-			return err
-		}
-		if err := cloudCopyFile(srcPath, dst); err != nil {
-			fmt.Printf("  skipped %s (%v)\n", repoPath, err)
+		if err := copyFile(srcPath, dst); err != nil {
+			outf("  skipped %s (%v)\n", repoPath, err)
 			continue
 		}
-		fmt.Printf("  added %s\n", repoPath)
+		outf("  added %s\n", repoPath)
 		copied++
 	}
 
-	if copied == 0 {
-		fmt.Println("\nNo syncable files found. The repo is empty.")
-		return nil
-	}
-
-	// Initial commit
-	if _, err := gitExec(repoDir, "add", "-A"); err != nil {
-		return err
-	}
-	if _, err := gitExec(repoDir, "commit", "-m", "Initial cloud sync"); err != nil {
-		return err
+	if copied > 0 {
+		if _, err := gitExec(repoDir, "add", "-A"); err != nil {
+			return err
+		}
+		if _, err := gitExec(repoDir, "commit", "-m", "Initial cloud sync"); err != nil {
+			return err
+		}
+	} else {
+		outln("\nNo syncable files found. The repo is empty.")
 	}
 
 	// Add remote if provided
@@ -151,21 +166,31 @@ func CloudInit(configPath string, remote string) error {
 		if err := saveCloudRemote(configPath, remote); err != nil {
 			return fmt.Errorf("saving remote to config: %w", err)
 		}
-		fmt.Printf("\nRemote set to: %s\n", remote)
+		outf("\nRemote set to: %s\n", remote)
 	}
 
-	fmt.Printf("\nCloud repo initialized at %s (%d files)\n", repoDir, copied)
+	outf("\nCloud repo initialized at %s (%d files)\n", repoDir, copied)
 	if remote == "" {
-		fmt.Println("\nTo add a remote: cpm cloud remote <url>")
+		outln("\nTo add a remote: cpm cloud remote <url>")
 	} else {
-		fmt.Println("Push with: cpm cloud push")
+		outln("Push with: cpm cloud push")
 	}
 
 	return nil
 }
 
+// PushOptions controls CloudPush.
+type PushOptions struct {
+	Message string
+	// DryRun stages into the repo working tree and shows the status
+	// without committing or pushing.
+	DryRun bool
+	// AllowSecrets pushes even when settings contain API keys.
+	AllowSecrets bool
+}
+
 // CloudPush gathers syncable files, commits, and pushes to remote.
-func CloudPush(configPath string, message string) error {
+func CloudPush(configPath string, opts PushOptions) error {
 	repoDir := CloudRepoDir(configPath)
 	if err := ensureCloudRepo(repoDir); err != nil {
 		return err
@@ -176,37 +201,23 @@ func CloudPush(configPath string, message string) error {
 		return err
 	}
 
-	// Gather and copy files
 	files, err := GatherSyncFiles(cfg, configPath)
 	if err != nil {
 		return err
 	}
 
-	for repoPath, srcPath := range files {
-		dst := filepath.Join(repoDir, repoPath)
-		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-			return err
-		}
-		if err := cloudCopyFile(srcPath, dst); err != nil {
-			continue // skip missing files silently
-		}
-	}
-
-	// Also sync directories — remove files from repo dirs that no longer exist in source
-	for _, dirname := range cloudSyncDirs {
-		if isExcluded(dirname+"/", cfg) {
-			continue
-		}
-		repoSubDir := filepath.Join(repoDir, dirname)
-		if _, err := os.Stat(repoSubDir); err == nil {
-			// Clean files in repo dir that no longer exist in source
-			srcDir := filepath.Join(cfg.SourceDir, dirname)
-			cleanDeletedFiles(repoSubDir, srcDir)
+	allowSecrets := opts.AllowSecrets || (cfg.Cloud != nil && cfg.Cloud.AllowSecrets)
+	if !allowSecrets {
+		if findings := ScanForSecrets(files); len(findings) > 0 {
+			outln("Refusing to push: these look like secrets and would land in the cloud repo:")
+			for _, f := range findings {
+				outf("  %s: %s\n", f.File, f.Key)
+			}
+			return fmt.Errorf("remove them from settings (use the profile's env in config.toml instead), exclude the file, or pass --allow-secrets")
 		}
 	}
 
-	// Stage all changes
-	if _, err := gitExec(repoDir, "add", "-A"); err != nil {
+	if err := stageSyncFiles(repoDir, cfg, files); err != nil {
 		return err
 	}
 
@@ -216,11 +227,19 @@ func CloudPush(configPath string, message string) error {
 		return err
 	}
 	if strings.TrimSpace(status) == "" {
-		fmt.Println("Already up to date — no changes to push.")
+		outln("Already up to date — no changes to push.")
 		return nil
 	}
 
-	// Commit
+	if opts.DryRun {
+		outln("Dry run — changes that would be committed:")
+		for _, line := range strings.Split(strings.TrimSpace(status), "\n") {
+			outf("  %s\n", line)
+		}
+		return nil
+	}
+
+	message := opts.Message
 	if message == "" {
 		hostname, _ := os.Hostname()
 		message = fmt.Sprintf("cpm sync: %s at %s", hostname, time.Now().Format(time.RFC3339))
@@ -230,24 +249,149 @@ func CloudPush(configPath string, message string) error {
 	}
 
 	// Show what changed
-	diff, _ := gitExec(repoDir, "diff", "--stat", "HEAD~1..HEAD")
+	diff, _ := gitExec(repoDir, "show", "--stat", "--format=", "HEAD")
 	if diff != "" {
-		fmt.Println(strings.TrimSpace(diff))
+		outln(strings.TrimSpace(diff))
 	}
 
 	// Push if remote configured
-	hasRemote := hasOriginRemote(repoDir)
-	if hasRemote {
-		// Ensure main branch exists on remote
+	if hasOriginRemote(repoDir) {
 		if _, err := gitExec(repoDir, "push", "-u", "origin", "HEAD"); err != nil {
 			return fmt.Errorf("push failed: %w\nResolve manually in %s", err, repoDir)
 		}
-		fmt.Println("\nPushed to remote.")
+		outln("\nPushed to remote.")
 	} else {
-		fmt.Println("\nCommitted locally. Add a remote with: cpm cloud remote <url>")
+		outln("\nCommitted locally. Add a remote with: cpm cloud remote <url>")
 	}
 
 	return nil
+}
+
+// CloudDiff stages the live files into the repo and shows the diff against
+// the last sync.
+func CloudDiff(configPath string) error {
+	repoDir := CloudRepoDir(configPath)
+	if err := ensureCloudRepo(repoDir); err != nil {
+		return err
+	}
+	cfg, err := LoadCloudConfig(configPath)
+	if err != nil {
+		return err
+	}
+	files, err := GatherSyncFiles(cfg, configPath)
+	if err != nil {
+		return err
+	}
+	if err := stageSyncFiles(repoDir, cfg, files); err != nil {
+		return err
+	}
+	diff, _ := gitExec(repoDir, "diff", "--cached", "--stat")
+	full, _ := gitExec(repoDir, "diff", "--cached")
+	if strings.TrimSpace(full) == "" {
+		outln("No local changes since the last sync.")
+		return nil
+	}
+	outln(strings.TrimSpace(diff))
+	outln()
+	out(full)
+	return nil
+}
+
+// stageSyncFiles copies the live files into the repo working tree, removes
+// files deleted locally from the synced directories, and runs git add -A.
+func stageSyncFiles(repoDir string, cfg *Config, files map[string]string) error {
+	for repoPath, srcPath := range files {
+		if err := copyFile(srcPath, filepath.Join(repoDir, repoPath)); err != nil {
+			continue // skip missing files silently
+		}
+	}
+	for _, dirname := range cloudSyncDirs {
+		if isExcluded(dirname+"/", cfg) {
+			continue
+		}
+		repoSubDir := filepath.Join(repoDir, dirname)
+		if _, err := os.Stat(repoSubDir); err == nil {
+			cleanDeletedFiles(repoSubDir, filepath.Join(cfg.SourceDir, dirname))
+		}
+	}
+	_, err := gitExec(repoDir, "add", "-A")
+	return err
+}
+
+// SecretFinding is a settings value that looks like a credential.
+type SecretFinding struct {
+	File string
+	Key  string
+}
+
+var secretKeyPattern = regexp.MustCompile(`(?i)(_KEY|_TOKEN|_SECRET|PASSWORD|PASSWD)$`)
+var secretValuePattern = regexp.MustCompile(`^(sk-ant-|sk-[A-Za-z0-9]|ghp_|gho_|github_pat_|xox[bpoa]-|AKIA[0-9A-Z]{12,}|glpat-)`)
+
+// looksLikeSecret flags env entries whose key or value resembles an API
+// credential.
+func looksLikeSecret(key, value string) bool {
+	if strings.TrimSpace(value) == "" {
+		return false
+	}
+	return secretKeyPattern.MatchString(key) || secretValuePattern.MatchString(value)
+}
+
+// ScanForSecrets inspects the "env" object of every settings*.json in the
+// sync set.
+func ScanForSecrets(files map[string]string) []SecretFinding {
+	var findings []SecretFinding
+	for _, repoPath := range sortedKeys(files) {
+		base := filepath.Base(repoPath)
+		if !strings.HasPrefix(base, "settings") || !strings.HasSuffix(base, ".json") {
+			continue
+		}
+		data, err := os.ReadFile(files[repoPath])
+		if err != nil {
+			continue
+		}
+		var settings struct {
+			Env map[string]any `json:"env"`
+		}
+		if err := json.Unmarshal(data, &settings); err != nil {
+			continue
+		}
+		for _, key := range sortedAnyKeys(settings.Env) {
+			value, _ := settings.Env[key].(string)
+			if looksLikeSecret(key, value) {
+				findings = append(findings, SecretFinding{File: repoPath, Key: key})
+			}
+		}
+	}
+	return findings
+}
+
+func sortedAnyKeys(m map[string]any) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// cloudPullFiles is CloudPull without the profile re-sync, for callers that
+// run the install pipeline themselves.
+func cloudPullFiles(configPath string) error {
+	repoDir := CloudRepoDir(configPath)
+	if err := ensureCloudRepo(repoDir); err != nil {
+		return err
+	}
+	if !hasOriginRemote(repoDir) {
+		return fmt.Errorf("no remote configured — add one with: cpm cloud remote <url>")
+	}
+	if _, err := gitExec(repoDir, "pull", "--ff-only", "origin", "HEAD"); err != nil {
+		return fmt.Errorf("pull failed (possible divergence): %w", err)
+	}
+	cfg, err := LoadCloudConfig(configPath)
+	if err != nil {
+		return err
+	}
+	return ApplyDistribute(PlanDistribute(repoDir, cfg, configPath))
 }
 
 // CloudPull pulls from remote and distributes files to their live locations.
@@ -261,17 +405,14 @@ func CloudPull(configPath string, dryRun bool) error {
 		return fmt.Errorf("no remote configured — add one with: cpm cloud remote <url>")
 	}
 
-	// Pull with --ff-only
-	output, err := gitExec(repoDir, "pull", "--ff-only", "origin", "HEAD")
-	if err != nil {
-		return fmt.Errorf("pull failed (possible divergence): %w\nResolve manually in %s\nor force overwrite with: cd %s && git reset --hard origin/main", err, repoDir, repoDir)
+	before, _ := gitExec(repoDir, "rev-parse", "HEAD")
+	if _, err := gitExec(repoDir, "pull", "--ff-only", "origin", "HEAD"); err != nil {
+		branch := currentBranch(repoDir)
+		return fmt.Errorf("pull failed (possible divergence): %w\nResolve manually in %s\nor force overwrite with: cd %s && git reset --hard origin/%s", err, repoDir, repoDir, branch)
 	}
-
-	if strings.Contains(output, "Already up to date") {
-		fmt.Println("Already up to date.")
-		if !dryRun {
-			return nil
-		}
+	after, _ := gitExec(repoDir, "rev-parse", "HEAD")
+	if strings.TrimSpace(before) == strings.TrimSpace(after) {
+		outln("Repo already up to date.")
 	}
 
 	cfg, err := LoadCloudConfig(configPath)
@@ -279,24 +420,33 @@ func CloudPull(configPath string, dryRun bool) error {
 		return err
 	}
 
+	plan := PlanDistribute(repoDir, cfg, configPath)
 	if dryRun {
-		fmt.Println("\nDry run — files that would be updated:")
-		return showPullDiff(repoDir, cfg, configPath)
+		outln("\nDry run — files that would change:")
+		if !printPlan(plan) {
+			outln("  (no changes)")
+		}
+		return nil
 	}
 
-	if err := DistributeSyncFiles(repoDir, cfg); err != nil {
+	if err := ApplyDistribute(plan); err != nil {
 		return err
 	}
 
-	// Also distribute cpm config.toml with merge
-	repoConfigPath := filepath.Join(repoDir, "cpm", "config.toml")
-	if _, err := os.Stat(repoConfigPath); err == nil {
-		if err := mergeConfigTOML(repoConfigPath, configPath); err != nil {
-			fmt.Printf("  warning: could not merge config.toml: %v\n", err)
+	outln("\nFiles distributed from cloud repo.")
+
+	// Profiles hold copies of settings.json / CLAUDE.md; refresh them so the
+	// pulled changes actually take effect.
+	if full, err := LoadConfig(configPath); err == nil {
+		outln("\nRe-syncing profiles:")
+		if err := InstallProfiles(full, configPath, InstallOptions{Sync: true, skipCloud: true}); err != nil {
+			if errors.Is(err, ErrDiverged) {
+				outln("Profiles with local changes were left alone; run 'cpm install --sync --force' to overwrite them.")
+				return nil
+			}
+			return err
 		}
 	}
-
-	fmt.Println("\nFiles distributed from cloud repo.")
 	return nil
 }
 
@@ -306,27 +456,27 @@ func CloudStatus(configPath string) error {
 
 	// Check if initialized
 	if _, err := os.Stat(filepath.Join(repoDir, ".git")); os.IsNotExist(err) {
-		fmt.Println("Cloud sync not initialized.")
-		fmt.Println("Run 'cpm cloud init' to get started.")
+		outln("Cloud sync not initialized.")
+		outln("Run 'cpm cloud init' to get started.")
 		return nil
 	}
 
-	fmt.Printf("Cloud repo: %s\n", repoDir)
+	outf("Cloud repo: %s\n", repoDir)
 
 	// Remote
 	if hasOriginRemote(repoDir) {
 		remote, _ := gitExec(repoDir, "remote", "get-url", "origin")
-		fmt.Printf("Remote:     %s", remote)
+		outf("Remote:     %s", remote)
 	} else {
-		fmt.Println("Remote:     (none)")
+		outln("Remote:     (none)")
 	}
 
 	// Last commit
 	log, _ := gitExec(repoDir, "log", "--oneline", "-5")
 	if log != "" {
-		fmt.Printf("\nRecent syncs:\n")
+		outf("\nRecent syncs:\n")
 		for _, line := range strings.Split(strings.TrimSpace(log), "\n") {
-			fmt.Printf("  %s\n", line)
+			outf("  %s\n", line)
 		}
 	}
 
@@ -336,18 +486,18 @@ func CloudStatus(configPath string) error {
 		return err
 	}
 
-	fmt.Println("\nLocal changes (not yet pushed):")
+	outln("\nLocal changes (not yet pushed):")
 	hasChanges := false
 	files, _ := GatherSyncFiles(cfg, configPath)
 	for repoPath, srcPath := range files {
 		dstPath := filepath.Join(repoDir, repoPath)
 		if filesAreDifferent(srcPath, dstPath) {
-			fmt.Printf("  modified: %s\n", repoPath)
+			outf("  modified: %s\n", repoPath)
 			hasChanges = true
 		}
 	}
 	if !hasChanges {
-		fmt.Println("  (no changes)")
+		outln("  (no changes)")
 	}
 
 	return nil
@@ -374,7 +524,7 @@ func CloudRemote(configPath string, url string) error {
 		return fmt.Errorf("saving remote to config: %w", err)
 	}
 
-	fmt.Printf("Remote set to: %s\n", url)
+	outf("Remote set to: %s\n", url)
 	return nil
 }
 
@@ -384,7 +534,7 @@ func GatherSyncFiles(cfg *Config, configPath string) (map[string]string, error) 
 	files := make(map[string]string)
 
 	// Files from source_dir
-	for _, name := range cloudSyncFiles {
+	for _, name := range syncFilesFor(cfg) {
 		if isExcluded(name, cfg) {
 			continue
 		}
@@ -435,69 +585,124 @@ func GatherSyncFiles(cfg *Config, configPath string) (map[string]string, error) 
 	return files, nil
 }
 
-// DistributeSyncFiles copies files from the cloud repo back to their live locations.
-func DistributeSyncFiles(repoDir string, cfg *Config) error {
-	home, _ := os.UserHomeDir()
+// DistributeAction is one step of applying the cloud repo locally.
+type DistributeAction struct {
+	// RepoPath is the path inside the cloud repo.
+	RepoPath string
+	// Source is the absolute file in the cloud repo (empty for deletes).
+	Source string
+	// Dest is the live path that changes.
+	Dest string
+	// Kind is create, update, delete, merge, unchanged or excluded.
+	Kind string
+}
 
-	// Files to source_dir
-	for _, name := range cloudSyncFiles {
-		src := filepath.Join(repoDir, name)
+// PlanDistribute compares the cloud repo with the live files and returns
+// what applying it would do. Deletions are only planned inside the synced
+// directories (commands/, agents/, ...), never for top-level files.
+func PlanDistribute(repoDir string, cfg *Config, configPath string) []DistributeAction {
+	home, _ := os.UserHomeDir()
+	var plan []DistributeAction
+
+	add := func(repoPath, dest string, excluded bool) {
+		src := filepath.Join(repoDir, repoPath)
 		if _, err := os.Stat(src); os.IsNotExist(err) {
-			continue
+			return
 		}
-		dst := filepath.Join(cfg.SourceDir, name)
-		if err := cloudCopyFile(src, dst); err != nil {
-			fmt.Printf("  warning: cannot write %s: %v\n", name, err)
-			continue
+		kind := "unchanged"
+		switch {
+		case excluded:
+			kind = "excluded"
+		case !fileExistsAt(dest):
+			kind = "create"
+		case filesAreDifferent(src, dest):
+			kind = "update"
 		}
-		fmt.Printf("  restored %s\n", name)
+		plan = append(plan, DistributeAction{RepoPath: repoPath, Source: src, Dest: dest, Kind: kind})
 	}
 
-	// Directories to source_dir
+	for _, name := range syncFilesFor(cfg) {
+		add(name, filepath.Join(cfg.SourceDir, name), isExcluded(name, cfg))
+	}
+
 	for _, dirname := range cloudSyncDirs {
-		srcDir := filepath.Join(repoDir, dirname)
-		if _, err := os.Stat(srcDir); os.IsNotExist(err) {
+		repoSubDir := filepath.Join(repoDir, dirname)
+		if _, err := os.Stat(repoSubDir); os.IsNotExist(err) {
 			continue
 		}
-		dstDir := filepath.Join(cfg.SourceDir, dirname)
-		if err := os.MkdirAll(dstDir, 0o755); err != nil {
-			continue
-		}
-		_ = filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
+		excluded := isExcluded(dirname+"/", cfg)
+		liveDir := filepath.Join(cfg.SourceDir, dirname)
+
+		inRepo := map[string]bool{}
+		_ = filepath.Walk(repoSubDir, func(path string, info os.FileInfo, err error) error {
 			if err != nil || info.IsDir() {
 				return nil
 			}
-			rel, _ := filepath.Rel(srcDir, path)
-			dst := filepath.Join(dstDir, rel)
-			if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+			rel, _ := filepath.Rel(repoSubDir, path)
+			inRepo[rel] = true
+			add(filepath.Join(dirname, rel), filepath.Join(liveDir, rel), excluded)
+			return nil
+		})
+		if excluded {
+			continue
+		}
+		// Files that exist live but no longer in the repo were deleted
+		// on another machine.
+		_ = filepath.Walk(liveDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil || info.IsDir() {
 				return nil
 			}
-			if err := cloudCopyFile(path, dst); err != nil {
-				return nil
+			rel, _ := filepath.Rel(liveDir, path)
+			if !inRepo[rel] {
+				plan = append(plan, DistributeAction{RepoPath: filepath.Join(dirname, rel), Dest: path, Kind: "delete"})
 			}
-			fmt.Printf("  restored %s/%s\n", dirname, rel)
 			return nil
 		})
 	}
 
-	// External files
 	for _, ext := range cloudSyncExternal {
-		src := filepath.Join(repoDir, ext.RepoPath)
-		if _, err := os.Stat(src); os.IsNotExist(err) {
-			continue
-		}
-		dst := filepath.Join(home, ext.HomePath)
-		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-			continue
-		}
-		if err := cloudCopyFile(src, dst); err != nil {
-			fmt.Printf("  warning: cannot write %s: %v\n", ext.HomePath, err)
-			continue
-		}
-		fmt.Printf("  restored %s\n", ext.RepoPath)
+		add(ext.RepoPath, filepath.Join(home, ext.HomePath), isExcluded(ext.RepoPath, cfg))
 	}
 
+	if configPath != "" && !isExcluded("cpm/config.toml", cfg) {
+		src := filepath.Join(repoDir, "cpm", "config.toml")
+		if _, err := os.Stat(src); err == nil {
+			plan = append(plan, DistributeAction{RepoPath: "cpm/config.toml", Source: src, Dest: ExpandPath(configPath), Kind: "merge"})
+		}
+	}
+
+	sort.SliceStable(plan, func(i, j int) bool { return plan[i].RepoPath < plan[j].RepoPath })
+	return plan
+}
+
+// ApplyDistribute executes a plan.
+func ApplyDistribute(plan []DistributeAction) error {
+	for _, a := range plan {
+		switch a.Kind {
+		case "create", "update":
+			if err := copyFile(a.Source, a.Dest); err != nil {
+				outf("  warning: cannot write %s: %v\n", a.RepoPath, err)
+				continue
+			}
+			outf("  restored %s\n", a.RepoPath)
+		case "delete":
+			if err := os.Remove(a.Dest); err != nil && !os.IsNotExist(err) {
+				outf("  warning: cannot delete %s: %v\n", a.Dest, err)
+				continue
+			}
+			outf("  deleted %s\n", a.RepoPath)
+		case "merge":
+			if err := mergeConfigTOML(a.Source, a.Dest); err != nil {
+				outf("  warning: could not merge config.toml: %v\n", err)
+			}
+		}
+	}
 	return nil
+}
+
+// DistributeSyncFiles applies the repo to the live locations (no config merge).
+func DistributeSyncFiles(repoDir string, cfg *Config) error {
+	return ApplyDistribute(PlanDistribute(repoDir, cfg, ""))
 }
 
 // --- helpers ---
@@ -530,49 +735,50 @@ func hasOriginRemote(repoDir string) bool {
 	return err == nil
 }
 
+// checkRemoteHasRefs reports whether the remote already has branches. A
+// remote that cannot be reached is an error, not "empty".
 func checkRemoteHasRefs(remote string) (bool, error) {
 	out, err := gitExecDir("", "ls-remote", "--heads", remote)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("%s", strings.TrimSpace(out))
 	}
 	return strings.TrimSpace(out) != "", nil
 }
 
-func cloudCopyFile(src, dst string) error {
-	in, err := os.Open(src)
+func currentBranch(repoDir string) string {
+	out, err := gitExec(repoDir, "rev-parse", "--abbrev-ref", "HEAD")
 	if err != nil {
-		return err
+		return "main"
 	}
-	defer in.Close()
-
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		return err
-	}
-
-	out, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	_, err = io.Copy(out, in)
-	return err
+	return strings.TrimSpace(out)
 }
 
-func cloudCopyDir(src, dst string) error {
-	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil
+// printPlan prints the actions that change something and reports whether
+// there were any.
+func printPlan(plan []DistributeAction) bool {
+	any := false
+	for _, a := range plan {
+		switch a.Kind {
+		case "create", "update", "delete", "merge":
+			outf("  would %s: %s\n", a.Kind, a.RepoPath)
+			any = true
 		}
-		rel, _ := filepath.Rel(src, path)
-		target := filepath.Join(dst, rel)
+	}
+	return any
+}
 
-		if info.IsDir() {
-			return os.MkdirAll(target, 0o755)
-		}
+func fileExistsAt(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
 
-		return cloudCopyFile(path, target)
-	})
+func sortedKeys(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func cleanDeletedFiles(repoSubDir, srcDir string) {
@@ -610,85 +816,21 @@ func isExcluded(path string, cfg *Config) bool {
 	return false
 }
 
-func showPullDiff(repoDir string, cfg *Config, configPath string) error {
-	home, _ := os.UserHomeDir()
-
-	for _, name := range cloudSyncFiles {
-		src := filepath.Join(repoDir, name)
-		dst := filepath.Join(cfg.SourceDir, name)
-		if _, err := os.Stat(src); os.IsNotExist(err) {
-			continue
-		}
-		if filesAreDifferent(src, dst) {
-			fmt.Printf("  would update: %s\n", name)
-		}
-	}
-
-	for _, ext := range cloudSyncExternal {
-		src := filepath.Join(repoDir, ext.RepoPath)
-		dst := filepath.Join(home, ext.HomePath)
-		if _, err := os.Stat(src); os.IsNotExist(err) {
-			continue
-		}
-		if filesAreDifferent(src, dst) {
-			fmt.Printf("  would update: %s\n", ext.RepoPath)
-		}
-	}
-
-	return nil
-}
-
 func saveCloudRemote(configPath string, remote string) error {
 	cfgPath := ExpandPath(configPath)
 	data, err := os.ReadFile(cfgPath)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	out, err := SetTableKey(data, "cloud", "remote", quoteTOMLString(remote))
 	if err != nil {
-		// Config doesn't exist, create minimal one with cloud section
-		content := fmt.Sprintf("[cloud]\nremote = %q\n", remote)
-		return os.WriteFile(cfgPath, []byte(content), 0o644)
+		return err
 	}
-
-	content := string(data)
-	if strings.Contains(content, "[cloud]") {
-		// Update existing cloud section's remote
-		lines := strings.Split(content, "\n")
-		found := false
-		inCloud := false
-		for i, line := range lines {
-			trimmed := strings.TrimSpace(line)
-			if trimmed == "[cloud]" {
-				inCloud = true
-				continue
-			}
-			if inCloud && strings.HasPrefix(trimmed, "[") {
-				// Hit next section without finding remote
-				break
-			}
-			if inCloud && strings.HasPrefix(trimmed, "remote") {
-				lines[i] = fmt.Sprintf("remote = %q", remote)
-				found = true
-				break
-			}
-		}
-		if !found {
-			// Add remote under [cloud]
-			for i, line := range lines {
-				if strings.TrimSpace(line) == "[cloud]" {
-					lines = append(lines[:i+1], append([]string{fmt.Sprintf("remote = %q", remote)}, lines[i+1:]...)...)
-					break
-				}
-			}
-		}
-		return os.WriteFile(cfgPath, []byte(strings.Join(lines, "\n")), 0o644)
-	}
-
-	// Append cloud section
-	if !strings.HasSuffix(content, "\n") {
-		content += "\n"
-	}
-	content += fmt.Sprintf("\n[cloud]\nremote = %q\n", remote)
-	return os.WriteFile(cfgPath, []byte(content), 0o644)
+	return writeConfigAtomic(cfgPath, out)
 }
 
+// mergeConfigTOML adds profiles that exist in the pulled config but not
+// locally. source_dir, bin_dir and existing profiles are left untouched.
 func mergeConfigTOML(pulledPath, localConfigPath string) error {
 	localPath := ExpandPath(localConfigPath)
 
@@ -696,65 +838,54 @@ func mergeConfigTOML(pulledPath, localConfigPath string) error {
 	if err != nil {
 		return err
 	}
-
 	var pulled Config
-	if err := toml.Unmarshal(pulledData, &pulled); err != nil {
+	if _, err := toml.Decode(string(pulledData), &pulled); err != nil {
 		return err
 	}
 
 	localData, err := os.ReadFile(localPath)
 	if err != nil {
-		// No local config, just copy
-		return cloudCopyFile(pulledPath, localPath)
+		if os.IsNotExist(err) {
+			return copyFile(pulledPath, localPath)
+		}
+		return err
 	}
-
 	var local Config
-	if err := toml.Unmarshal(localData, &local); err != nil {
+	if _, err := toml.Decode(string(localData), &local); err != nil {
 		return err
 	}
 
-	// Merge: add missing profiles from pulled, preserve local source_dir/bin_dir
-	if local.Profiles == nil {
-		local.Profiles = make(map[string]*Profile)
-	}
-	merged := false
-	for name, profile := range pulled.Profiles {
+	// Decide what is missing before touching anything.
+	var missing []string
+	for _, name := range SortedProfileNames(&pulled) {
 		if _, exists := local.Profiles[name]; !exists {
-			local.Profiles[name] = profile
-			fmt.Printf("  added profile from cloud: %s\n", name)
-			merged = true
+			missing = append(missing, name)
 		}
 	}
-
-	// Merge cloud config
-	if pulled.Cloud != nil && local.Cloud == nil {
-		local.Cloud = pulled.Cloud
-		merged = true
+	addCloud := pulled.Cloud != nil && local.Cloud == nil
+	if len(missing) == 0 && !addCloud {
+		return nil
 	}
 
-	if merged {
-		// Write back — we preserve the original file and just append new profiles
-		// to avoid losing formatting. Use simple append approach.
-		content := string(localData)
-		for name, profile := range pulled.Profiles {
-			if _, exists := local.Profiles[name]; exists {
-				// Skip already existing (handled above via the merged map check,
-				// but we re-check against the original local data)
-				continue
-			}
-			if !strings.HasSuffix(content, "\n") {
-				content += "\n"
-			}
-			content += fmt.Sprintf("\n[profiles.%s]\n", name)
-			if profile.Description != "" {
-				content += fmt.Sprintf("description = %q\n", profile.Description)
-			}
-			if profile.Model != "" {
-				content += fmt.Sprintf("model = %q\n", profile.Model)
+	out := localData
+	for _, name := range missing {
+		out, err = AppendProfileTable(out, name, pulled.Profiles[name])
+		if err != nil {
+			return err
+		}
+		outf("  added profile from cloud: %s\n", name)
+	}
+	if addCloud {
+		if pulled.Cloud.Remote != "" {
+			if out, err = SetTableKey(out, "cloud", "remote", quoteTOMLString(pulled.Cloud.Remote)); err != nil {
+				return err
 			}
 		}
-		return os.WriteFile(localPath, []byte(content), 0o644)
+		if pulled.Cloud.AutoPush {
+			if out, err = SetTableKey(out, "cloud", "auto_push", "true"); err != nil {
+				return err
+			}
+		}
 	}
-
-	return nil
+	return writeConfigAtomic(localPath, out)
 }
