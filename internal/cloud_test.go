@@ -445,7 +445,7 @@ func TestCloudPushPullRoundTrip(t *testing.T) {
 	if !hasOriginRemote(CloudRepoDir(a.ConfigPath)) {
 		t.Fatal("remote must be set on a fresh init")
 	}
-	if err := CloudPush(a.ConfigPath, "first"); err != nil {
+	if err := CloudPush(a.ConfigPath, PushOptions{Message: "first"}); err != nil {
 		t.Fatalf("push A: %v", err)
 	}
 
@@ -473,10 +473,10 @@ func TestCloudPushPullRoundTrip(t *testing.T) {
 	a.activate(t)
 	mustWrite(t, filepath.Join(a.SourceDir, "settings.json"), `{"from": "A2"}`)
 	os.Remove(filepath.Join(a.SourceDir, "commands", "two.md"))
-	if err := CloudPush(a.ConfigPath, ""); err != nil {
+	if err := CloudPush(a.ConfigPath, PushOptions{}); err != nil {
 		t.Fatalf("push A2: %v", err)
 	}
-	if err := CloudPush(a.ConfigPath, ""); err != nil {
+	if err := CloudPush(a.ConfigPath, PushOptions{}); err != nil {
 		t.Fatalf("no-op push: %v", err)
 	}
 

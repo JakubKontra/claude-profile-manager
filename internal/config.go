@@ -40,9 +40,17 @@ type Profile struct {
 }
 
 type CloudConfig struct {
-	Remote   string   `toml:"remote"`
-	AutoPush bool     `toml:"auto_push"`
-	Exclude  []string `toml:"exclude"`
+	Remote string `toml:"remote"`
+	// AutoPush pushes after every 'cpm install'.
+	AutoPush bool `toml:"auto_push"`
+	// AutoPullOnInstall pulls before every 'cpm install'.
+	AutoPullOnInstall bool `toml:"auto_pull_on_install"`
+	// Exclude removes files/dirs from the sync set.
+	Exclude []string `toml:"exclude"`
+	// Include adds extra files (relative to source_dir) to the sync set.
+	Include []string `toml:"include"`
+	// AllowSecrets disables the API-key check before pushing.
+	AllowSecrets bool `toml:"allow_secrets"`
 }
 
 type Config struct {

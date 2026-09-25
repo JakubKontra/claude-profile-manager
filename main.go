@@ -509,7 +509,7 @@ func cloudCmd() *cobra.Command {
 		Long:  "Synchronize Claude Code settings, plugins, skills, and commands across devices\nusing a private git repository.",
 	}
 
-	cmd.AddCommand(cloudInitCmd(), cloudPushCmd(), cloudPullCmd(), cloudStatusCmd(), cloudRemoteCmd())
+	cmd.AddCommand(cloudInitCmd(), cloudPushCmd(), cloudPullCmd(), cloudDiffCmd(), cloudStatusCmd(), cloudRemoteCmd())
 
 	return cmd
 }
@@ -532,19 +532,31 @@ func cloudInitCmd() *cobra.Command {
 }
 
 func cloudPushCmd() *cobra.Command {
-	var message string
+	var opts internal.PushOptions
 
 	cmd := &cobra.Command{
 		Use:   "push",
 		Short: "Push local settings to cloud repo",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return internal.CloudPush(configPath, message)
+			return internal.CloudPush(configPath, opts)
 		},
 	}
 
-	cmd.Flags().StringVarP(&message, "message", "m", "", "custom commit message")
+	cmd.Flags().StringVarP(&opts.Message, "message", "m", "", "custom commit message")
+	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "show what would be committed without pushing")
+	cmd.Flags().BoolVar(&opts.AllowSecrets, "allow-secrets", false, "push even if settings contain values that look like API keys")
 
 	return cmd
+}
+
+func cloudDiffCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "diff",
+		Short: "Show local changes since the last sync",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return internal.CloudDiff(configPath)
+		},
+	}
 }
 
 func cloudPullCmd() *cobra.Command {

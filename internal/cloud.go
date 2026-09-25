@@ -1,10 +1,13 @@
 package internal
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -12,10 +15,11 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-// Files copied from source_dir into the cloud repo.
+// Files copied from source_dir into the cloud repo. settings.local.json is
+// machine-specific by definition and is not synced unless listed in
+// cloud.include.
 var cloudSyncFiles = []string{
 	"settings.json",
-	"settings.local.json",
 	"CLAUDE.md",
 }
 
@@ -23,6 +27,23 @@ var cloudSyncFiles = []string{
 var cloudSyncDirs = []string{
 	"commands",
 	"agents",
+	"skills",
+}
+
+// syncFilesFor returns the top-level files to sync: the defaults plus
+// cloud.include entries, minus cloud.exclude.
+func syncFilesFor(cfg *Config) []string {
+	files := append([]string{}, cloudSyncFiles...)
+	if cfg.Cloud != nil {
+		for _, extra := range cfg.Cloud.Include {
+			extra = strings.TrimPrefix(filepath.Clean(extra), "./")
+			if extra == "" || extra == "." || strings.HasPrefix(extra, "..") || filepath.IsAbs(extra) {
+				continue
+			}
+			files = append(files, extra)
+		}
+	}
+	return files
 }
 
 // Files from other locations (relative to $HOME).
@@ -158,8 +179,18 @@ func CloudInit(configPath string, remote string) error {
 	return nil
 }
 
+// PushOptions controls CloudPush.
+type PushOptions struct {
+	Message string
+	// DryRun stages into the repo working tree and shows the status
+	// without committing or pushing.
+	DryRun bool
+	// AllowSecrets pushes even when settings contain API keys.
+	AllowSecrets bool
+}
+
 // CloudPush gathers syncable files, commits, and pushes to remote.
-func CloudPush(configPath string, message string) error {
+func CloudPush(configPath string, opts PushOptions) error {
 	repoDir := CloudRepoDir(configPath)
 	if err := ensureCloudRepo(repoDir); err != nil {
 		return err
@@ -170,37 +201,23 @@ func CloudPush(configPath string, message string) error {
 		return err
 	}
 
-	// Gather and copy files
 	files, err := GatherSyncFiles(cfg, configPath)
 	if err != nil {
 		return err
 	}
 
-	for repoPath, srcPath := range files {
-		dst := filepath.Join(repoDir, repoPath)
-		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-			return err
-		}
-		if err := copyFile(srcPath, dst); err != nil {
-			continue // skip missing files silently
-		}
-	}
-
-	// Also sync directories — remove files from repo dirs that no longer exist in source
-	for _, dirname := range cloudSyncDirs {
-		if isExcluded(dirname+"/", cfg) {
-			continue
-		}
-		repoSubDir := filepath.Join(repoDir, dirname)
-		if _, err := os.Stat(repoSubDir); err == nil {
-			// Clean files in repo dir that no longer exist in source
-			srcDir := filepath.Join(cfg.SourceDir, dirname)
-			cleanDeletedFiles(repoSubDir, srcDir)
+	allowSecrets := opts.AllowSecrets || (cfg.Cloud != nil && cfg.Cloud.AllowSecrets)
+	if !allowSecrets {
+		if findings := ScanForSecrets(files); len(findings) > 0 {
+			outln("Refusing to push: these look like secrets and would land in the cloud repo:")
+			for _, f := range findings {
+				outf("  %s: %s\n", f.File, f.Key)
+			}
+			return fmt.Errorf("remove them from settings (use the profile's env in config.toml instead), exclude the file, or pass --allow-secrets")
 		}
 	}
 
-	// Stage all changes
-	if _, err := gitExec(repoDir, "add", "-A"); err != nil {
+	if err := stageSyncFiles(repoDir, cfg, files); err != nil {
 		return err
 	}
 
@@ -214,7 +231,15 @@ func CloudPush(configPath string, message string) error {
 		return nil
 	}
 
-	// Commit
+	if opts.DryRun {
+		outln("Dry run — changes that would be committed:")
+		for _, line := range strings.Split(strings.TrimSpace(status), "\n") {
+			outf("  %s\n", line)
+		}
+		return nil
+	}
+
+	message := opts.Message
 	if message == "" {
 		hostname, _ := os.Hostname()
 		message = fmt.Sprintf("cpm sync: %s at %s", hostname, time.Now().Format(time.RFC3339))
@@ -230,9 +255,7 @@ func CloudPush(configPath string, message string) error {
 	}
 
 	// Push if remote configured
-	hasRemote := hasOriginRemote(repoDir)
-	if hasRemote {
-		// Ensure main branch exists on remote
+	if hasOriginRemote(repoDir) {
 		if _, err := gitExec(repoDir, "push", "-u", "origin", "HEAD"); err != nil {
 			return fmt.Errorf("push failed: %w\nResolve manually in %s", err, repoDir)
 		}
@@ -242,6 +265,133 @@ func CloudPush(configPath string, message string) error {
 	}
 
 	return nil
+}
+
+// CloudDiff stages the live files into the repo and shows the diff against
+// the last sync.
+func CloudDiff(configPath string) error {
+	repoDir := CloudRepoDir(configPath)
+	if err := ensureCloudRepo(repoDir); err != nil {
+		return err
+	}
+	cfg, err := LoadCloudConfig(configPath)
+	if err != nil {
+		return err
+	}
+	files, err := GatherSyncFiles(cfg, configPath)
+	if err != nil {
+		return err
+	}
+	if err := stageSyncFiles(repoDir, cfg, files); err != nil {
+		return err
+	}
+	diff, _ := gitExec(repoDir, "diff", "--cached", "--stat")
+	full, _ := gitExec(repoDir, "diff", "--cached")
+	if strings.TrimSpace(full) == "" {
+		outln("No local changes since the last sync.")
+		return nil
+	}
+	outln(strings.TrimSpace(diff))
+	outln()
+	out(full)
+	return nil
+}
+
+// stageSyncFiles copies the live files into the repo working tree, removes
+// files deleted locally from the synced directories, and runs git add -A.
+func stageSyncFiles(repoDir string, cfg *Config, files map[string]string) error {
+	for repoPath, srcPath := range files {
+		if err := copyFile(srcPath, filepath.Join(repoDir, repoPath)); err != nil {
+			continue // skip missing files silently
+		}
+	}
+	for _, dirname := range cloudSyncDirs {
+		if isExcluded(dirname+"/", cfg) {
+			continue
+		}
+		repoSubDir := filepath.Join(repoDir, dirname)
+		if _, err := os.Stat(repoSubDir); err == nil {
+			cleanDeletedFiles(repoSubDir, filepath.Join(cfg.SourceDir, dirname))
+		}
+	}
+	_, err := gitExec(repoDir, "add", "-A")
+	return err
+}
+
+// SecretFinding is a settings value that looks like a credential.
+type SecretFinding struct {
+	File string
+	Key  string
+}
+
+var secretKeyPattern = regexp.MustCompile(`(?i)(_KEY|_TOKEN|_SECRET|PASSWORD|PASSWD)$`)
+var secretValuePattern = regexp.MustCompile(`^(sk-ant-|sk-[A-Za-z0-9]|ghp_|gho_|github_pat_|xox[bpoa]-|AKIA[0-9A-Z]{12,}|glpat-)`)
+
+// looksLikeSecret flags env entries whose key or value resembles an API
+// credential.
+func looksLikeSecret(key, value string) bool {
+	if strings.TrimSpace(value) == "" {
+		return false
+	}
+	return secretKeyPattern.MatchString(key) || secretValuePattern.MatchString(value)
+}
+
+// ScanForSecrets inspects the "env" object of every settings*.json in the
+// sync set.
+func ScanForSecrets(files map[string]string) []SecretFinding {
+	var findings []SecretFinding
+	for _, repoPath := range sortedKeys(files) {
+		base := filepath.Base(repoPath)
+		if !strings.HasPrefix(base, "settings") || !strings.HasSuffix(base, ".json") {
+			continue
+		}
+		data, err := os.ReadFile(files[repoPath])
+		if err != nil {
+			continue
+		}
+		var settings struct {
+			Env map[string]any `json:"env"`
+		}
+		if err := json.Unmarshal(data, &settings); err != nil {
+			continue
+		}
+		for _, key := range sortedAnyKeys(settings.Env) {
+			value, _ := settings.Env[key].(string)
+			if looksLikeSecret(key, value) {
+				findings = append(findings, SecretFinding{File: repoPath, Key: key})
+			}
+		}
+	}
+	return findings
+}
+
+func sortedAnyKeys(m map[string]any) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// cloudPullFiles is CloudPull without the profile re-sync, for callers that
+// run the install pipeline themselves.
+func cloudPullFiles(configPath string) error {
+	repoDir := CloudRepoDir(configPath)
+	if err := ensureCloudRepo(repoDir); err != nil {
+		return err
+	}
+	if !hasOriginRemote(repoDir) {
+		return fmt.Errorf("no remote configured — add one with: cpm cloud remote <url>")
+	}
+	if _, err := gitExec(repoDir, "pull", "--ff-only", "origin", "HEAD"); err != nil {
+		return fmt.Errorf("pull failed (possible divergence): %w", err)
+	}
+	cfg, err := LoadCloudConfig(configPath)
+	if err != nil {
+		return err
+	}
+	return ApplyDistribute(PlanDistribute(repoDir, cfg, configPath))
 }
 
 // CloudPull pulls from remote and distributes files to their live locations.
@@ -284,6 +434,19 @@ func CloudPull(configPath string, dryRun bool) error {
 	}
 
 	outln("\nFiles distributed from cloud repo.")
+
+	// Profiles hold copies of settings.json / CLAUDE.md; refresh them so the
+	// pulled changes actually take effect.
+	if full, err := LoadConfig(configPath); err == nil {
+		outln("\nRe-syncing profiles:")
+		if err := InstallProfiles(full, configPath, InstallOptions{Sync: true, skipCloud: true}); err != nil {
+			if errors.Is(err, ErrDiverged) {
+				outln("Profiles with local changes were left alone; run 'cpm install --sync --force' to overwrite them.")
+				return nil
+			}
+			return err
+		}
+	}
 	return nil
 }
 
@@ -371,7 +534,7 @@ func GatherSyncFiles(cfg *Config, configPath string) (map[string]string, error) 
 	files := make(map[string]string)
 
 	// Files from source_dir
-	for _, name := range cloudSyncFiles {
+	for _, name := range syncFilesFor(cfg) {
 		if isExcluded(name, cfg) {
 			continue
 		}
@@ -458,7 +621,7 @@ func PlanDistribute(repoDir string, cfg *Config, configPath string) []Distribute
 		plan = append(plan, DistributeAction{RepoPath: repoPath, Source: src, Dest: dest, Kind: kind})
 	}
 
-	for _, name := range cloudSyncFiles {
+	for _, name := range syncFilesFor(cfg) {
 		add(name, filepath.Join(cfg.SourceDir, name), isExcluded(name, cfg))
 	}
 
