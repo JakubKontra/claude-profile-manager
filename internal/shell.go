@@ -15,14 +15,14 @@ func GenerateUseOutput(name string, profileDir string, profile *Profile) string 
 	// Unset CLAUDE_*/ANTHROPIC_* vars
 	b.WriteString("unset $(env | grep -E '^(CLAUDE_|ANTHROPIC_)' | cut -d= -f1) 2>/dev/null;\n")
 
-	b.WriteString(fmt.Sprintf("export CLAUDE_CONFIG_DIR=\"%s\";\n", profileDir))
-	b.WriteString(fmt.Sprintf("export CLAUDE_PROFILE=\"%s\";\n", name))
+	fmt.Fprintf(&b, "export CLAUDE_CONFIG_DIR=\"%s\";\n", profileDir)
+	fmt.Fprintf(&b, "export CLAUDE_PROFILE=\"%s\";\n", name)
 
 	for k, v := range profile.Env {
-		b.WriteString(fmt.Sprintf("export %s=\"%s\";\n", k, v))
+		fmt.Fprintf(&b, "export %s=\"%s\";\n", k, v)
 	}
 
-	b.WriteString(fmt.Sprintf("echo \"Switched to profile: %s\";\n", name))
+	fmt.Fprintf(&b, "echo \"Switched to profile: %s\";\n", name)
 
 	return b.String()
 }

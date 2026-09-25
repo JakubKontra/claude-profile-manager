@@ -559,22 +559,6 @@ func cloudCopyFile(src, dst string) error {
 	return err
 }
 
-func cloudCopyDir(src, dst string) error {
-	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil
-		}
-		rel, _ := filepath.Rel(src, path)
-		target := filepath.Join(dst, rel)
-
-		if info.IsDir() {
-			return os.MkdirAll(target, 0o755)
-		}
-
-		return cloudCopyFile(path, target)
-	})
-}
-
 func cleanDeletedFiles(repoSubDir, srcDir string) {
 	_ = filepath.Walk(repoSubDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {

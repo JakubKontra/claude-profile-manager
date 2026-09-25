@@ -28,7 +28,7 @@ func GenerateWrapper(name string, profileDir string, profile *Profile) string {
 
 	b.WriteString("#!/usr/bin/env bash\n")
 	b.WriteString(marker + "\n")
-	b.WriteString(fmt.Sprintf("# Profile: %s — %s\n", name, profile.Description))
+	fmt.Fprintf(&b, "# Profile: %s — %s\n", name, profile.Description)
 	b.WriteString("set -euo pipefail\n\n")
 
 	// Unset inherited CLAUDE_*/ANTHROPIC_* env vars
@@ -37,8 +37,8 @@ func GenerateWrapper(name string, profileDir string, profile *Profile) string {
 	b.WriteString("  unset \"$varname\"\n")
 	b.WriteString("done < <(compgen -v | grep -E \"^(CLAUDE_|ANTHROPIC_)\")\n\n")
 
-	b.WriteString(fmt.Sprintf("export CLAUDE_CONFIG_DIR=\"%s\"\n", profileDir))
-	b.WriteString(fmt.Sprintf("export CLAUDE_PROFILE=\"%s\"\n", name))
+	fmt.Fprintf(&b, "export CLAUDE_CONFIG_DIR=\"%s\"\n", profileDir)
+	fmt.Fprintf(&b, "export CLAUDE_PROFILE=\"%s\"\n", name)
 
 	// Custom env vars
 	if len(profile.Env) > 0 {
@@ -48,14 +48,14 @@ func GenerateWrapper(name string, profileDir string, profile *Profile) string {
 		}
 		sort.Strings(keys)
 		for _, k := range keys {
-			b.WriteString(fmt.Sprintf("export %s=\"%s\"\n", k, profile.Env[k]))
+			fmt.Fprintf(&b, "export %s=\"%s\"\n", k, profile.Env[k])
 		}
 	}
 
 	b.WriteString("\n")
 
 	// Subcommands bypass
-	b.WriteString(fmt.Sprintf("case \"${1:-}\" in\n  %s) exec claude \"$@\" ;;\nesac\n\n", subcommands))
+	fmt.Fprintf(&b, "case \"${1:-}\" in\n  %s) exec claude \"$@\" ;;\nesac\n\n", subcommands)
 
 	// Model handling
 	if profile.Model != "" {

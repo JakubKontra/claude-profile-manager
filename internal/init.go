@@ -70,14 +70,14 @@ func RunInit(configPath string) error {
 
 	// Generate TOML
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("source_dir = %q\n", sourceDir))
-	b.WriteString(fmt.Sprintf("bin_dir = %q\n", binDir))
+	fmt.Fprintf(&b, "source_dir = %q\n", sourceDir)
+	fmt.Fprintf(&b, "bin_dir = %q\n", binDir)
 
 	for _, p := range profiles {
-		b.WriteString(fmt.Sprintf("\n[profiles.%s]\n", p.name))
-		b.WriteString(fmt.Sprintf("description = %q\n", p.desc))
+		fmt.Fprintf(&b, "\n[profiles.%s]\n", p.name)
+		fmt.Fprintf(&b, "description = %q\n", p.desc)
 		if p.model != "" {
-			b.WriteString(fmt.Sprintf("model = %q\n", p.model))
+			fmt.Fprintf(&b, "model = %q\n", p.model)
 		}
 	}
 
