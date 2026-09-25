@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 var copyFiles = []string{
@@ -13,7 +14,9 @@ var copyFiles = []string{
 	"CLAUDE.md",
 }
 
-var symlinkDirs = []string{
+// defaultShareDirs are symlinked from the source dir into every profile
+// unless the config says otherwise.
+var defaultShareDirs = []string{
 	"commands",
 	"skills",
 	"agents",
@@ -21,7 +24,37 @@ var symlinkDirs = []string{
 	"projects",
 }
 
-func SetupProfile(name string, profileDir, sourceDir string, forceSync bool) error {
+// EffectiveShareDirs returns the directories a profile shares with the
+// source dir: the profile's share list, else the global one, else the
+// default — minus the profile's isolate list.
+func EffectiveShareDirs(cfg *Config, p *Profile) []string {
+	base := defaultShareDirs
+	if cfg != nil && cfg.Share != nil {
+		base = cfg.Share
+	}
+	if p != nil && p.Share != nil {
+		base = p.Share
+	}
+	isolated := map[string]bool{}
+	if p != nil {
+		for _, d := range p.Isolate {
+			isolated[d] = true
+		}
+	}
+	var dirs []string
+	for _, d := range base {
+		if !isolated[d] {
+			dirs = append(dirs, d)
+		}
+	}
+	return dirs
+}
+
+// SetupProfile creates the profile directory, copies mutable files and
+// symlinks shareDirs from sourceDir. A directory that used to be shared but
+// is no longer listed becomes an empty real directory; a real directory is
+// never deleted.
+func SetupProfile(name string, profileDir, sourceDir string, shareDirs []string, forceSync bool) error {
 	if err := os.MkdirAll(profileDir, 0o755); err != nil {
 		return fmt.Errorf("cannot create profile dir: %w", err)
 	}
@@ -48,7 +81,38 @@ func SetupProfile(name string, profileDir, sourceDir string, forceSync bool) err
 		outf("  %s %s\n", action, filename)
 	}
 
-	for _, dirname := range symlinkDirs {
+	shared := map[string]bool{}
+	for _, d := range shareDirs {
+		shared[d] = true
+	}
+
+	// Symlinks into the source dir that are no longer in the share list get
+	// replaced by an empty real directory.
+	if entries, err := os.ReadDir(profileDir); err == nil {
+		for _, entry := range entries {
+			if shared[entry.Name()] || entry.Type()&os.ModeSymlink == 0 {
+				continue
+			}
+			link := filepath.Join(profileDir, entry.Name())
+			target, err := os.Readlink(link)
+			if err != nil {
+				continue
+			}
+			absSource, _ := filepath.Abs(sourceDir)
+			if !strings.HasPrefix(resolveLinkTarget(link, target), absSource+string(os.PathSeparator)) {
+				continue
+			}
+			if err := os.Remove(link); err != nil {
+				return fmt.Errorf("cannot remove symlink %s: %w", entry.Name(), err)
+			}
+			if err := os.MkdirAll(link, 0o755); err != nil {
+				return fmt.Errorf("cannot create %s: %w", entry.Name(), err)
+			}
+			outf("  isolated %s/ (was shared)\n", entry.Name())
+		}
+	}
+
+	for _, dirname := range shareDirs {
 		src := filepath.Join(sourceDir, dirname)
 		dst := filepath.Join(profileDir, dirname)
 

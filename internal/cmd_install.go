@@ -47,7 +47,7 @@ func InstallProfiles(cfg *Config, configPath string, opts InstallOptions) error 
 
 		outf("\nProfile: %s\n", name)
 
-		if err := SetupProfile(name, profileDir, cfg.SourceDir, opts.Sync); err != nil {
+		if err := SetupProfile(name, profileDir, cfg.SourceDir, EffectiveShareDirs(cfg, profile), opts.Sync); err != nil {
 			return fmt.Errorf("profile %s: %w", name, err)
 		}
 		if err := PatchSettings(profileDir, EffectiveSettingsOverrides(profile)); err != nil {

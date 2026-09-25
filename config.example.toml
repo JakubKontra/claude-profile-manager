@@ -9,6 +9,10 @@ source_dir = "~/.claude"
 # Where to install wrapper scripts (default: ~/.local/bin)
 bin_dir = "~/.local/bin"
 
+# Directories symlinked from source_dir into every profile.
+# Default: ["commands", "skills", "agents", "plugins", "projects"]
+# share = ["commands", "skills", "agents", "plugins", "projects"]
+
 [profiles.personal]
 description = "Personal Anthropic account"
 
@@ -16,6 +20,8 @@ description = "Personal Anthropic account"
 description = "Company team subscription"
 model = "sonnet"
 add_dirs = ["~/Work/company"]
+# Keep this profile's session history private instead of sharing projects/
+# isolate = ["projects"]
 
 # [profiles.work.attribution]
 # commit = "Co-Authored-By: Claude <noreply@anthropic.com>"

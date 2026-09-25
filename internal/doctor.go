@@ -64,7 +64,7 @@ func RunDoctor(cfg *Config, profilesBase string) []Check {
 		}
 
 		// Check symlinks
-		for _, dir := range symlinkDirs {
+		for _, dir := range EffectiveShareDirs(cfg, cfg.Profiles[name]) {
 			link := filepath.Join(profileDir, dir)
 			target, err := os.Readlink(link)
 			if err != nil {

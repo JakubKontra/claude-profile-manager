@@ -50,7 +50,7 @@ func CloneProfile(sourceName, targetName, configPath string, cfg *Config) error 
 	}
 
 	// Re-create symlinks pointing to the original source dir
-	for _, dirname := range symlinkDirs {
+	for _, dirname := range EffectiveShareDirs(cfg, cfg.Profiles[sourceName]) {
 		target := filepath.Join(sourceDir, dirname)
 		link := filepath.Join(dstDir, dirname)
 

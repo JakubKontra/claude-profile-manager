@@ -22,6 +22,12 @@ type Profile struct {
 	Env         map[string]string `toml:"env,omitempty"`
 	Attribution *Attribution      `toml:"attribution,omitempty"`
 
+	// Share replaces the list of source directories symlinked into this
+	// profile; nil inherits the global default. Isolate removes entries
+	// from that list (e.g. a private "projects/" session history).
+	Share   []string `toml:"share,omitempty"`
+	Isolate []string `toml:"isolate,omitempty"`
+
 	// MCPExclude lists servers from ~/.claude.json this profile must not get.
 	MCPExclude []string `toml:"mcp_exclude,omitempty"`
 	// MCPServers are profile-specific servers ([profiles.x.mcp_servers.<name>]);
@@ -40,10 +46,13 @@ type CloudConfig struct {
 }
 
 type Config struct {
-	SourceDir string              `toml:"source_dir"`
-	BinDir    string              `toml:"bin_dir"`
-	Profiles  map[string]*Profile `toml:"profiles"`
-	Cloud     *CloudConfig        `toml:"cloud"`
+	SourceDir string `toml:"source_dir"`
+	BinDir    string `toml:"bin_dir"`
+	// Share is the default list of source directories symlinked into every
+	// profile; nil means defaultShareDirs.
+	Share    []string            `toml:"share,omitempty"`
+	Profiles map[string]*Profile `toml:"profiles"`
+	Cloud    *CloudConfig        `toml:"cloud"`
 
 	// Undecoded lists keys present in the file that no field consumed —
 	// usually typos. Filled by the loader, reported by doctor.
@@ -140,7 +149,22 @@ func applyConfigDefaults(cfg *Config) {
 	cfg.BinDir = ExpandPath(cfg.BinDir)
 }
 
+// shareEntryPattern restricts share/isolate entries to plain directory names.
+var shareEntryPattern = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+
+func validateShareEntries(context string, entries []string) error {
+	for _, e := range entries {
+		if e == "." || e == ".." || !shareEntryPattern.MatchString(e) {
+			return fmt.Errorf("%s: invalid directory name %q (plain names only)", context, e)
+		}
+	}
+	return nil
+}
+
 func validateConfig(cfg *Config) error {
+	if err := validateShareEntries("share", cfg.Share); err != nil {
+		return err
+	}
 	for _, name := range SortedProfileNames(cfg) {
 		if err := ValidateProfileName(name); err != nil {
 			return err
@@ -154,6 +178,12 @@ func validateConfig(cfg *Config) error {
 			if !isValidEnvName(k) {
 				return fmt.Errorf("profile %q: invalid environment variable name %q", name, k)
 			}
+		}
+		if err := validateShareEntries("profile "+name+" share", profile.Share); err != nil {
+			return err
+		}
+		if err := validateShareEntries("profile "+name+" isolate", profile.Isolate); err != nil {
+			return err
 		}
 	}
 	return nil
