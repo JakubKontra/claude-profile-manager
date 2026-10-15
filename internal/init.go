@@ -65,7 +65,11 @@ func RunInit(configPath string) error {
 		model, _ := reader.ReadString('\n')
 		model = strings.TrimSpace(model)
 
-		profiles = append(profiles, profileEntry{name, desc, model})
+		var isolation AddOptions
+		if err := ChooseIsolation(reader, &isolation); err != nil {
+			return err
+		}
+		profiles = append(profiles, profileEntry{name: name, desc: desc, model: model, shareProjects: *isolation.ShareProjects, inheritMCP: *isolation.InheritMCP})
 		outln()
 	}
 
@@ -81,6 +85,10 @@ func RunInit(configPath string) error {
 	for _, p := range profiles {
 		fmt.Fprintf(&b, "\n[profiles.%s]\n", p.name)
 		fmt.Fprintf(&b, "description = %q\n", p.desc)
+		if !p.shareProjects {
+			b.WriteString("isolate = [\"projects\"]\n")
+		}
+		fmt.Fprintf(&b, "inherit_mcp = %t\n", p.inheritMCP)
 		if p.model != "" {
 			fmt.Fprintf(&b, "model = %q\n", p.model)
 		}
@@ -97,7 +105,9 @@ func RunInit(configPath string) error {
 }
 
 type profileEntry struct {
-	name  string
-	desc  string
-	model string
+	shareProjects bool
+	inheritMCP    bool
+	name          string
+	desc          string
+	model         string
 }

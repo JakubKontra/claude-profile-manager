@@ -8,10 +8,12 @@ import (
 
 // AddOptions holds the flags of `cpm add`.
 type AddOptions struct {
-	Description string
-	Model       string
-	AddDirs     []string
-	Env         map[string]string
+	ShareProjects *bool
+	InheritMCP    *bool
+	Description   string
+	Model         string
+	AddDirs       []string
+	Env           map[string]string
 	// NoInstall skips running the install pipeline afterwards.
 	NoInstall bool
 }
@@ -38,6 +40,10 @@ func AddProfile(configPath, name string, opts AddOptions) error {
 		Model:       opts.Model,
 		AddDirs:     opts.AddDirs,
 		Env:         opts.Env,
+		InheritMCP:  opts.InheritMCP,
+	}
+	if opts.ShareProjects != nil && !*opts.ShareProjects {
+		profile.Isolate = []string{"projects"}
 	}
 	updated, err := AppendProfileTable(data, name, profile)
 	if err != nil {

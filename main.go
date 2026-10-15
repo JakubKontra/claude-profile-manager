@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"os"
@@ -323,6 +324,7 @@ func cloneCmd() *cobra.Command {
 }
 
 func addCmd() *cobra.Command {
+	var shareProjects, inheritMCP bool
 	var opts internal.AddOptions
 	var envFlags []string
 
@@ -336,10 +338,23 @@ func addCmd() *cobra.Command {
 				return err
 			}
 			opts.Env = env
+			if cmd.Flags().Changed("share-projects") {
+				opts.ShareProjects = &shareProjects
+			}
+			if cmd.Flags().Changed("inherit-mcp") {
+				opts.InheritMCP = &inheritMCP
+			}
+			if stdinIsTerminal() {
+				if err := internal.ChooseIsolation(bufio.NewReader(os.Stdin), &opts); err != nil {
+					return err
+				}
+			}
 			return internal.AddProfile(configPath, args[0], opts)
 		},
 	}
 
+	cmd.Flags().BoolVar(&shareProjects, "share-projects", true, "allow project history sharing (false isolates projects)")
+	cmd.Flags().BoolVar(&inheritMCP, "inherit-mcp", true, "inherit global MCP servers")
 	cmd.Flags().StringVarP(&opts.Description, "description", "d", "", "human-readable description")
 	cmd.Flags().StringVarP(&opts.Model, "model", "m", "", "default model (e.g. sonnet, opus)")
 	cmd.Flags().StringArrayVar(&opts.AddDirs, "add-dir", nil, "extra directory passed via --add-dir (repeatable)")

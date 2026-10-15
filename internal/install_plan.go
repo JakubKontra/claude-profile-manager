@@ -202,7 +202,7 @@ func (p *installPlanner) claudeJSON(dir string, profile *Profile) error {
 		}
 	}
 	servers, _ := global["mcpServers"].(map[string]any)
-	if servers != nil || len(profile.MCPServers) > 0 {
+	if servers != nil || len(profile.MCPServers) > 0 || !inheritsMCP(profile) {
 		current["mcpServers"] = MergeMCPServers(servers, profile)
 	}
 	if len(current) == 0 && data == nil {

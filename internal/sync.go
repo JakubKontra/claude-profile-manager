@@ -70,8 +70,10 @@ func SeedClaudeJSON(profileDir, sourcePath string) (bool, error) {
 // mcp_exclude, overlaid with the profile's own mcp_servers.
 func MergeMCPServers(source map[string]any, p *Profile) map[string]any {
 	merged := make(map[string]any, len(source))
-	for name, server := range source {
-		merged[name] = server
+	if inheritsMCP(p) {
+		for name, server := range source {
+			merged[name] = server
+		}
 	}
 	if p != nil {
 		for _, name := range p.MCPExclude {
@@ -95,7 +97,7 @@ func SyncMCPServers(profileDir string, p *Profile, sourcePath string) error {
 	if s, ok := source["mcpServers"].(map[string]any); ok {
 		globalServers = s
 	}
-	if globalServers == nil && (p == nil || len(p.MCPServers) == 0) {
+	if globalServers == nil && (p == nil || len(p.MCPServers) == 0) && inheritsMCP(p) {
 		return nil
 	}
 
