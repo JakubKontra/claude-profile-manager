@@ -175,7 +175,7 @@ func CloudInit(configPath string, remote string) error {
 		outln("Push with: cpm cloud push")
 	}
 
-	return nil
+	return recordCloudState(repoDir, cfg, configPath)
 }
 
 // PushOptions controls CloudPush.
@@ -226,8 +226,16 @@ func CloudPush(configPath string, opts PushOptions) error {
 		return err
 	}
 	if strings.TrimSpace(status) == "" {
-		outln("Already up to date — no changes to push.")
-		return nil
+		outln("No new local changes.")
+		if opts.DryRun {
+			return nil
+		}
+		if hasOriginRemote(repoDir) {
+			if _, err := gitExec(repoDir, "push", "-u", "origin", "HEAD"); err != nil {
+				return err
+			}
+		}
+		return recordCloudState(repoDir, cfg, configPath)
 	}
 
 	if opts.DryRun {
@@ -263,7 +271,7 @@ func CloudPush(configPath string, opts PushOptions) error {
 		outln("\nCommitted locally. Add a remote with: cpm cloud remote <url>")
 	}
 
-	return nil
+	return recordCloudState(repoDir, cfg, configPath)
 }
 
 // CloudDiff stages the live files into the repo and shows the diff against
@@ -595,7 +603,10 @@ type DistributeAction struct {
 	// Dest is the live path that changes.
 	Dest string
 	// Kind is create, update, delete, merge, unchanged or excluded.
-	Kind string
+	Kind       string
+	StatePath  string
+	RemoteHash string
+	LocalHash  string
 }
 
 // PlanDistribute compares the cloud repo with the live files and returns
@@ -628,9 +639,6 @@ func PlanDistribute(repoDir string, cfg *Config, configPath string) []Distribute
 
 	for _, dirname := range cloudSyncDirs {
 		repoSubDir := filepath.Join(repoDir, dirname)
-		if _, err := os.Stat(repoSubDir); os.IsNotExist(err) {
-			continue
-		}
 		excluded := isExcluded(dirname+"/", cfg)
 		liveDir := filepath.Join(cfg.SourceDir, dirname)
 
@@ -673,11 +681,14 @@ func PlanDistribute(repoDir string, cfg *Config, configPath string) []Distribute
 	}
 
 	sort.SliceStable(plan, func(i, j int) bool { return plan[i].RepoPath < plan[j].RepoPath })
-	return plan
+	return protectDistribute(plan, repoDir)
 }
 
 // ApplyDistribute executes a plan.
 func ApplyDistribute(plan []DistributeAction) error {
+	if err := prepareDistribute(plan); err != nil {
+		return err
+	}
 	var failures []error
 	for _, a := range plan {
 		var err error
@@ -702,7 +713,10 @@ func ApplyDistribute(plan []DistributeAction) error {
 			outf("  completed %s: %s\n", a.Kind, a.RepoPath)
 		}
 	}
-	return errors.Join(failures...)
+	if err := errors.Join(failures...); err != nil {
+		return err
+	}
+	return saveDistributeState(plan)
 }
 
 // DistributeSyncFiles applies the repo to the live locations (no config merge).
@@ -764,7 +778,7 @@ func printPlan(plan []DistributeAction) bool {
 	any := false
 	for _, a := range plan {
 		switch a.Kind {
-		case "create", "update", "delete", "merge":
+		case "create", "update", "delete", "merge", "conflict":
 			outf("  would %s: %s\n", a.Kind, a.RepoPath)
 			any = true
 		}

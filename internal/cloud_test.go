@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -330,6 +331,12 @@ func TestPlanDistributeKindsExcludeAndDeletes(t *testing.T) {
 	mustWrite(t, filepath.Join(live, "agents", "local-only.md"), "excluded dir, must survive")
 	mustWrite(t, filepath.Join(live, "orphan.json"), "top-level, never deleted")
 
+	baseline := map[string]string{}
+	for _, name := range []string{"commands/changed.md", "commands/gone.md"} {
+		baseline[name], _ = fileHash(filepath.Join(live, name))
+	}
+	data, _ := json.Marshal(baseline)
+	mustWrite(t, cloudStatePath(repo), string(data))
 	cfg := &Config{SourceDir: live, Cloud: &CloudConfig{Exclude: []string{"CLAUDE.md", "agents/"}}}
 	plan := PlanDistribute(repo, cfg, filepath.Join(root, "config.toml"))
 
@@ -389,7 +396,7 @@ func TestPlanDistributeSkipsMissingRepoDirs(t *testing.T) {
 	mustWrite(t, filepath.Join(live, "commands", "mine.md"), "x")
 	t.Setenv("HOME", root)
 	plan := PlanDistribute(filepath.Join(root, "empty-repo"), &Config{SourceDir: live}, "")
-	if len(plan) != 0 {
+	if len(plan) != 1 || plan[0].Kind != "local" {
 		t.Errorf("a repo without commands/ must not delete local commands: %v", plan)
 	}
 }

@@ -439,3 +439,15 @@ brew upgrade cpm
 ## License
 
 [MIT](LICENSE)
+
+### Cloud conflicts and recovery
+
+Cloud sync records the last transferred file hashes locally in `.cpm/cloud-state.json`
+next to `config.toml`. Pull preserves local additions and local edits when the remote
+file has not changed. If both sides changed, or a first pull would overwrite a
+local file without a baseline, the entire distribution stops before changing live
+files. Reconcile the named local/cloud files and retry the pull.
+
+Before overwriting or deleting live files, CPM prints a backup directory under
+`.cpm/backups/`. Its `restore-paths.json` maps backup files to their original
+locations. Copy the needed files back to recover. Backups and sync state stay local.
