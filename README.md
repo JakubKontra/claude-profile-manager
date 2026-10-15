@@ -268,7 +268,28 @@ cpm cloud pull   # on the other machine
 | `~/.agents/.skill-lock.json` (as `skills/skill-lock.json`) | |
 | CPM `config.toml` (profiles are merged, never overwritten) | |
 
-Before pushing, cpm scans the `env` block of every synced `settings*.json` for values that look like API keys or tokens and refuses to push them. Keep secrets in the profile's `env` in `config.toml` (which is synced as plain text too — use a private repo) or pass `--allow-secrets`.
+Before the initial cloud commit and every push, CPM scans synced JSON and TOML,
+including profile environment variables and MCP headers, for likely credentials.
+It refuses secrets and unreadable structured files. `--allow-secrets` is an explicit
+opt-out on `cloud init` and `cloud push`; it does not make a remote repository private.
+
+Keep credentials in `secrets.toml` next to `config.toml`, with permissions `0600`:
+
+```toml
+[profiles.work.env]
+ANTHROPIC_API_KEY = "your-local-key"
+```
+
+Run `chmod 600 ~/.claude-profiles/secrets.toml` and then `cpm install`.
+Local values override the profile's portable `env`. Secrets files are never included
+in cloud sync, even with `cloud.include` or `--allow-secrets`. Profiles using local
+secrets get a wrapper that calls `cpm run` and reads credentials at runtime, so CPM
+must be on PATH. Their direnv snippets also load values at runtime. Shell switching
+exports values into the current process environment, so do not save its output.
+Profiles without local secrets retain direct wrappers.
+
+This does not remove secrets already committed by older versions: rotate exposed
+credentials and clean the Git history separately. Secret detection is heuristic.
 
 ### Tune what gets synced
 

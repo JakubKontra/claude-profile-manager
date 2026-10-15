@@ -515,6 +515,7 @@ func cloudCmd() *cobra.Command {
 }
 
 func cloudInitCmd() *cobra.Command {
+	var allowSecrets bool
 	var remote string
 
 	cmd := &cobra.Command{
@@ -522,10 +523,11 @@ func cloudInitCmd() *cobra.Command {
 		Short: "Initialize cloud sync repo",
 		Long:  "Initialize a local git repo for syncing settings.\nIf --remote points to an existing repo, it will be cloned instead.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return internal.CloudInit(configPath, remote)
+			return internal.CloudInitWithSecrets(configPath, remote, allowSecrets)
 		},
 	}
 
+	cmd.Flags().BoolVar(&allowSecrets, "allow-secrets", false, "allow credentials in the initial cloud commit")
 	cmd.Flags().StringVar(&remote, "remote", "", "git remote URL (e.g. git@github.com:user/claude-settings.git)")
 
 	return cmd

@@ -49,7 +49,7 @@ func TestScanForSecretsFindsEnvInSettings(t *testing.T) {
 		"commands/x.md": filepath.Join(dir, "commands", "x.md"),
 	}
 	findings := ScanForSecrets(files)
-	if len(findings) != 1 || findings[0].Key != "ANTHROPIC_API_KEY" || findings[0].File != "settings.json" {
+	if len(findings) != 1 || findings[0].Key != "env.ANTHROPIC_API_KEY" || findings[0].File != "settings.json" {
 		t.Errorf("unexpected findings: %+v", findings)
 	}
 }
@@ -99,12 +99,13 @@ func TestCloudPushBlocksOnSecretsAndDryRun(t *testing.T) {
 	buf := captureOutput(t)
 	env := newCloudEnv(t, "[profiles.a]\n")
 	env.activate(t)
-	mustWrite(t, filepath.Join(env.SourceDir, "settings.json"), `{"env": {"ANTHROPIC_API_KEY": "sk-ant-x"}}`)
+	mustWrite(t, filepath.Join(env.SourceDir, "settings.json"), `{}`)
 
-	// Init commits the initial state; the secret check applies to push only.
+	// Start with a clean initial commit; adding a token must block push.
 	if err := CloudInit(env.ConfigPath, ""); err != nil {
 		t.Fatal(err)
 	}
+	mustWrite(t, filepath.Join(env.SourceDir, "settings.json"), `{"env": {"ANTHROPIC_API_KEY": "sk-ant-x"}}`)
 	mustWrite(t, filepath.Join(env.SourceDir, "CLAUDE.md"), "changed")
 
 	err := CloudPush(env.ConfigPath, PushOptions{})

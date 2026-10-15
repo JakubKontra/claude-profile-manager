@@ -41,8 +41,15 @@ func BuildLaunchSpec(name, profileDir string, p *Profile) LaunchSpec {
 			{"CLAUDE_PROFILE", name},
 		},
 	}
-	for _, k := range sortedEnvKeys(p.Env) {
-		spec.Env = append(spec.Env, EnvVar{k, p.Env[k]})
+	env := map[string]string{}
+	for k, v := range p.Env {
+		env[k] = v
+	}
+	for k, v := range p.LocalEnv {
+		env[k] = v
+	}
+	for _, k := range sortedEnvKeys(env) {
+		spec.Env = append(spec.Env, EnvVar{k, env[k]})
 	}
 	for _, d := range p.AddDirs {
 		spec.AddDirs = append(spec.AddDirs, ExpandPath(d))
@@ -92,8 +99,13 @@ func (s LaunchSpec) ClaudeArgs(userArgs []string) []string {
 // the spec's variables appended.
 func (s LaunchSpec) Environ(base []string) []string {
 	filtered := make([]string, 0, len(base)+len(s.Env))
+	overridden := map[string]bool{}
+	for _, v := range s.Env {
+		overridden[v.Key] = true
+	}
 	for _, e := range base {
-		if isManagedEnvPrefix(e) {
+		key, _, _ := strings.Cut(e, "=")
+		if isManagedEnvPrefix(e) || overridden[key] {
 			continue
 		}
 		filtered = append(filtered, e)
