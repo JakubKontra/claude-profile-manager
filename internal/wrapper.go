@@ -78,18 +78,7 @@ func InstallWrapper(scriptPath, content string) error {
 	if err := checkWrapperTarget(scriptPath); err != nil {
 		return err
 	}
-	mode := os.FileMode(0o755)
-	// Old configs may still contain credentials embedded in exports.
-	if strings.Contains(content, "export ") {
-		for _, line := range strings.Split(content, "\n") {
-			if strings.HasPrefix(line, "export ") {
-				key, value, _ := strings.Cut(strings.TrimPrefix(line, "export "), "=")
-				if looksLikeSecret(key, strings.Trim(value, "'")) {
-					mode = 0o700
-				}
-			}
-		}
-	}
+	mode := wrapperMode(content)
 	existing, err := os.ReadFile(scriptPath)
 	if err == nil && string(existing) == content {
 		return os.Chmod(scriptPath, mode)
@@ -175,4 +164,21 @@ func checkWrapperTarget(path string) error {
 		return fmt.Errorf("refusing to overwrite non-CPM file %s", path)
 	}
 	return nil
+}
+
+func wrapperMode(content string) os.FileMode {
+	mode := os.FileMode(0o755)
+	// Old configs may still contain credentials embedded in exports.
+	if strings.Contains(content, "export ") {
+		for _, line := range strings.Split(content, "\n") {
+			if strings.HasPrefix(line, "export ") {
+				key, value, _ := strings.Cut(strings.TrimPrefix(line, "export "), "=")
+				if looksLikeSecret(key, strings.Trim(value, "'")) {
+					mode = 0o700
+				}
+			}
+		}
+	}
+
+	return mode
 }

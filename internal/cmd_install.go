@@ -8,6 +8,7 @@ import (
 
 // InstallOptions controls InstallProfiles.
 type InstallOptions struct {
+	DryRun bool
 	// Sync re-copies mutable files from the source directory.
 	Sync bool
 	// Force overwrites diverged profile files when syncing.
@@ -25,7 +26,14 @@ var ErrDiverged = errors.New("diverged profile files detected; merge changes bac
 // installs the claude-<name> wrapper scripts. It is the single install
 // pipeline every other command builds on.
 func InstallProfiles(cfg *Config, configPath string, opts InstallOptions) error {
-	profilesBase := ProfilesBaseDir(configPath)
+	if opts.DryRun {
+		plan, err := PlanInstall(cfg, configPath, opts)
+		if err != nil {
+			return err
+		}
+		RenderInstallPlan(plan, cfg)
+		return nil
+	}
 
 	cloudEnabled := !opts.skipCloud && cfg.Cloud != nil && fileExistsAt(filepath.Join(CloudRepoDir(configPath), ".git"))
 	if cloudEnabled && cfg.Cloud.AutoPullOnInstall {
@@ -40,51 +48,13 @@ func InstallProfiles(cfg *Config, configPath string, opts InstallOptions) error 
 		outln()
 	}
 
-	if opts.Sync && !opts.Force {
-		diverged := CheckDivergence(cfg, profilesBase)
-		if len(diverged) > 0 {
-			out("\nDiverged profile files detected:\n\n")
-			for _, d := range diverged {
-				outf("  %s\n", d.Details)
-			}
-			outln()
-			return ErrDiverged
-		}
+	plan, err := PlanInstall(cfg, configPath, opts)
+	if err != nil {
+		return err
 	}
-
-	activeNames := make(map[string]bool)
-	claudeJSONPath := DefaultClaudeJSONPath()
-
-	for _, name := range SortedProfileNames(cfg) {
-		profile := cfg.Profiles[name]
-		profileDir := filepath.Join(profilesBase, name)
-		scriptName := wrapperPrefix + name
-		activeNames[scriptName] = true
-
-		outf("\nProfile: %s\n", name)
-
-		if err := SetupProfile(name, profileDir, cfg.SourceDir, EffectiveShareDirs(cfg, profile), opts.Sync); err != nil {
-			return fmt.Errorf("profile %s: %w", name, err)
-		}
-		if err := PatchSettings(profileDir, EffectiveSettingsOverrides(profile)); err != nil {
-			return fmt.Errorf("profile %s settings: %w", name, err)
-		}
-		if _, err := SeedClaudeJSON(profileDir, claudeJSONPath); err != nil {
-			return fmt.Errorf("profile %s seed: %w", name, err)
-		}
-		if err := SyncMCPServers(profileDir, profile, claudeJSONPath); err != nil {
-			return fmt.Errorf("profile %s mcp sync: %w", name, err)
-		}
-
-		wrapper := GenerateWrapper(name, profileDir, profile)
-		scriptPath := filepath.Join(cfg.BinDir, scriptName)
-		if err := InstallWrapper(scriptPath, wrapper); err != nil {
-			return fmt.Errorf("profile %s wrapper: %w", name, err)
-		}
+	if err := ApplyInstall(plan); err != nil {
+		return err
 	}
-
-	outln("\nCleanup:")
-	CleanupStaleScripts(cfg.BinDir, activeNames)
 
 	if cloudEnabled && cfg.Cloud.AutoPush {
 		outln("\nCloud: pushing (auto_push)")
