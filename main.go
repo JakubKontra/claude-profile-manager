@@ -87,6 +87,7 @@ func installCmd() *cobra.Command {
 		},
 	}
 
+	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "preview local changes without writing files or running cloud sync")
 	cmd.Flags().BoolVar(&opts.Sync, "sync", false, "re-copy mutable files from source")
 	cmd.Flags().BoolVar(&opts.Force, "force", false, "force overwrite diverged files (use with --sync)")
 

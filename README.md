@@ -472,3 +472,11 @@ files. Reconcile the named local/cloud files and retry the pull.
 Before overwriting or deleting live files, CPM prints a backup directory under
 `.cpm/backups/`. Its `restore-paths.json` maps backup files to their original
 locations. Copy the needed files back to recover. Backups and sync state stay local.
+
+### Previewing an installation
+
+`cpm install --dry-run` displays the local file, MCP, symlink and wrapper changes
+without writing files or invoking configured cloud auto-pull/auto-push. Text files
+include redacted unified diffs. Combine it with `--sync` and, when intentionally
+replacing local edits, `--force`. Preview and installation use the same local plan;
+a real installation with automatic cloud pull may see newer source data.
