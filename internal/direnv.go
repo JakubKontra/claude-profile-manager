@@ -8,7 +8,7 @@ import (
 // GenerateDirenvSnippet renders the .envrc lines for a profile.
 func GenerateDirenvSnippet(name, profileDir string, profile *Profile) string {
 	if len(profile.LocalEnv) > 0 {
-		return fmt.Sprintf("eval \"$(cpm --config %s use --quiet %s)\"\n", ShellQuote(profile.ConfigPath), ShellQuote(name))
+		return fmt.Sprintf("eval \"$(cpm --config %s use --shell bash --quiet %s)\"\n", ShellQuote(profile.ConfigPath), ShellQuote(name))
 	}
 	spec := BuildLaunchSpec(name, profileDir, profile)
 	var b strings.Builder
