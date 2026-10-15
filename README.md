@@ -480,3 +480,16 @@ without writing files or invoking configured cloud auto-pull/auto-push. Text fil
 include redacted unified diffs. Combine it with `--sync` and, when intentionally
 replacing local edits, `--force`. Preview and installation use the same local plan;
 a real installation with automatic cloud pull may see newer source data.
+
+### Choosing profile isolation
+
+`cpm init` and interactive `cpm add` ask whether to share project history and inherit
+global MCP servers. Both default to **No** for newly created interactive profiles.
+Existing configurations and noninteractive `add` keep their previous defaults.
+
+For scripts, use `cpm add work --share-projects=false --inherit-mcp=false`.
+The first option stores `isolate = ["projects"]`; the second stores
+`inherit_mcp = false`. Omitting `inherit_mcp` keeps global inheritance enabled.
+Profile-specific `mcp_servers` remain available regardless of inheritance. Enabling
+history sharing still respects your configured `share` list; it never deletes an
+existing private history directory to replace it with a symlink.

@@ -31,6 +31,7 @@ type Profile struct {
 	Isolate []string `toml:"isolate,omitempty"`
 
 	// MCPExclude lists servers from ~/.claude.json this profile must not get.
+	InheritMCP *bool    `toml:"inherit_mcp,omitempty"`
 	MCPExclude []string `toml:"mcp_exclude,omitempty"`
 	// MCPServers are profile-specific servers ([profiles.x.mcp_servers.<name>]);
 	// they win over a same-named global server.
