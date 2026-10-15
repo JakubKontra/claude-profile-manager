@@ -134,6 +134,16 @@ func TestCLIIntegration(t *testing.T) {
 		if strings.Contains(output, "ARG:--\n") || strings.Contains(output, "ARG:--model") {
 			t.Fatalf("run separator: %s", output)
 		}
+		snippet := m.run(t, true, "direnv", "work")
+		if strings.Contains(snippet, "rotated-private") {
+			t.Fatal("direnv stored credential")
+		}
+		fishEnv := m
+		fishEnv.env = append(append([]string{}, m.env...), "SHELL=/usr/bin/fish")
+		output = fishEnv.command(t, true, bash, "-c", snippet+"\nclaude auth status")
+		if !strings.Contains(output, "TOKEN:rotated-private") {
+			t.Fatal("direnv failed with fish login shell")
+		}
 		m.run(t, true, "add", "private", "--share-projects=false", "--inherit-mcp=false")
 		m.run(t, true, "remove", "private")
 		doctor := m.run(t, true, "doctor", "--json")
