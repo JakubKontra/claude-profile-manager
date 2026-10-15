@@ -404,13 +404,7 @@ func editCmd() *cobra.Command {
 	}
 }
 
-func stdinIsTerminal() bool {
-	st, err := os.Stdin.Stat()
-	if err != nil {
-		return false
-	}
-	return st.Mode()&os.ModeCharDevice != 0
-}
+func stdinIsTerminal() bool { return internal.IsTerminal(os.Stdin.Fd()) }
 
 func promptCmd() *cobra.Command {
 	return &cobra.Command{

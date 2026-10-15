@@ -16,6 +16,7 @@ type ExecSpec struct {
 
 // BuildRunExec resolves `cpm run <profile> [claude args...]` into a command.
 func BuildRunExec(cfg *Config, profilesBase, name string, userArgs []string) (ExecSpec, error) {
+	userArgs = trimCommandSeparator(userArgs)
 	profile, err := lookupProfile(cfg, name)
 	if err != nil {
 		return ExecSpec{}, err
@@ -36,6 +37,7 @@ func BuildRunExec(cfg *Config, profilesBase, name string, userArgs []string) (Ex
 // BuildExecExec resolves `cpm exec <profile> -- <command...>`: any command
 // run with the profile's environment.
 func BuildExecExec(cfg *Config, profilesBase, name string, argv []string) (ExecSpec, error) {
+	argv = trimCommandSeparator(argv)
 	if len(argv) == 0 {
 		return ExecSpec{}, fmt.Errorf("no command given (usage: cpm exec <profile> -- <command...>)")
 	}
@@ -50,4 +52,11 @@ func BuildExecExec(cfg *Config, profilesBase, name string, argv []string) (ExecS
 		return ExecSpec{}, fmt.Errorf("%s not found on PATH", argv[0])
 	}
 	return ExecSpec{Path: path, Argv: argv, Env: spec.Environ(os.Environ())}, nil
+}
+
+func trimCommandSeparator(args []string) []string {
+	if len(args) > 0 && args[0] == "--" {
+		return args[1:]
+	}
+	return args
 }
