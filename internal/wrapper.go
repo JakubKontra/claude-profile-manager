@@ -27,7 +27,7 @@ func GenerateWrapper(name string, profileDir string, profile *Profile) string {
 
 	b.WriteString("#!/usr/bin/env bash\n")
 	b.WriteString(marker + "\n")
-	fmt.Fprintf(&b, "# Profile: %s — %s\n", name, profile.Description)
+	fmt.Fprintf(&b, "# Profile: %s — %s\n", name, strings.NewReplacer("\n", " ", "\r", " ").Replace(profile.Description))
 	b.WriteString("set -euo pipefail\n\n")
 
 	b.WriteString("# Unset inherited CLAUDE_*/ANTHROPIC_* env vars to avoid interference\n")
@@ -72,12 +72,26 @@ func InstallWrapper(scriptPath, content string) error {
 		return err
 	}
 
+	if err := checkWrapperTarget(scriptPath); err != nil {
+		return err
+	}
+	mode := os.FileMode(0o755)
+	// Old configs may still contain credentials embedded in exports.
+	if strings.Contains(content, "export ") {
+		for _, line := range strings.Split(content, "\n") {
+			if strings.HasPrefix(line, "export ") {
+				key, value, _ := strings.Cut(strings.TrimPrefix(line, "export "), "=")
+				if looksLikeSecret(key, strings.Trim(value, "'")) {
+					mode = 0o700
+				}
+			}
+		}
+	}
 	existing, err := os.ReadFile(scriptPath)
 	if err == nil && string(existing) == content {
-		return nil
+		return os.Chmod(scriptPath, mode)
 	}
-
-	if err := os.WriteFile(scriptPath, []byte(content), 0o755); err != nil {
+	if err := writeFileAtomic(scriptPath, []byte(content), mode); err != nil {
 		return err
 	}
 	outf("  installed %s\n", scriptPath)
@@ -143,4 +157,19 @@ func isGeneratedWrapper(path string) bool {
 		}
 	}
 	return false
+}
+
+// checkWrapperTarget refuses to replace anything CPM does not own.
+func checkWrapperTarget(path string) error {
+	st, err := os.Lstat(path)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !st.Mode().IsRegular() || !isGeneratedWrapper(path) {
+		return fmt.Errorf("refusing to overwrite non-CPM file %s", path)
+	}
+	return nil
 }

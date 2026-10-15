@@ -94,7 +94,7 @@ func TestGenerateWrapperSubcommandBypass(t *testing.T) {
 func TestInstallWrapper(t *testing.T) {
 	dir := t.TempDir()
 	scriptPath := filepath.Join(dir, "claude-test")
-	content := "#!/usr/bin/env bash\necho test\n"
+	content := "#!/usr/bin/env bash\n" + marker + "\necho test\n"
 
 	if err := InstallWrapper(scriptPath, content); err != nil {
 		t.Fatalf("InstallWrapper failed: %v", err)
@@ -117,7 +117,7 @@ func TestInstallWrapper(t *testing.T) {
 func TestInstallWrapperIdempotent(t *testing.T) {
 	dir := t.TempDir()
 	scriptPath := filepath.Join(dir, "claude-test")
-	content := "#!/usr/bin/env bash\necho test\n"
+	content := "#!/usr/bin/env bash\n" + marker + "\necho test\n"
 
 	InstallWrapper(scriptPath, content)
 	info1, _ := os.Stat(scriptPath)
@@ -198,5 +198,43 @@ func TestCleanupStaleScriptsRemovesLegacyWrapper(t *testing.T) {
 
 	if _, err := os.Stat(legacy); !os.IsNotExist(err) {
 		t.Error("wrapper from a pre-rename version should be removed")
+	}
+}
+
+func TestWrapperRefusesForeignTargets(t *testing.T) {
+	dir := t.TempDir()
+	foreign := filepath.Join(dir, "foreign")
+	mustWrite(t, foreign, "do not replace")
+	link := filepath.Join(dir, "link")
+	if err := os.Symlink(foreign, link); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{foreign, link, dir} {
+		if err := InstallWrapper(path, GenerateWrapper("test", dir, &Profile{})); err == nil {
+			t.Fatalf("accepted %s", path)
+		}
+	}
+	data, _ := os.ReadFile(foreign)
+	if string(data) != "do not replace" {
+		t.Fatal("foreign file changed")
+	}
+}
+
+func TestWrapperDescriptionAndSecrets(t *testing.T) {
+	dir := t.TempDir()
+	script := GenerateWrapper("test", dir, &Profile{Description: "hello\necho injected\rbye", Env: map[string]string{"API_TOKEN": "private"}})
+	if strings.Contains(script, "\necho injected") {
+		t.Fatal("description injected a command")
+	}
+	path := filepath.Join(dir, "claude-test")
+	if err := InstallWrapper(path, script); err != nil {
+		t.Fatal(err)
+	}
+	st, _ := os.Stat(path)
+	if st.Mode().Perm() != 0o700 {
+		t.Fatal("credential wrapper must be private")
+	}
+	if err := InstallWrapper(path, GenerateWrapper("test", dir, &Profile{})); err != nil {
+		t.Fatal(err)
 	}
 }
