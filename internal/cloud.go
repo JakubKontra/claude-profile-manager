@@ -37,7 +37,7 @@ func syncFilesFor(cfg *Config) []string {
 	if cfg.Cloud != nil {
 		for _, extra := range cfg.Cloud.Include {
 			extra = strings.TrimPrefix(filepath.Clean(extra), "./")
-			if extra == "" || extra == "." || strings.HasPrefix(extra, "..") || filepath.IsAbs(extra) {
+			if filepath.Base(extra) == "secrets.toml" || filepath.Base(extra) == ".credentials.json" || extra == "" || extra == "." || strings.HasPrefix(extra, "..") || filepath.IsAbs(extra) {
 				continue
 			}
 			files = append(files, extra)
@@ -60,6 +60,7 @@ var cloudSyncExternal = []externalSyncFile{
 
 const cloudGitignore = `# CPM Cloud Sync — auto-generated
 .credentials.json
+secrets.toml
 projects/
 sessions/
 statsig/
@@ -75,6 +76,10 @@ func CloudRepoDir(configPath string) string {
 
 // CloudInit initializes or clones the cloud sync repo.
 func CloudInit(configPath string, remote string) error {
+	return CloudInitWithSecrets(configPath, remote, false)
+}
+
+func CloudInitWithSecrets(configPath string, remote string, allowSecrets bool) error {
 	repoDir := CloudRepoDir(configPath)
 
 	// Check if already initialized
@@ -116,6 +121,13 @@ func CloudInit(configPath string, remote string) error {
 		}
 	}
 
+	files, err := GatherSyncFiles(cfg, configPath)
+	if err != nil {
+		return err
+	}
+	if err := checkSyncSecrets(files, allowSecrets || (cfg.Cloud != nil && cfg.Cloud.AllowSecrets)); err != nil {
+		return err
+	}
 	// Fresh init
 	if err := os.MkdirAll(repoDir, 0o755); err != nil {
 		return fmt.Errorf("cannot create cloud dir: %w", err)
@@ -128,11 +140,6 @@ func CloudInit(configPath string, remote string) error {
 	// Write .gitignore
 	if err := os.WriteFile(filepath.Join(repoDir, ".gitignore"), []byte(cloudGitignore), 0o644); err != nil {
 		return fmt.Errorf("cannot write .gitignore: %w", err)
-	}
-
-	files, err := GatherSyncFiles(cfg, configPath)
-	if err != nil {
-		return err
 	}
 
 	copied := 0
@@ -205,15 +212,8 @@ func CloudPush(configPath string, opts PushOptions) error {
 		return err
 	}
 
-	allowSecrets := opts.AllowSecrets || (cfg.Cloud != nil && cfg.Cloud.AllowSecrets)
-	if !allowSecrets {
-		if findings := ScanForSecrets(files); len(findings) > 0 {
-			outln("Refusing to push: these look like secrets and would land in the cloud repo:")
-			for _, f := range findings {
-				outf("  %s: %s\n", f.File, f.Key)
-			}
-			return fmt.Errorf("remove them from settings (use the profile's env in config.toml instead), exclude the file, or pass --allow-secrets")
-		}
+	if err := checkSyncSecrets(files, opts.AllowSecrets || (cfg.Cloud != nil && cfg.Cloud.AllowSecrets)); err != nil {
+		return err
 	}
 
 	if err := stageSyncFiles(repoDir, cfg, files); err != nil {
@@ -349,27 +349,25 @@ func looksLikeSecret(key, value string) bool {
 // sync set.
 func ScanForSecrets(files map[string]string) []SecretFinding {
 	var findings []SecretFinding
-	for _, repoPath := range sortedKeys(files) {
-		base := filepath.Base(repoPath)
-		if !strings.HasPrefix(base, "settings") || !strings.HasSuffix(base, ".json") {
+	for _, path := range sortedKeys(files) {
+		ext := filepath.Ext(path)
+		if ext != ".json" && ext != ".toml" {
 			continue
 		}
-		data, err := os.ReadFile(files[repoPath])
-		if err != nil {
-			continue
-		}
-		var settings struct {
-			Env map[string]any `json:"env"`
-		}
-		if err := json.Unmarshal(data, &settings); err != nil {
-			continue
-		}
-		for _, key := range sortedAnyKeys(settings.Env) {
-			value, _ := settings.Env[key].(string)
-			if looksLikeSecret(key, value) {
-				findings = append(findings, SecretFinding{File: repoPath, Key: key})
+		data, err := os.ReadFile(files[path])
+		var value map[string]any
+		if err == nil {
+			if ext == ".json" {
+				err = json.Unmarshal(data, &value)
+			} else {
+				_, err = toml.Decode(string(data), &value)
 			}
 		}
+		if err != nil {
+			findings = append(findings, SecretFinding{File: path, Key: "unreadable or invalid structured file"})
+			continue
+		}
+		scanSecretValues(path, "", value, &findings)
 	}
 	return findings
 }
@@ -591,6 +589,11 @@ func GatherSyncFiles(cfg *Config, configPath string) (map[string]string, error) 
 		}
 	}
 
+	for path, src := range files {
+		if privateSyncFile(src, configPath) {
+			delete(files, path)
+		}
+	}
 	return files, nil
 }
 

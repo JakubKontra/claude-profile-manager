@@ -16,6 +16,8 @@ type Attribution struct {
 }
 
 type Profile struct {
+	LocalEnv    map[string]string `toml:"-"`
+	ConfigPath  string            `toml:"-"`
 	Description string            `toml:"description,omitempty"`
 	Model       string            `toml:"model,omitempty"`
 	AddDirs     []string          `toml:"add_dirs,omitempty"`
@@ -143,6 +145,12 @@ func loadConfig(path string, requireProfiles bool) (*Config, error) {
 		return nil, fmt.Errorf("invalid config %s: %w", path, err)
 	}
 
+	for _, p := range cfg.Profiles {
+		p.ConfigPath, _ = filepath.Abs(path)
+	}
+	if err := loadLocalSecrets(&cfg, path); err != nil {
+		return nil, err
+	}
 	return &cfg, nil
 }
 

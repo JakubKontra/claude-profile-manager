@@ -22,6 +22,9 @@ const markerScanLines = 5
 
 // GenerateWrapper renders the bash wrapper script for a profile.
 func GenerateWrapper(name string, profileDir string, profile *Profile) string {
+	if len(profile.LocalEnv) > 0 {
+		return fmt.Sprintf("#!/usr/bin/env bash\n%s\nset -euo pipefail\nexec cpm --config %s run %s \"$@\"\n", marker, ShellQuote(profile.ConfigPath), ShellQuote(name))
+	}
 	spec := BuildLaunchSpec(name, profileDir, profile)
 	var b strings.Builder
 
