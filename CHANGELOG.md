@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-15
+
+Thanks [@JakubKontra](https://github.com/JakubKontra) for the improvements in this release.
+
+### Added
+- `cpm install --dry-run` previews local changes with redacted diffs, using the same plan as installation; supports `--sync` and `--force` ([#10](https://github.com/JakubKontra/claude-profile-manager/pull/10)).
+- Local `secrets.toml` profile environment overlays, protected by `0600` permissions and loaded at runtime instead of embedded in wrappers or direnv files ([#8](https://github.com/JakubKontra/claude-profile-manager/pull/8)).
+- Interactive history/MCP isolation choices in `init` and `add`, plus `--share-projects`, `--inherit-mcp` and the `inherit_mcp` configuration field ([#11](https://github.com/JakubKontra/claude-profile-manager/pull/11)).
+- End-to-end CLI coverage with isolated homes, fake Claude/Keychain executables, two-machine cloud scenarios and race detection in Linux/macOS CI ([#12](https://github.com/JakubKontra/claude-profile-manager/pull/12)).
+
+### Fixed
+- Cloud pull preserves local additions and edits, detects conflicts against the last successful transfer, and backs up overwritten/deleted files before applying changes ([#7](https://github.com/JakubKontra/claude-profile-manager/pull/7)).
+- Failed cloud operations return errors instead of reporting success; profile resync conflicts propagate to automation ([#6](https://github.com/JakubKontra/claude-profile-manager/pull/6)).
+- Initial cloud commits and pushes check synced TOML/JSON for secrets, including profile env and MCP headers; explicit `--allow-secrets` remains available ([#8](https://github.com/JakubKontra/claude-profile-manager/pull/8)).
+- Wrapper installation rejects foreign files/symlinks, sanitizes multiline descriptions and writes atomically; legacy wrappers containing credentials use owner-only permissions ([#5](https://github.com/JakubKontra/claude-profile-manager/pull/5)).
+- `remove --purge` works after removing a profile from config, including the last profile; doctor reports orphan data and purge removes local secrets ([#9](https://github.com/JakubKontra/claude-profile-manager/pull/9)).
+- `run`/`exec` consume the optional `--` command separator; `/dev/null` is no longer mistaken for an interactive terminal, and runtime direnv output uses POSIX syntax even with a fish login shell ([#12](https://github.com/JakubKontra/claude-profile-manager/pull/12)).
+
+### Upgrade notes
+- Existing configs and noninteractive profile creation retain their sharing defaults. Newly created interactive profiles default to isolated project history and no global MCP inheritance.
+- Move credentials from portable config into `~/.claude-profiles/secrets.toml`, run `chmod 600` and then `cpm install`. Profiles with local secrets require `cpm` on PATH.
+- A first cloud pull without a recorded baseline refuses differing local files. Reconcile them before retrying. Backups and restore paths are stored locally under `.cpm/backups/` next to config.toml.
+- Previously committed credentials remain in Git history; rotate them and clean history separately. Secret detection remains heuristic.
+
 ## [0.3.1] - 2026-10-15
 
 ### Added

@@ -209,6 +209,7 @@ The `.claude-profile` file is automatically added to `.gitignore`.
 | Command | Description |
 |---------|-------------|
 | `cpm install` | Create profile directories and wrapper scripts |
+| `cpm install --dry-run` | Preview local changes with redacted diffs; skip automatic cloud operations |
 | `cpm install --sync` | Re-sync mutable files from `~/.claude` (refuses to overwrite local edits) |
 | `cpm install --sync --force` | Force overwrite diverged files |
 | `cpm add <name> [-d desc] [-m model] [--add-dir dir] [-e K=V] [--no-install]` | Add a profile to `config.toml` and install it |
@@ -357,6 +358,7 @@ CLOUD_ML_REGION = "europe-west1"
 | `profiles.<name>.settings` | | Table deep-merged into the profile's `settings.json` (maps merge, other values replace) |
 | `profiles.<name>.share` | inherits | Directories symlinked from `source_dir` (replaces the global list) |
 | `profiles.<name>.isolate` | `[]` | Directories removed from the share list for this profile |
+| `profiles.<name>.inherit_mcp` | `true` | Inherit global MCP servers; profile-specific servers always apply |
 | `profiles.<name>.mcp_exclude` | `[]` | Global MCP servers this profile does not get |
 | `profiles.<name>.mcp_servers.<id>` | | Profile-specific MCP server (same keys as in `~/.claude.json`) |
 | `share` | `["commands", "skills", "agents", "plugins", "projects"]` | Default shared directories |
@@ -365,7 +367,7 @@ CLOUD_ML_REGION = "europe-west1"
 | `cloud.auto_pull_on_install` | `false` | Pull before `cpm install` |
 | `cloud.exclude` | `[]` | Files/dirs to exclude from sync |
 | `cloud.include` | `[]` | Extra files (relative to `source_dir`) to sync |
-| `cloud.allow_secrets` | `false` | Skip the API-key check before pushing |
+| `cloud.allow_secrets` | `false` | Skip secret checks before cloud init/push |
 
 Profile names may contain letters, digits, `-` and `_` only.
 
