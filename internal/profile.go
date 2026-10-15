@@ -59,6 +59,10 @@ func SetupProfile(name string, profileDir, sourceDir string, shareDirs []string,
 		return fmt.Errorf("cannot create profile dir: %w", err)
 	}
 
+	if err := writeFileAtomic(filepath.Join(profileDir, ".cpm", "profile"), []byte(name+"\n"), 0o600); err != nil {
+		return err
+	}
+
 	for _, filename := range copyFiles {
 		src := filepath.Join(sourceDir, filename)
 		dst := filepath.Join(profileDir, filename)

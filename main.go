@@ -238,7 +238,8 @@ func doctorCmd() *cobra.Command {
 		Use:   "doctor",
 		Short: "Diagnose issues with profiles and configuration",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, base, err := loadCfg()
+			cfg, err := internal.LoadCloudConfig(configPath)
+			base := internal.ProfilesBaseDir(configPath)
 			if err != nil {
 				return err
 			}
@@ -361,7 +362,7 @@ its Keychain entry are deleted as well. This asks for confirmation unless
 --yes is given.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, _, err := loadCfg()
+			cfg, err := internal.LoadCloudConfig(configPath)
 			if err != nil {
 				return err
 			}
