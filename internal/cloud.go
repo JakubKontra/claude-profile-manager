@@ -140,8 +140,7 @@ func CloudInit(configPath string, remote string) error {
 		srcPath := files[repoPath]
 		dst := filepath.Join(repoDir, repoPath)
 		if err := copyFile(srcPath, dst); err != nil {
-			outf("  skipped %s (%v)\n", repoPath, err)
-			continue
+			return fmt.Errorf("copy %s: %w", repoPath, err)
 		}
 		outf("  added %s\n", repoPath)
 		copied++
@@ -302,7 +301,7 @@ func CloudDiff(configPath string) error {
 func stageSyncFiles(repoDir string, cfg *Config, files map[string]string) error {
 	for repoPath, srcPath := range files {
 		if err := copyFile(srcPath, filepath.Join(repoDir, repoPath)); err != nil {
-			continue // skip missing files silently
+			return fmt.Errorf("stage %s: %w", repoPath, err)
 		}
 	}
 	for _, dirname := range cloudSyncDirs {
@@ -311,7 +310,9 @@ func stageSyncFiles(repoDir string, cfg *Config, files map[string]string) error 
 		}
 		repoSubDir := filepath.Join(repoDir, dirname)
 		if _, err := os.Stat(repoSubDir); err == nil {
-			cleanDeletedFiles(repoSubDir, filepath.Join(cfg.SourceDir, dirname))
+			if err := cleanDeletedFiles(repoSubDir, filepath.Join(cfg.SourceDir, dirname)); err != nil {
+				return err
+			}
 		}
 	}
 	_, err := gitExec(repoDir, "add", "-A")
@@ -442,7 +443,7 @@ func CloudPull(configPath string, dryRun bool) error {
 		if err := InstallProfiles(full, configPath, InstallOptions{Sync: true, skipCloud: true}); err != nil {
 			if errors.Is(err, ErrDiverged) {
 				outln("Profiles with local changes were left alone; run 'cpm install --sync --force' to overwrite them.")
-				return nil
+				return err
 			}
 			return err
 		}
@@ -677,27 +678,31 @@ func PlanDistribute(repoDir string, cfg *Config, configPath string) []Distribute
 
 // ApplyDistribute executes a plan.
 func ApplyDistribute(plan []DistributeAction) error {
+	var failures []error
 	for _, a := range plan {
+		var err error
 		switch a.Kind {
 		case "create", "update":
-			if err := copyFile(a.Source, a.Dest); err != nil {
-				outf("  warning: cannot write %s: %v\n", a.RepoPath, err)
-				continue
-			}
-			outf("  restored %s\n", a.RepoPath)
+			err = copyFile(a.Source, a.Dest)
 		case "delete":
-			if err := os.Remove(a.Dest); err != nil && !os.IsNotExist(err) {
-				outf("  warning: cannot delete %s: %v\n", a.Dest, err)
-				continue
+			err = os.Remove(a.Dest)
+			if os.IsNotExist(err) {
+				err = nil
 			}
-			outf("  deleted %s\n", a.RepoPath)
 		case "merge":
-			if err := mergeConfigTOML(a.Source, a.Dest); err != nil {
-				outf("  warning: could not merge config.toml: %v\n", err)
-			}
+			err = mergeConfigTOML(a.Source, a.Dest)
+		default:
+			continue
+		}
+		if err != nil {
+			failure := fmt.Errorf("%s %s: %w", a.Kind, a.RepoPath, err)
+			failures = append(failures, failure)
+			outf("  failed: %v\n", failure)
+		} else {
+			outf("  completed %s: %s\n", a.Kind, a.RepoPath)
 		}
 	}
-	return nil
+	return errors.Join(failures...)
 }
 
 // DistributeSyncFiles applies the repo to the live locations (no config merge).
@@ -781,15 +786,18 @@ func sortedKeys(m map[string]string) []string {
 	return keys
 }
 
-func cleanDeletedFiles(repoSubDir, srcDir string) {
-	_ = filepath.Walk(repoSubDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
+func cleanDeletedFiles(repoSubDir, srcDir string) error {
+	return filepath.Walk(repoSubDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
 			return nil
 		}
 		rel, _ := filepath.Rel(repoSubDir, path)
 		srcFile := filepath.Join(srcDir, rel)
 		if _, err := os.Stat(srcFile); os.IsNotExist(err) {
-			os.Remove(path)
+			return os.Remove(path)
 		}
 		return nil
 	})
