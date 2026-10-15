@@ -22,6 +22,8 @@ model = "sonnet"
 add_dirs = ["~/Work/company"]
 # Keep this profile's session history private instead of sharing projects/
 # isolate = ["projects"]
+# Do not inherit global MCP servers (profile-specific servers still apply)
+# inherit_mcp = false
 
 # [profiles.work.attribution]
 # commit = "Co-Authored-By: Claude <noreply@anthropic.com>"
@@ -51,4 +53,7 @@ add_dirs = ["~/Work/company"]
 # auto_pull_on_install = false   # pull before every `cpm install`
 # exclude = ["CLAUDE.md", "commands/"]   # drop files/dirs from the sync set
 # include = ["settings.local.json"]      # add extra files (relative to source_dir)
-# allow_secrets = false          # skip the API-key check before pushing
+# allow_secrets = false          # skip secret checks before init/push
+# Store secrets separately in secrets.toml beside this file, with chmod 600.
+# Example secrets.toml: [profiles.work.env] with ANTHROPIC_API_KEY = "..."
+# Local secrets are never synchronized; run cpm install after adding them.
