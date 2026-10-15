@@ -7,8 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-15
+
 ### Added
-- Nix flake (`nix run`, `nix profile install`, NixOS flake input).
+- Nix flake (`nix run`, `nix profile install`, NixOS flake input). Thanks [@Stefanomarton](https://github.com/Stefanomarton) ([#4](https://github.com/jakubkontra/claude-profile-manager/pull/4)).
 
 ## [0.3.0] - 2026-09-25
 
@@ -66,7 +68,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial release: profiles, wrapper scripts, `.claude-profile` auto-switching, doctor, clone, upgrade.
 
-[Unreleased]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.1.1...v0.2.0
