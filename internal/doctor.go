@@ -155,6 +155,9 @@ func RunDoctorWithOptions(cfg *Config, profilesBase string, opts DoctorOptions) 
 		}
 	}
 
+	for _, name := range orphanProfiles(cfg, profilesBase) {
+		checks = append(checks, Check{"orphan/" + name, "warn", fmt.Sprintf("profile data remains; remove with cpm remove %s --purge", name)})
+	}
 	return checks
 }
 
