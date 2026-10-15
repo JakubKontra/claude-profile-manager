@@ -110,6 +110,26 @@ curl -L https://github.com/jakubkontra/claude-profile-manager/releases/latest/do
 chmod +x ~/.local/bin/cpm
 ```
 
+### Nix / NixOS
+
+```bash
+# Try it
+nix run github:jakubkontra/claude-profile-manager -- version
+
+# Install into your profile
+nix profile install github:jakubkontra/claude-profile-manager
+```
+
+Or add it as a flake input in your NixOS / home-manager config:
+
+```nix
+inputs.cpm.url = "github:jakubkontra/claude-profile-manager";
+# ...
+environment.systemPackages = [ inputs.cpm.packages.${pkgs.system}.default ];
+```
+
+`cpm upgrade` can't replace a binary in the Nix store; update the flake input instead.
+
 ### From source
 
 ```bash
