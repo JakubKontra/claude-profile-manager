@@ -16,8 +16,13 @@ builds:
       - -X github.com/jakubkontra/cpm/internal.Commit={{.ShortCommit}}
 
 archives:
-  - format: binary
+  - formats: [binary]
     name_template: "cpm_{{ .Os }}_{{ .Arch }}"
+
+# Tags like v1.0.0-rc.1 become GitHub prereleases, which /releases/latest
+# (and so `cpm upgrade`) skips, and they do not update the Homebrew formula.
+release:
+  prerelease: auto
 
 checksum:
   name_template: "checksums.txt"
@@ -35,6 +40,7 @@ brews:
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     name: cpm
+    skip_upload: auto
     homepage: "https://github.com/jakubkontra/claude-profile-manager"
     description: "Claude Profile Manager — manage multiple Claude Code accounts"
     license: "MIT"

@@ -11,14 +11,20 @@ const Banner = `
   Claude Profile Manager
 `
 
-// PrintVersion prints the banner, version and a hint when a newer release exists.
-func (a *App) PrintVersion() {
+// PrintVersion prints the banner, version and a hint when a newer release
+// exists; prerelease includes prereleases, as Upgrade does.
+func (a *App) PrintVersion(prerelease bool) {
 	a.out(Banner)
 	a.outf("  Version: %s\n  Commit:  %s\n", Version, Commit)
 
-	latest, err := CheckLatestVersion()
-	if err == nil && latest != "" && latest != "v"+Version && latest != Version {
+	pre := wantsPrerelease(prerelease)
+	latest, err := CheckLatestVersion(pre)
+	if err == nil && latest != "" && isNewer(latest) {
 		a.outf("\nNew version available: %s (current: %s)\n", latest, Version)
-		a.outln("Run 'cpm upgrade' to update.")
+		if pre {
+			a.outln("Run 'cpm upgrade --prerelease' to update.")
+		} else {
+			a.outln("Run 'cpm upgrade' to update.")
+		}
 	}
 }

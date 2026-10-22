@@ -348,7 +348,7 @@ In patterns, `*` matches within one path segment and `**` matches any depth; `~/
 |---------|-------------|
 | `cpm completion <shell>` | Shell completions (bash, zsh, fish, powershell) |
 | `cpm version` | Show version + check for updates |
-| `cpm upgrade` | Self-update from GitHub Releases (checksum-verified; Homebrew installs use `brew upgrade`) |
+| `cpm upgrade [--prerelease]` | Self-update from GitHub Releases (checksum-verified, never to an older version; Homebrew installs use `brew upgrade`) |
 
 ### Previewing an installation
 
@@ -605,6 +605,8 @@ cpm doctor --json && echo healthy       # exit code 1 on errors
 cpm upgrade         # self-update
 brew upgrade cpm    # or via Homebrew
 ```
+
+Release candidates (`v1.0.0-rc.1`) are published as GitHub prereleases. `cpm upgrade` and Homebrew skip them. To try one, run `cpm upgrade --prerelease`. A release candidate keeps updating to newer release candidates and then to the final release, and never back to an older version.
 
 ## License
 
