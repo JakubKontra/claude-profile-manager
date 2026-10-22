@@ -73,6 +73,7 @@ func NewRoot() *cobra.Command {
 		upgradeCmd(),
 		uninstallCmd(),
 		cloudCmd(),
+		docsCmd(),
 	)
 
 	// Bad flags and arguments are usage errors (exit code 2).
