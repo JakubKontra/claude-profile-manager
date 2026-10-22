@@ -121,6 +121,27 @@ type HookOptions struct {
 	// DefaultProfile is used when no .claude-profile is found instead of
 	// unsetting the profile.
 	DefaultProfile string
+	// Resolve makes the hook ask `cpm resolve` for the profile on every
+	// directory change, so [[match]] rules apply. Without it the hook only
+	// looks for .claude-profile files and never starts cpm needlessly.
+	Resolve bool
+	// ConfigPath is passed to cpm as --config; empty means the default.
+	ConfigPath string
+}
+
+// cpm is how the hook invokes cpm.
+func (o HookOptions) cpm() string {
+	if o.ConfigPath == "" {
+		return "cpm"
+	}
+	return "cpm --config " + ShellQuote(o.ConfigPath)
+}
+
+func (o HookOptions) unsetReason() string {
+	if o.Resolve {
+		return "no .claude-profile or [[match]] rule"
+	}
+	return "no .claude-profile found"
 }
 
 // GenerateShellHook generates the hook for auto-switching on directory
@@ -137,7 +158,13 @@ func generatePosixHook(opts HookOptions) string {
 	b.WriteString(`# cpm auto-switch hook — add to your .zshrc or .bashrc:
 #   eval "$(cpm hook)"
 _cpm_auto_switch() {
-  local profile_file=""
+`)
+	if opts.Resolve {
+		fmt.Fprintf(&b, `  local target
+  target="$(%s resolve "$PWD" 2>/dev/null)"
+`, opts.cpm())
+	} else {
+		b.WriteString(`  local profile_file=""
   local dir="$PWD"
   while [ "$dir" != "/" ] && [ -n "$dir" ]; do
     if [ -f "$dir/.claude-profile" ]; then
@@ -151,22 +178,23 @@ _cpm_auto_switch() {
     target="$(tr -d '[:space:]' < "$profile_file")"
   fi
 `)
+	}
 	if opts.DefaultProfile != "" {
 		fmt.Fprintf(&b, "  if [ -z \"$target\" ]; then target=%s; fi\n", ShellQuote(opts.DefaultProfile))
 	}
 	fmt.Fprintf(&b, `  if [ -n "$target" ]; then
     if [ "$target" != "${CLAUDE_PROFILE:-}" ]; then
       local snippet
-      if snippet="$(cpm use --quiet "$target" 2>/dev/null)"; then
+      if snippet="$(%s use --quiet "$target" 2>/dev/null)"; then
         eval "$snippet"
         echo "[cpm] using profile: $target"
       fi
     fi
   elif [ -n "${%s:-}" ]; then
-    %s    echo "[cpm] profile unset (no .claude-profile found)"
+    %s    echo "[cpm] profile unset (%s)"
   fi
 }
-`, managedVarsName, GenerateUnsetOutput("posix"))
+`, opts.cpm(), managedVarsName, GenerateUnsetOutput("posix"), opts.unsetReason())
 	b.WriteString(`if [ -n "${ZSH_VERSION:-}" ]; then
   autoload -Uz add-zsh-hook
   add-zsh-hook chpwd _cpm_auto_switch
@@ -192,7 +220,12 @@ func generateFishHook(opts HookOptions) string {
 	b.WriteString(`# cpm auto-switch hook — add to ~/.config/fish/config.fish:
 #   cpm hook --shell fish | source
 function _cpm_auto_switch --on-variable PWD
-  set -l profile_file ""
+`)
+	if opts.Resolve {
+		fmt.Fprintf(&b, `  set -l target (%s resolve "$PWD" 2>/dev/null)
+`, opts.cpm())
+	} else {
+		b.WriteString(`  set -l profile_file ""
   set -l dir $PWD
   while test "$dir" != "/" -a -n "$dir"
     if test -f "$dir/.claude-profile"
@@ -206,21 +239,22 @@ function _cpm_auto_switch --on-variable PWD
     set target (string trim < "$profile_file")
   end
 `)
+	}
 	if opts.DefaultProfile != "" {
 		fmt.Fprintf(&b, "  if test -z \"$target\"; set target %s; end\n", ShellQuote(opts.DefaultProfile))
 	}
 	fmt.Fprintf(&b, `  if test -n "$target"
     if test "$target" != "$CLAUDE_PROFILE"
-      if cpm use --shell fish --quiet "$target" 2>/dev/null | source
+      if %s use --shell fish --quiet "$target" 2>/dev/null | source
         echo "[cpm] using profile: $target"
       end
     end
   else if set -q %s
-    %s    echo "[cpm] profile unset (no .claude-profile found)"
+    %s    echo "[cpm] profile unset (%s)"
   end
 end
 _cpm_auto_switch
-`, managedVarsName, GenerateUnsetOutput("fish"))
+`, opts.cpm(), managedVarsName, GenerateUnsetOutput("fish"), opts.unsetReason())
 	return b.String()
 }
 

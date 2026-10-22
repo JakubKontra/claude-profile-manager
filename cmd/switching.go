@@ -38,7 +38,7 @@ func useCmd() *cobra.Command {
 
   eval "$(cpm use work)"               # bash / zsh
   cpm use --shell fish work | source   # fish
-  eval "$(cpm use auto)"               # profile from the nearest .claude-profile
+  eval "$(cpm use auto)"               # profile from .claude-profile or [[match]]
   eval "$(cpm use)"                    # interactive picker (menu on stderr)`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -88,7 +88,11 @@ func whichCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result := app.Which(dir)
+			cfg, err := app.LoadCloudConfig()
+			if err != nil {
+				cfg = &internal.Config{} // which still reports env and .claude-profile
+			}
+			result := app.Which(cfg, dir)
 			if asJSON {
 				return app.PrintJSON(result)
 			}
@@ -98,6 +102,34 @@ func whichCmd() *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "output as JSON")
 	return cmd
+}
+
+// resolveCmd is what the shell hook calls on every directory change when
+// [[match]] rules exist. It prints the profile name, or nothing.
+func resolveCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:    "resolve [dir]",
+		Short:  "Print the profile for a directory (used by the shell hook)",
+		Hidden: true,
+		Args:   cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			dir, err := cwd()
+			if len(args) == 1 {
+				dir, err = args[0], nil
+			}
+			if err != nil {
+				return err
+			}
+			cfg, err := app.LoadCloudConfig()
+			if err != nil {
+				return err
+			}
+			if res, ok := app.ResolveProfile(cfg, dir); ok {
+				fmt.Fprintln(app.Out, res.Profile)
+			}
+			return nil
+		},
+	}
 }
 
 func runCmd() *cobra.Command {
@@ -158,21 +190,31 @@ func hookCmd() *cobra.Command {
 	var opts internal.HookOptions
 	cmd := &cobra.Command{
 		Use:   "hook",
-		Short: "Print shell hook for auto-switching via .claude-profile files",
+		Short: "Print shell hook for auto-switching via .claude-profile files and [[match]] rules",
 		Long: `Print shell hook for auto-switching.
 
   eval "$(cpm hook)"                    # .zshrc / .bashrc
   cpm hook --shell fish | source        # config.fish
-  eval "$(cpm hook --default personal)" # fall back to a profile outside projects`,
+  eval "$(cpm hook --default personal)" # fall back to a profile outside projects
+
+The hook switches to the profile in the nearest .claude-profile file. When
+config.toml has [[match]] rules, it applies them too, so start a new shell
+after adding the first rule.`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if opts.Shell == "" {
 				opts.Shell = internal.DetectShell(app.Getenv)
+			}
+			if cfg, err := app.LoadCloudConfig(); err == nil && len(cfg.Match) > 0 {
+				opts.Resolve = true
+			}
+			if configPath != internal.DefaultConfigPath() {
+				opts.ConfigPath = configPath
 			}
 			fmt.Fprint(app.Out, internal.GenerateShellHook(opts))
 		},
 	}
 	cmd.Flags().StringVar(&opts.Shell, "shell", "", "shell: bash, zsh or fish (default: from $SHELL)")
-	cmd.Flags().StringVar(&opts.DefaultProfile, "default", "", "profile to use when no .claude-profile is found")
+	cmd.Flags().StringVar(&opts.DefaultProfile, "default", "", "profile to use when no .claude-profile or [[match]] rule applies")
 	return cmd
 }
 

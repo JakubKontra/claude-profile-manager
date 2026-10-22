@@ -114,6 +114,13 @@ func RunDoctorWithOptions(cfg *Config, profilesBase string, opts DoctorOptions) 
 		checks = append(checks, Check{"shell hook", "warn", "not found in shell rc files (add: eval \"$(cpm hook)\")"})
 	}
 
+	// [[match]] rules must point at configured profiles.
+	for i, r := range cfg.Match {
+		if _, ok := cfg.Profiles[r.Profile]; !ok {
+			checks = append(checks, Check{fmt.Sprintf("match #%d", i+1), "error", fmt.Sprintf("profile %q (%s) is not in config", r.Profile, r.describe())})
+		}
+	}
+
 	// Check each profile
 	for _, name := range SortedProfileNames(cfg) {
 		profileDir := filepath.Join(profilesBase, name)

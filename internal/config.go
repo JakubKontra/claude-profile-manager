@@ -64,6 +64,8 @@ type Config struct {
 	Share    []string            `toml:"share,omitempty"`
 	Profiles map[string]*Profile `toml:"profiles"`
 	Cloud    *CloudConfig        `toml:"cloud"`
+	// Match picks profiles for directories without a .claude-profile.
+	Match []MatchRule `toml:"match,omitempty"`
 
 	// Undecoded lists keys present in the file that no field consumed —
 	// usually typos. Filled by the loader, reported by doctor.
@@ -180,6 +182,9 @@ func validateShareEntries(context string, entries []string) error {
 
 func validateConfig(cfg *Config) error {
 	if err := validateShareEntries("share", cfg.Share); err != nil {
+		return err
+	}
+	if err := validateMatchRules(cfg.Match); err != nil {
 		return err
 	}
 	for _, name := range SortedProfileNames(cfg) {

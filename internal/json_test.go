@@ -30,7 +30,7 @@ func TestJSONShapes(t *testing.T) {
 	}
 
 	buf.Reset()
-	if err := app.PrintJSON(app.Which(t.TempDir())); err != nil {
+	if err := app.PrintJSON(app.Which(&Config{}, t.TempDir())); err != nil {
 		t.Fatal(err)
 	}
 	var which map[string]any
