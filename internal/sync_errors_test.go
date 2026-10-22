@@ -30,7 +30,9 @@ func TestApplyDistributeReportsPartialFailure(t *testing.T) {
 
 func TestStageSyncFilesFailsOnCopyError(t *testing.T) {
 	t.Parallel()
-	if err := stageSyncFiles(t.TempDir(), &Config{}, map[string]string{"missing": filepath.Join(t.TempDir(), "absent")}); err == nil {
+	app, _ := testApp(t)
+	app.Run = newFakeRunner(nil)
+	if err := app.stageSyncFiles(t.TempDir(), &Config{}, map[string]string{"missing": filepath.Join(t.TempDir(), "absent")}); err == nil {
 		t.Fatal("copy failure hidden")
 	}
 }

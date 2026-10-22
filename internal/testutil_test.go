@@ -32,6 +32,33 @@ func testAppAt(t *testing.T, configPath string) (*App, *bytes.Buffer) {
 	}, &out
 }
 
+// fakeRunner answers commands from a table instead of starting processes.
+// Replies are keyed by the program and its arguments joined with spaces;
+// commands without a reply succeed with no output.
+type fakeRunner struct {
+	mu      sync.Mutex
+	replies map[string]fakeReply
+	calls   []string
+}
+
+type fakeReply struct {
+	out string
+	err error
+}
+
+func newFakeRunner(replies map[string]fakeReply) *fakeRunner {
+	return &fakeRunner{replies: replies}
+}
+
+func (r *fakeRunner) Run(_, name string, args ...string) ([]byte, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	cmd := strings.Join(append([]string{name}, args...), " ")
+	r.calls = append(r.calls, cmd)
+	reply := r.replies[cmd]
+	return []byte(reply.out), reply.err
+}
+
 // fakeKeychain is an in-memory KeychainStore keyed by service name, so tests
 // never reach the real macOS Keychain.
 type fakeKeychain struct {

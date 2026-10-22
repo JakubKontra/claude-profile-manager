@@ -459,7 +459,7 @@ func TestCloudPushPullRoundTrip(t *testing.T) {
 	if err := a.App.CloudInit(bare); err != nil {
 		t.Fatalf("init A: %v", err)
 	}
-	if !hasOriginRemote(CloudRepoDir(a.ConfigPath)) {
+	if !a.App.hasOriginRemote(CloudRepoDir(a.ConfigPath)) {
 		t.Fatal("remote must be set on a fresh init")
 	}
 	if err := a.App.CloudPush(PushOptions{Message: "first"}); err != nil {
