@@ -218,6 +218,11 @@ Releases: 0.6 (contract), 0.7 (profile lifecycle), 0.8 (quality), then `v1.0.0-r
   - Split `cmd/root.go` into `NewRoot()` and `Execute()` so the command tree can be tested.
   - Exit codes: 0 ok, 1 error, 2 wrong usage (flags or arguments), 3 failed check (`doctor`, local edits blocking `install --sync`, cloud conflicts), 4 failed login.
 - **Done when:** a test produces every documented code. This is a breaking change and needs an upgrade note.
+- **Status:** done.
+  - Every command's `Args` validator and cobra's flag errors are marked as usage errors.
+  - Cobra reports an unknown command as an untyped error, so it is recognized by its message.
+  - `cpm login` checks its arguments before loading the config.
+  - Unit tests cover the mapping and the usage errors through `NewRoot()`. The end-to-end test checks each code with the real binary.
 
 #### 3.4 `--json` everywhere
 - **Why:** `status`, `cloud status`, `cloud diff`, `login`, `rename --dry-run` and `version` have no machine-readable output.

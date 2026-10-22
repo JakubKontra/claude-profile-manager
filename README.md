@@ -597,8 +597,16 @@ direnv allow ~/Work/company-project
 ```bash
 cpm exec work -- git commit -m "..."     # any command with the profile's env
 cpm list --json | jq -r '.[] | select(.current) .name'
-cpm doctor --json && echo healthy       # exit code 1 on errors
+cpm doctor --json && echo healthy       # exit code 3 when a check fails
 ```
+
+| Exit code | Meaning |
+|-----------|---------|
+| `0` | Success |
+| `1` | Error |
+| `2` | Wrong usage: unknown command or flag, wrong arguments |
+| `3` | A check failed: `cpm doctor`, local edits blocking `install --sync`, or a cloud sync conflict |
+| `4` | `cpm login` could not log in a profile |
 
 ## Upgrading
 

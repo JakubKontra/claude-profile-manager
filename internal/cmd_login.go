@@ -61,7 +61,7 @@ func (a *App) loginSkip(name string, p *Profile) *LoginResult {
 // profile without usable credentials, one at a time, then prints a summary.
 func (a *App) Login(cfg *Config, names []string, all bool) error {
 	if all == (len(names) > 0) {
-		return fmt.Errorf("name the profiles to log in, or pass --all")
+		return UsageError(fmt.Errorf("name the profiles to log in, or pass --all"))
 	}
 	var results []LoginResult
 	var targets []string

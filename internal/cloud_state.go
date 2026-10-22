@@ -89,7 +89,7 @@ func (a *App) prepareDistribute(plan []DistributeAction) error {
 	var failures []error
 	for _, act := range plan {
 		if act.Kind == "conflict" {
-			failures = append(failures, fmt.Errorf("sync conflict: %s (reconcile local and cloud files, then retry)", act.RepoPath))
+			failures = append(failures, fmt.Errorf("%w: %s (reconcile local and cloud files, then retry)", ErrSyncConflict, act.RepoPath))
 		}
 		if act.StatePath == "" || act.Kind == "excluded" {
 			continue
