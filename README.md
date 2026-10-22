@@ -297,7 +297,7 @@ In patterns, `*` matches within one path segment and `**` matches any depth; `~/
 | `cpm init` | Interactive config wizard |
 | `cpm install` | Create profile directories and wrapper scripts |
 | `cpm add <name> [-d desc] [-m model] [--add-dir dir] [-e K=V] [--no-install]` | Add a profile to `config.toml` and install it |
-| `cpm rename <old> <new> [--dry-run]` | Rename a profile: config, `secrets.toml`, `[[match]]` rules, directory, wrapper and Keychain login; reverts on failure |
+| `cpm rename <old> <new> [--dry-run] [--json]` | Rename a profile: config, `secrets.toml`, `[[match]]` rules, directory, wrapper and Keychain login; reverts on failure |
 | `cpm remove <name> [--purge] [--yes]` | Remove a profile; `--purge` deletes its directory, credentials and Keychain entry |
 | `cpm clone <src> <dst>` | Clone profile (without credentials) and register it in config |
 | `cpm edit` | Open `config.toml` in `$VISUAL` / `$EDITOR` |
@@ -326,10 +326,10 @@ In patterns, `*` matches within one path segment and `**` matches any depth; `~/
 |---------|-------------|
 | `cpm list [--json]` | List all profiles with status |
 | `cpm which [--json]` | Show active profile (from env, `.claude-profile` or `[[match]]`) |
-| `cpm status` | Check sync divergence |
-| `cpm doctor [--json] [--verify]` | Diagnose issues; exit code 1 on errors |
+| `cpm status [--json]` | Check sync divergence |
+| `cpm doctor [--json] [--verify]` | Diagnose issues; exit code 3 on errors |
 | `cpm credentials [--json]` | Show account, expiry and subscription for all profiles |
-| `cpm login [profile...] [--all]` | Run `claude auth login` for profiles one at a time, then print a summary |
+| `cpm login [profile...] [--all] [--json]` | Run `claude auth login` for profiles one at a time, then print a summary |
 
 ### Cloud
 
@@ -338,8 +338,8 @@ In patterns, `*` matches within one path segment and `**` matches any depth; `~/
 | `cpm cloud init [--remote <url>]` | Initialize cloud sync repo |
 | `cpm cloud push [-m "msg"] [--dry-run] [--allow-secrets]` | Push local settings to cloud |
 | `cpm cloud pull [--dry-run]` | Pull settings from cloud and re-sync profiles |
-| `cpm cloud diff` | Show local changes since the last sync |
-| `cpm cloud status` | Show cloud sync status |
+| `cpm cloud diff [--json]` | Show local changes since the last sync (`--json` lists files only) |
+| `cpm cloud status [--json]` | Show cloud sync status |
 | `cpm cloud remote <url>` | Set/update git remote URL |
 
 ### Maintenance
@@ -347,7 +347,7 @@ In patterns, `*` matches within one path segment and `**` matches any depth; `~/
 | Command | Description |
 |---------|-------------|
 | `cpm completion <shell>` | Shell completions (bash, zsh, fish, powershell) |
-| `cpm version` | Show version + check for updates |
+| `cpm version [--json] [--prerelease]` | Show version + check for updates |
 | `cpm upgrade [--prerelease]` | Self-update from GitHub Releases (checksum-verified, never to an older version; Homebrew installs use `brew upgrade`) |
 
 ### Previewing an installation
@@ -599,6 +599,8 @@ cpm exec work -- git commit -m "..."     # any command with the profile's env
 cpm list --json | jq -r '.[] | select(.current) .name'
 cpm doctor --json && echo healthy       # exit code 3 when a check fails
 ```
+
+`--json` writes one JSON document to stdout, and only on success. Errors go to stderr, and the exit code tells what happened. Progress messages and the output of `claude auth login` go to stderr, so stdout stays parseable. New fields may be added; existing ones keep their name and type. `detail` texts are free-form.
 
 | Exit code | Meaning |
 |-----------|---------|

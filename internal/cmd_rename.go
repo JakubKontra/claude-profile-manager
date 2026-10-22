@@ -10,9 +10,27 @@ import (
 
 // renameStep is one change of `cpm rename` with the action that reverts it.
 type renameStep struct {
-	desc string
+	RenameStep
 	do   func() error
 	undo func() error
+}
+
+// RenameStep describes one change of `cpm rename`. Kind is keychain, move,
+// config, secrets or wrapper.
+type RenameStep struct {
+	Kind   string `json:"kind"`
+	Detail string `json:"detail"`
+}
+
+func (s RenameStep) String() string { return fmt.Sprintf("%-9s %s", s.Kind, s.Detail) }
+
+// RenameReport is the result of `cpm rename`: the steps done, or with
+// DryRun the steps that would be done.
+type RenameReport struct {
+	Old    string       `json:"old"`
+	New    string       `json:"new"`
+	DryRun bool         `json:"dry_run"`
+	Steps  []RenameStep `json:"steps"`
 }
 
 // RenameProfile renames profile old to new: the config and secrets.toml
@@ -20,32 +38,77 @@ type renameStep struct {
 // (whose service name derives from the directory) and the wrapper. When a
 // step fails, the steps already done are reverted in reverse order. The old
 // Keychain entry is deleted only after everything else succeeded.
-func (a *App) RenameProfile(cfg *Config, old, new string, dryRun bool) error {
+func (a *App) RenameProfile(cfg *Config, old, new string, dryRun bool) (RenameReport, error) {
+	report := RenameReport{Old: old, New: new, DryRun: dryRun, Steps: []RenameStep{}}
+	steps, finish, err := a.planRename(cfg, old, new)
+	if err != nil {
+		return report, err
+	}
+
+	if dryRun {
+		a.progressf("Dry run — rename profile %q to %q:\n", old, new)
+	} else {
+		a.progressf("Renaming profile %q to %q:\n", old, new)
+	}
+	for i, step := range steps {
+		a.progressf("  %s\n", step.RenameStep)
+		report.Steps = append(report.Steps, step.RenameStep)
+		if dryRun {
+			continue
+		}
+		if err := step.do(); err != nil {
+			return report, a.rollbackRename(steps[:i], fmt.Errorf("%s: %w", step.RenameStep, err))
+		}
+	}
+	if finish != nil {
+		a.progressf("  %s\n", finish.RenameStep)
+		report.Steps = append(report.Steps, finish.RenameStep)
+		if !dryRun {
+			if err := finish.do(); err != nil {
+				fmt.Fprintf(a.Err, "Warning: %s: %v\n", finish.RenameStep, err)
+			}
+		}
+	}
+
+	if dryRun {
+		return report, nil
+	}
+	a.progressf("\nProfile %q is now %q.\n", old, new)
+	if a.Getenv("CLAUDE_PROFILE") == old {
+		a.progressf("This shell still uses %q; run: eval \"$(cpm use %s)\"\n", old, new)
+	}
+	a.progressf("Update .claude-profile files that contain %q by hand (cpm link %s).\n", old, new)
+	return report, nil
+}
+
+// planRename validates the rename and returns its steps, plus the deletion
+// of the old Keychain login that runs only after every step succeeded.
+func (a *App) planRename(cfg *Config, old, new string) ([]renameStep, *renameStep, error) {
 	profile, err := lookupProfile(cfg, old)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	if err := ValidateProfileName(new); err != nil {
-		return err
+		return nil, nil, err
 	}
 	if new == "cloud" {
-		return fmt.Errorf("profile name %q is reserved", new)
+		return nil, nil, fmt.Errorf("profile name %q is reserved", new)
 	}
 	if _, exists := cfg.Profiles[new]; exists {
-		return fmt.Errorf("profile %q already exists", new)
+		return nil, nil, fmt.Errorf("profile %q already exists", new)
 	}
 	oldDir, newDir := filepath.Join(a.BaseDir, old), filepath.Join(a.BaseDir, new)
 	if _, err := os.Lstat(newDir); err == nil {
-		return fmt.Errorf("%s already exists", newDir)
+		return nil, nil, fmt.Errorf("%s already exists", newDir)
 	}
 	oldWrapper, newWrapper := filepath.Join(cfg.BinDir, wrapperPrefix+old), filepath.Join(cfg.BinDir, wrapperPrefix+new)
 	if _, err := os.Lstat(newWrapper); err == nil {
-		return fmt.Errorf("%s already exists", newWrapper)
+		return nil, nil, fmt.Errorf("%s already exists", newWrapper)
 	}
 	installed := false
 	if st, err := os.Lstat(oldDir); err == nil {
 		if !st.IsDir() || st.Mode()&os.ModeSymlink != 0 {
-			return fmt.Errorf("invalid profile directory %s", oldDir)
+			return nil, nil, fmt.Errorf("invalid profile directory %s", oldDir)
 		}
 		installed = true
 	}
@@ -56,10 +119,10 @@ func (a *App) RenameProfile(cfg *Config, old, new string, dryRun bool) error {
 	moveLogin := installed && a.Keychain.Exists(oldService, account)
 	if moveLogin {
 		if a.Keychain.Exists(newService, account) {
-			return fmt.Errorf("the Keychain already has an entry %q for %s; delete it first (security delete-generic-password -s %q)", newService, newDir, newService)
+			return nil, nil, fmt.Errorf("the Keychain already has an entry %q for %s; delete it first (security delete-generic-password -s %q)", newService, newDir, newService)
 		}
 		steps = append(steps, renameStep{
-			desc: fmt.Sprintf("keychain  copy login %q -> %q", oldService, newService),
+			RenameStep: RenameStep{"keychain", fmt.Sprintf("copy login %q -> %q", oldService, newService)},
 			do: func() error {
 				secret, err := a.Keychain.Read(oldService, account)
 				if err != nil {
@@ -80,7 +143,7 @@ func (a *App) RenameProfile(cfg *Config, old, new string, dryRun bool) error {
 	if installed {
 		marker := filepath.Join(newDir, ".cpm", "profile")
 		steps = append(steps, renameStep{
-			desc: fmt.Sprintf("move      %s -> %s", oldDir, newDir),
+			RenameStep: RenameStep{"move", fmt.Sprintf("%s -> %s", oldDir, newDir)},
 			do: func() error {
 				if err := os.Rename(oldDir, newDir); err != nil {
 					return err
@@ -99,41 +162,41 @@ func (a *App) RenameProfile(cfg *Config, old, new string, dryRun bool) error {
 	configPath := a.expand(a.ConfigPath)
 	configData, err := os.ReadFile(configPath)
 	if err != nil {
-		return fmt.Errorf("cannot read config: %w", err)
+		return nil, nil, fmt.Errorf("cannot read config: %w", err)
 	}
 	renamed, _, err := RenameProfileTable(configData, old, new)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	renamed, rules, err := RenameMatchProfile(renamed, old, new)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
-	desc := fmt.Sprintf("config    rename [profiles.%s] in %s", old, configPath)
+	desc := fmt.Sprintf("rename [profiles.%s] in %s", old, configPath)
 	if rules > 0 {
 		desc += fmt.Sprintf(" and %d [[match]] rule%s", rules, pluralS(rules))
 	}
 	steps = append(steps, renameStep{
-		desc: desc,
-		do:   func() error { return writeConfigAtomic(configPath, renamed) },
-		undo: func() error { return writeConfigAtomic(configPath, configData) },
+		RenameStep: RenameStep{"config", desc},
+		do:         func() error { return writeConfigAtomic(configPath, renamed) },
+		undo:       func() error { return writeConfigAtomic(configPath, configData) },
 	})
 
 	secretsPath := filepath.Join(a.BaseDir, "secrets.toml")
 	if secretsData, err := os.ReadFile(secretsPath); err == nil {
 		updated, changed, err := RenameProfileTable(secretsData, old, new)
 		if err != nil {
-			return fmt.Errorf("secrets.toml: %w", err)
+			return nil, nil, fmt.Errorf("secrets.toml: %w", err)
 		}
 		if changed {
 			steps = append(steps, renameStep{
-				desc: fmt.Sprintf("secrets   rename [profiles.%s] in %s", old, secretsPath),
-				do:   func() error { return writeFileAtomic(secretsPath, updated, 0o600) },
-				undo: func() error { return writeFileAtomic(secretsPath, secretsData, 0o600) },
+				RenameStep: RenameStep{"secrets", fmt.Sprintf("rename [profiles.%s] in %s", old, secretsPath)},
+				do:         func() error { return writeFileAtomic(secretsPath, updated, 0o600) },
+				undo:       func() error { return writeFileAtomic(secretsPath, secretsData, 0o600) },
 			})
 		}
 	} else if !os.IsNotExist(err) {
-		return err
+		return nil, nil, err
 	}
 
 	oldWrapperData, wrapperErr := os.ReadFile(oldWrapper)
@@ -141,7 +204,7 @@ func (a *App) RenameProfile(cfg *Config, old, new string, dryRun bool) error {
 	if ownWrapper || installed {
 		wrapper := GenerateWrapper(new, newDir, profile)
 		steps = append(steps, renameStep{
-			desc: fmt.Sprintf("wrapper   %s -> %s", oldWrapper, newWrapper),
+			RenameStep: RenameStep{"wrapper", fmt.Sprintf("%s -> %s", oldWrapper, newWrapper)},
 			do: func() error {
 				if err := writeFileAtomic(newWrapper, []byte(wrapper), wrapperMode(wrapper)); err != nil {
 					return err
@@ -162,38 +225,14 @@ func (a *App) RenameProfile(cfg *Config, old, new string, dryRun bool) error {
 		})
 	}
 
-	if dryRun {
-		a.outf("Dry run — rename profile %q to %q:\n", old, new)
-	} else {
-		a.outf("Renaming profile %q to %q:\n", old, new)
-	}
-	for i, step := range steps {
-		a.outf("  %s\n", step.desc)
-		if dryRun {
-			continue
-		}
-		if err := step.do(); err != nil {
-			return a.rollbackRename(steps[:i], fmt.Errorf("%s: %w", step.desc, err))
-		}
-	}
+	var finish *renameStep
 	if moveLogin {
-		a.outf("  keychain  delete old login %q\n", oldService)
-		if !dryRun {
-			if err := a.Keychain.Delete(oldService, account); err != nil {
-				fmt.Fprintf(a.Err, "Warning: cannot delete the old Keychain login %q: %v\n", oldService, err)
-			}
+		finish = &renameStep{
+			RenameStep: RenameStep{"keychain", fmt.Sprintf("delete old login %q", oldService)},
+			do:         func() error { return a.Keychain.Delete(oldService, account) },
 		}
 	}
-
-	if dryRun {
-		return nil
-	}
-	a.outf("\nProfile %q is now %q.\n", old, new)
-	if a.Getenv("CLAUDE_PROFILE") == old {
-		a.outf("This shell still uses %q; run: eval \"$(cpm use %s)\"\n", old, new)
-	}
-	a.outf("Update .claude-profile files that contain %q by hand (cpm link %s).\n", old, new)
-	return nil
+	return steps, finish, nil
 }
 
 // rollbackRename reverts done in reverse order and returns cause, joined with
@@ -202,9 +241,9 @@ func (a *App) rollbackRename(done []renameStep, cause error) error {
 	errs := []error{cause}
 	for i := len(done) - 1; i >= 0; i-- {
 		if err := done[i].undo(); err != nil {
-			errs = append(errs, fmt.Errorf("cannot revert %q: %w", done[i].desc, err))
+			errs = append(errs, fmt.Errorf("cannot revert %q: %w", done[i].RenameStep, err))
 		} else {
-			a.outf("  reverted  %s\n", done[i].desc)
+			a.progressf("  reverted  %s\n", done[i].RenameStep)
 		}
 	}
 	return errors.Join(errs...)

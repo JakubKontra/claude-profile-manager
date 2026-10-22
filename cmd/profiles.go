@@ -138,7 +138,7 @@ func editCmd() *cobra.Command {
 }
 
 func loginCmd() *cobra.Command {
-	var all bool
+	var all, asJSON bool
 	cmd := &cobra.Command{
 		Use:   "login [profile...]",
 		Short: "Run claude auth login for profiles, one at a time",
@@ -160,15 +160,28 @@ are skipped.`,
 			if err != nil {
 				return err
 			}
-			return app.Login(cfg, args, all)
+			app.JSON = asJSON
+			report, err := app.Login(cfg, args, all)
+			if internal.ExitCode(err) == internal.ExitUsage || (err != nil && len(report.Results) == 0) {
+				return err
+			}
+			if asJSON {
+				if jsonErr := app.PrintJSON(report); jsonErr != nil {
+					return jsonErr
+				}
+			} else {
+				app.RenderLoginReport(report)
+			}
+			return err
 		},
 	}
 	cmd.Flags().BoolVar(&all, "all", false, "log in every profile without usable credentials")
+	cmd.Flags().BoolVar(&asJSON, "json", false, "output the summary as JSON (login output goes to stderr)")
 	return cmd
 }
 
 func renameCmd() *cobra.Command {
-	var dryRun bool
+	var dryRun, asJSON bool
 	cmd := &cobra.Command{
 		Use:   "rename <old> <new>",
 		Short: "Rename a profile, keeping its login",
@@ -184,9 +197,15 @@ sessions of the profile first.`,
 			if err != nil {
 				return err
 			}
-			return app.RenameProfile(cfg, args[0], args[1], dryRun)
+			app.JSON = asJSON
+			report, err := app.RenameProfile(cfg, args[0], args[1], dryRun)
+			if err != nil || !asJSON {
+				return err
+			}
+			return app.PrintJSON(report)
 		},
 	}
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "show the steps without changing anything")
+	cmd.Flags().BoolVar(&asJSON, "json", false, "output the steps as JSON (progress goes to stderr)")
 	return cmd
 }

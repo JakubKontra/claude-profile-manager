@@ -231,6 +231,11 @@ Releases: 0.6 (contract), 0.7 (profile lifecycle), 0.8 (quality), then `v1.0.0-r
   - `cloud diff --json` lists files and their status, not patches.
   - Golden files in `internal/testdata/json/`. JSON goes to stdout only on success, errors stay on stderr, fields are only ever added, and `detail` texts are free-form.
 - **Done when:** every `--json` output has a golden file.
+- **Status:** done.
+  - `App.JSON` sends progress messages and the output of the programs cpm runs to stderr, so stdout holds only the JSON document.
+  - `rename --json` also works without `--dry-run` and lists the steps done.
+  - Goldens replace temp dirs with `$ROOT` and Keychain hashes with `HASH`. `go test ./internal -update` rewrites them.
+  - `cloud status` used to list modified files in random order; they are now sorted.
 
 #### 3.5 CLI review and `docs/stability.md`
 - **Why:** Inconsistencies would be frozen for all of 1.x.

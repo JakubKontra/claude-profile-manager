@@ -530,8 +530,9 @@ func TestCloudPushPullRoundTrip(t *testing.T) {
 	if fileExists(filepath.Join(b.SourceDir, "commands", "two.md")) {
 		t.Error("file deleted on A still present on B")
 	}
-	if err := b.App.CloudStatus(); err != nil {
-		t.Errorf("status: %v", err)
+	status, err := b.App.CloudStatus()
+	if err != nil || !status.Initialized || len(status.Recent) == 0 {
+		t.Errorf("status: %v %+v", err, status)
 	}
 }
 

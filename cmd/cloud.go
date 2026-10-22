@@ -55,13 +55,24 @@ func cloudPushCmd() *cobra.Command {
 }
 
 func cloudDiffCmd() *cobra.Command {
-	return &cobra.Command{
+	var asJSON bool
+	cmd := &cobra.Command{
 		Use:   "diff",
 		Short: "Show local changes since the last sync",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return app.CloudDiff()
+			report, err := app.CloudDiff()
+			if err != nil {
+				return err
+			}
+			if asJSON {
+				return app.PrintJSON(report)
+			}
+			app.RenderCloudDiff(report)
+			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&asJSON, "json", false, "output the changed files as JSON (no patch)")
+	return cmd
 }
 
 func cloudPullCmd() *cobra.Command {
@@ -81,13 +92,24 @@ func cloudPullCmd() *cobra.Command {
 }
 
 func cloudStatusCmd() *cobra.Command {
-	return &cobra.Command{
+	var asJSON bool
+	cmd := &cobra.Command{
 		Use:   "status",
 		Short: "Show cloud sync status",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return app.CloudStatus()
+			report, err := app.CloudStatus()
+			if err != nil {
+				return err
+			}
+			if asJSON {
+				return app.PrintJSON(report)
+			}
+			app.RenderCloudStatus(report)
+			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&asJSON, "json", false, "output as JSON")
+	return cmd
 }
 
 func cloudRemoteCmd() *cobra.Command {

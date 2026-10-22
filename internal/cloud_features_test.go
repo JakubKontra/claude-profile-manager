@@ -3,6 +3,7 @@ package internal
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -132,8 +133,13 @@ func TestCloudPushBlocksOnSecretsAndDryRun(t *testing.T) {
 	}
 
 	buf.Reset()
-	if err := env.App.CloudDiff(); err != nil || !strings.Contains(buf.String(), "CLAUDE.md") {
+	diff, err := env.App.CloudDiff()
+	env.App.RenderCloudDiff(diff)
+	if err != nil || !strings.Contains(buf.String(), "CLAUDE.md") {
 		t.Errorf("diff: %v %q", err, buf.String())
+	}
+	if !slices.ContainsFunc(diff.Files, func(f CloudDiffFile) bool { return f.Path == "CLAUDE.md" }) {
+		t.Errorf("diff files: %+v", diff.Files)
 	}
 
 	// allow_secrets in config also unblocks.

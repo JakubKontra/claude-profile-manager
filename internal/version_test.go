@@ -206,7 +206,7 @@ func TestUpgradeChannels(t *testing.T) {
 			stubVersion(t, c.current)
 			fakeReleaseList(t, c.stable, c.tags...)
 			app, buf := testApp(t)
-			app.PrintVersion(c.flag)
+			app.PrintVersion(VersionInfo(c.flag))
 			got := ""
 			if _, after, ok := strings.Cut(buf.String(), "New version available: "); ok {
 				got, _, _ = strings.Cut(after, " ")

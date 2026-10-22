@@ -1,0 +1,13 @@
+{
+  "results": [
+    {
+      "profile": "work",
+      "status": "already logged in"
+    },
+    {
+      "profile": "personal",
+      "status": "logged in"
+    }
+  ],
+  "failed": 0
+}

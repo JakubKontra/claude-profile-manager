@@ -38,10 +38,16 @@ func externalAuth(p *Profile) string {
 
 // LoginResult is one row of the `cpm login` summary.
 type LoginResult struct {
-	Profile string
+	Profile string `json:"profile"`
 	// Status is "logged in", "already logged in", "skipped" or "failed".
-	Status string
-	Detail string
+	Status string `json:"status"`
+	Detail string `json:"detail,omitempty"`
+}
+
+// LoginReport is the result of `cpm login`.
+type LoginReport struct {
+	Results []LoginResult `json:"results"`
+	Failed  int           `json:"failed"`
 }
 
 // loginSkip returns why --all leaves a profile alone, or nil when it has no
@@ -58,12 +64,14 @@ func (a *App) loginSkip(name string, p *Profile) *LoginResult {
 }
 
 // Login runs `claude auth login` in each named profile, or with all in every
-// profile without usable credentials, one at a time, then prints a summary.
-func (a *App) Login(cfg *Config, names []string, all bool) error {
+// profile without usable credentials, one at a time. It returns
+// ErrLoginFailed with the report when a login failed.
+func (a *App) Login(cfg *Config, names []string, all bool) (LoginReport, error) {
+	report := LoginReport{Results: []LoginResult{}}
 	if all == (len(names) > 0) {
-		return UsageError(fmt.Errorf("name the profiles to log in, or pass --all"))
+		return report, UsageError(fmt.Errorf("name the profiles to log in, or pass --all"))
 	}
-	var results []LoginResult
+	results := report.Results
 	var targets []string
 	if all {
 		for _, name := range SortedProfileNames(cfg) {
@@ -76,7 +84,7 @@ func (a *App) Login(cfg *Config, names []string, all bool) error {
 	} else {
 		for _, name := range names {
 			if _, err := lookupProfile(cfg, name); err != nil {
-				return err
+				return report, err
 			}
 			if !slices.Contains(targets, name) {
 				targets = append(targets, name)
@@ -84,16 +92,15 @@ func (a *App) Login(cfg *Config, names []string, all bool) error {
 		}
 	}
 
-	failed := false
 	for i, name := range targets {
 		result := LoginResult{Profile: name}
 		dir := filepath.Join(a.BaseDir, name)
 		if _, err := os.Stat(dir); err != nil {
 			result.Status, result.Detail = "failed", "not installed (run cpm install)"
 		} else if spec, err := a.BuildRunExec(cfg, name, []string{"auth", "login"}); err != nil {
-			return err
+			return report, err
 		} else {
-			a.outf("==> Logging in %s (%d/%d)\n", name, i+1, len(targets))
+			a.progressf("==> Logging in %s (%d/%d)\n", name, i+1, len(targets))
 			if err := a.attach(spec); err != nil {
 				result.Status, result.Detail = "failed", err.Error()
 			} else if status, err := GetCredentialStatus(a.Keychain, dir); err != nil {
@@ -102,18 +109,22 @@ func (a *App) Login(cfg *Config, names []string, all bool) error {
 				result.Status, result.Detail = "logged in", status.Account
 			}
 		}
-		failed = failed || result.Status == "failed"
+		if result.Status == "failed" {
+			report.Failed++
+		}
 		results = append(results, result)
 	}
 
-	a.renderLoginSummary(results)
-	if failed {
-		return ErrLoginFailed
+	report.Results = results
+	if report.Failed > 0 {
+		return report, ErrLoginFailed
 	}
-	return nil
+	return report, nil
 }
 
-func (a *App) renderLoginSummary(results []LoginResult) {
+// RenderLoginReport prints the summary of `cpm login`.
+func (a *App) RenderLoginReport(report LoginReport) {
+	results := report.Results
 	if len(results) == 0 {
 		a.outln("No profiles to log in.")
 		return
@@ -136,5 +147,8 @@ func (a *App) attach(spec ExecSpec) error {
 	cmd := exec.Command(spec.Path, spec.Argv[1:]...)
 	cmd.Env = spec.Env
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = a.In, a.Out, a.Err
+	if a.JSON {
+		cmd.Stdout = a.Err
+	}
 	return cmd.Run()
 }
