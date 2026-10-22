@@ -72,6 +72,10 @@ cpm resolve [dir]  (hidden)
 cpm run <profile> [claude args...]
 cpm status [flags]
     --json bool
+cpm uninstall [flags]
+    --dry-run bool
+    --purge bool
+    -y, --yes bool
 cpm unlink
 cpm upgrade [flags]
     --prerelease bool

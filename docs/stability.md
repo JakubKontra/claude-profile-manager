@@ -11,8 +11,8 @@ From 1.0, cpm follows [Semantic Versioning](https://semver.org). Within 1.x, the
 
 ### Commands and flags
 - Every command, its arguments and its flags, as listed in [`cmd/testdata/cli-surface.txt`](../cmd/testdata/cli-surface.txt). A test fails when that list changes.
-- `--dry-run` exists on every command that deletes or overwrites data: `install`, `remove`, `rename`, `cloud push`, `cloud pull`.
-- Irreversible deletion (`remove --purge`) asks for confirmation. `--yes` skips the question. Without a terminal and without `--yes`, the command refuses. `rename` does not ask, because it reverts itself on failure.
+- `--dry-run` exists on every command that deletes or overwrites data: `install`, `remove`, `rename`, `adopt`, `uninstall`, `cloud push`, `cloud pull`.
+- Irreversible deletion (`remove --purge`, `uninstall`) asks for confirmation. `--yes` skips the question. Without a terminal and without `--yes`, the command refuses. `rename` does not ask, because it reverts itself on failure.
 
 ### JSON output
 - `--json` writes exactly one JSON document to stdout, and only on success. Errors go to stderr, and the exit code says what happened.

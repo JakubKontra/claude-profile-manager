@@ -36,3 +36,33 @@ func upgradeCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&prerelease, "prerelease", false, "also install prereleases (default when running one)")
 	return cmd
 }
+
+func uninstallCmd() *cobra.Command {
+	var opts internal.UninstallOptions
+	cmd := &cobra.Command{
+		Use:   "uninstall",
+		Short: "Remove wrappers and shell hook lines (--purge: profiles and logins too)",
+		Long: `Remove what cpm installed outside its directory: the claude-<name> wrapper
+scripts and the hook lines in shell rc files (a backup of each edited file
+is kept next to it). Lines that only mention cpm are listed, not changed.
+
+With --purge, every profile, its login (Keychain entry or .credentials.json),
+secrets.toml, the cloud repo and config.toml are deleted too.
+
+The plan is shown first and needs confirmation, or --yes.`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := app.LoadCloudConfig()
+			if err != nil {
+				return err
+			}
+			opts.Stdin = app.In
+			opts.IsTerminal = stdinIsTerminal()
+			return app.Uninstall(cfg, opts)
+		},
+	}
+	cmd.Flags().BoolVar(&opts.Purge, "purge", false, "also delete every profile, its login and the config")
+	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "show what would be removed without changing anything")
+	cmd.Flags().BoolVarP(&opts.Yes, "yes", "y", false, "do not ask for confirmation")
+	return cmd
+}

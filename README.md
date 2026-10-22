@@ -351,6 +351,7 @@ In patterns, `*` matches within one path segment and `**` matches any depth; `~/
 |---------|-------------|
 | `cpm completion <shell>` | Shell completions (bash, zsh, fish, powershell) |
 | `cpm version [--json] [--prerelease]` | Show version + check for updates |
+| `cpm uninstall [--purge] [--dry-run] [--yes]` | Remove wrappers and shell hook lines; `--purge` also deletes profiles, their logins and the config |
 | `cpm upgrade [--prerelease]` | Self-update from GitHub Releases (checksum-verified, never to an older version; Homebrew installs use `brew upgrade`) |
 
 ### Previewing an installation
@@ -619,6 +620,8 @@ See [docs/stability.md](docs/stability.md) for what stays compatible across rele
 cpm upgrade         # self-update
 brew upgrade cpm    # or via Homebrew
 ```
+
+To remove cpm, run `cpm uninstall`. It deletes the wrappers and the hook lines it recognizes in your rc files (keeping a `.cpm-uninstall.bak` copy) and prints how to remove the binary. `cpm uninstall --purge` also deletes every profile, its login and the config.
 
 Release candidates (`v1.0.0-rc.1`) are published as GitHub prereleases. `cpm upgrade` and Homebrew skip them. To try one, run `cpm upgrade --prerelease`. A release candidate keeps updating to newer release candidates and then to the final release, and never back to an older version.
 
