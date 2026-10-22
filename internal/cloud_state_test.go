@@ -7,7 +7,7 @@ import (
 )
 
 func TestCloudConflictPreservesWholePlanAndBaseline(t *testing.T) {
-	app, _ := testAppAt(t, "")
+	app, _ := testApp(t)
 	root := t.TempDir()
 	t.Setenv("HOME", root)
 	repo, live := filepath.Join(root, "repo"), filepath.Join(root, "live")
@@ -49,7 +49,7 @@ func TestCloudConflictPreservesWholePlanAndBaseline(t *testing.T) {
 }
 
 func TestCloudFirstPullConflictAndLastRemoteFileDeletion(t *testing.T) {
-	app, _ := testAppAt(t, "")
+	app, _ := testApp(t)
 	root := t.TempDir()
 	t.Setenv("HOME", root)
 	repo, live := filepath.Join(root, "repo"), filepath.Join(root, "live")

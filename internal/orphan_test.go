@@ -8,7 +8,7 @@ import (
 
 func TestRemoveThenPurgeLastProfile(t *testing.T) {
 	env := newTestEnv(t, "[profiles.work]\n")
-	app, _ := testAppAt(t, env.ConfigPath)
+	app := env.App
 	cfg := env.load(t)
 	if err := app.InstallProfiles(cfg, InstallOptions{}); err != nil {
 		t.Fatal(err)
@@ -40,8 +40,9 @@ func TestRemoveThenPurgeLastProfile(t *testing.T) {
 }
 
 func TestOrphanPurgeProtectsInternalAndForeignDirectories(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, "[profiles.work]\n")
-	app, _ := testAppAt(t, env.ConfigPath)
+	app := env.App
 	cfg := env.load(t)
 	for _, name := range []string{"cloud", "foreign"} {
 		mustMkdir(t, filepath.Join(env.profilesBase(), name))

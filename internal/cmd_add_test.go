@@ -10,7 +10,7 @@ import (
 
 func TestAddProfileAppendsAndInstalls(t *testing.T) {
 	env := newTestEnv(t, twoProfiles)
-	app, buf := testAppAt(t, env.ConfigPath)
+	app, buf := env.App, env.Out
 	mustWrite(t, filepath.Join(env.SourceDir, "settings.json"), `{}`)
 	stubKeychain(t, false)
 
@@ -37,8 +37,9 @@ func TestAddProfileAppendsAndInstalls(t *testing.T) {
 }
 
 func TestAddProfileNoInstallAndErrors(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, twoProfiles)
-	app, _ := testAppAt(t, env.ConfigPath)
+	app := env.App
 
 	if err := app.AddProfile("x", AddOptions{NoInstall: true}); err != nil {
 		t.Fatal(err)
@@ -58,6 +59,7 @@ func TestAddProfileNoInstallAndErrors(t *testing.T) {
 }
 
 func TestAddProfileCreatesConfigWhenMissing(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "config.toml")
 	app, _ := testAppAt(t, path)
 	if err := app.AddProfile("first", AddOptions{NoInstall: true, Description: "d"}); err != nil {
@@ -70,6 +72,7 @@ func TestAddProfileCreatesConfigWhenMissing(t *testing.T) {
 }
 
 func TestParseEnvFlag(t *testing.T) {
+	t.Parallel()
 	env, err := ParseEnvFlag([]string{"A=1", "B=x=y", "C="})
 	if err != nil || env["A"] != "1" || env["B"] != "x=y" || env["C"] != "" {
 		t.Errorf("unexpected: %v %v", env, err)
@@ -99,7 +102,7 @@ func stubKeychainDelete(t *testing.T) *[]string {
 func installedEnv(t *testing.T) testEnv {
 	t.Helper()
 	env := newTestEnv(t, twoProfiles)
-	app, _ := testAppAt(t, env.ConfigPath)
+	app := env.App
 	mustWrite(t, filepath.Join(env.SourceDir, "settings.json"), `{}`)
 	if err := app.InstallProfiles(env.load(t), InstallOptions{}); err != nil {
 		t.Fatal(err)
@@ -110,7 +113,7 @@ func installedEnv(t *testing.T) testEnv {
 
 func TestRemoveProfileKeepsDirWithoutPurge(t *testing.T) {
 	env := installedEnv(t)
-	app, _ := testAppAt(t, env.ConfigPath)
+	app := env.App
 	deleted := stubKeychainDelete(t)
 
 	err := app.RemoveProfile(env.load(t), "work", RemoveOptions{})
@@ -137,7 +140,7 @@ func TestRemoveProfileKeepsDirWithoutPurge(t *testing.T) {
 
 func TestRemoveProfilePurgeDeletesEverything(t *testing.T) {
 	env := installedEnv(t)
-	app, _ := testAppAt(t, env.ConfigPath)
+	app := env.App
 	deleted := stubKeychainDelete(t)
 	profileDir := filepath.Join(env.profilesBase(), "work")
 
@@ -158,7 +161,7 @@ func TestRemoveProfilePurgeDeletesEverything(t *testing.T) {
 
 func TestRemoveProfilePromptAndNonInteractive(t *testing.T) {
 	env := installedEnv(t)
-	app, _ := testAppAt(t, env.ConfigPath)
+	app := env.App
 	stubKeychainDelete(t)
 	profileDir := filepath.Join(env.profilesBase(), "work")
 
@@ -187,8 +190,9 @@ func TestRemoveProfilePromptAndNonInteractive(t *testing.T) {
 }
 
 func TestRemoveProfileErrors(t *testing.T) {
+	t.Parallel()
 	env := installedEnv(t)
-	app, _ := testAppAt(t, env.ConfigPath)
+	app := env.App
 	if err := app.RemoveProfile(env.load(t), "nope", RemoveOptions{}); err == nil {
 		t.Error("unknown profile should error")
 	}
@@ -198,8 +202,9 @@ func TestRemoveProfileErrors(t *testing.T) {
 }
 
 func TestRemoveProfileKeepsForeignBinary(t *testing.T) {
+	t.Parallel()
 	env := installedEnv(t)
-	app, _ := testAppAt(t, env.ConfigPath)
+	app := env.App
 	// A user-provided script with the wrapper's name but no marker.
 	mustWrite(t, filepath.Join(env.BinDir, "claude-personal"), "#!/bin/sh\necho mine\n")
 	if err := app.RemoveProfile(env.load(t), "personal", RemoveOptions{}); err != nil {
@@ -211,6 +216,7 @@ func TestRemoveProfileKeepsForeignBinary(t *testing.T) {
 }
 
 func TestEditorCommand(t *testing.T) {
+	t.Parallel()
 	get := func(m map[string]string) func(string) string { return func(k string) string { return m[k] } }
 	if got := EditorCommand(get(map[string]string{"VISUAL": "code --wait", "EDITOR": "vim"})); strings.Join(got, " ") != "code --wait" {
 		t.Errorf("VISUAL should win: %v", got)
@@ -224,8 +230,9 @@ func TestEditorCommand(t *testing.T) {
 }
 
 func TestEditConfigRunsEditorAndValidates(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, twoProfiles)
-	app, buf := newTestApp(t, env)
+	app, buf := env.App, env.Out
 	var ran []string
 	run := func(c *exec.Cmd) error {
 		ran = c.Args

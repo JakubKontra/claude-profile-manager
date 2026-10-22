@@ -8,6 +8,7 @@ import (
 )
 
 func TestEffectiveShareDirsInheritance(t *testing.T) {
+	t.Parallel()
 	join := func(d []string) string { return strings.Join(d, ",") }
 
 	if got := EffectiveShareDirs(&Config{}, &Profile{}); join(got) != "commands,skills,agents,plugins,projects" {
@@ -32,12 +33,13 @@ func TestEffectiveShareDirsInheritance(t *testing.T) {
 }
 
 func TestSetupProfileIsolateReplacesSymlinkWithDir(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, twoProfiles)
 	for _, d := range []string{"skills", "projects"} {
 		mustMkdir(t, filepath.Join(env.SourceDir, d))
 	}
 	profileDir := filepath.Join(env.profilesBase(), "work")
-	app, buf := testAppAt(t, "")
+	app, buf := testApp(t)
 
 	if err := app.SetupProfile("work", profileDir, env.SourceDir, defaultShareDirs, false); err != nil {
 		t.Fatal(err)
@@ -77,6 +79,7 @@ func TestSetupProfileIsolateReplacesSymlinkWithDir(t *testing.T) {
 }
 
 func TestSetupProfileLeavesForeignSymlinks(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, twoProfiles)
 	profileDir := filepath.Join(env.profilesBase(), "work")
 	mustMkdir(t, profileDir)
@@ -84,7 +87,7 @@ func TestSetupProfileLeavesForeignSymlinks(t *testing.T) {
 	if err := os.Symlink(other, filepath.Join(profileDir, "mine")); err != nil {
 		t.Fatal(err)
 	}
-	app, _ := testAppAt(t, "")
+	app, _ := testApp(t)
 	if err := app.SetupProfile("work", profileDir, env.SourceDir, defaultShareDirs, false); err != nil {
 		t.Fatal(err)
 	}
@@ -94,6 +97,7 @@ func TestSetupProfileLeavesForeignSymlinks(t *testing.T) {
 }
 
 func TestLoadConfigRejectsBadShareEntry(t *testing.T) {
+	t.Parallel()
 	for _, body := range []string{
 		"share = [\"../x\"]\n[profiles.a]\n",
 		"[profiles.a]\nisolate = [\"a/b\"]\n",
@@ -108,12 +112,13 @@ func TestLoadConfigRejectsBadShareEntry(t *testing.T) {
 }
 
 func TestInstallProfilesHonoursShareConfig(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, `share = ["skills"]
 [profiles.a]
 [profiles.b]
 share = ["plans"]
 `)
-	app, _ := testAppAt(t, env.ConfigPath)
+	app := env.App
 	for _, d := range []string{"skills", "plans", "projects"} {
 		mustMkdir(t, filepath.Join(env.SourceDir, d))
 	}

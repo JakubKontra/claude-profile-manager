@@ -35,6 +35,7 @@ add_dirs = ["~/Work/cartop"]
 `
 
 func TestTableHeader(t *testing.T) {
+	t.Parallel()
 	cases := map[string]struct {
 		name string
 		ok   bool
@@ -60,6 +61,7 @@ func TestTableHeader(t *testing.T) {
 }
 
 func TestFindTableIncludesSubtables(t *testing.T) {
+	t.Parallel()
 	lines := strings.Split(`[profiles.a]
 x = 1
 [profiles.a.env]
@@ -82,6 +84,7 @@ y = 2
 }
 
 func TestQuoteTOMLString(t *testing.T) {
+	t.Parallel()
 	cases := map[string]string{
 		"plain":      `"plain"`,
 		`q"uote`:     `"q\"uote"`,
@@ -98,6 +101,7 @@ func TestQuoteTOMLString(t *testing.T) {
 }
 
 func TestAppendProfileTableRendersAllFieldsAndRoundTrips(t *testing.T) {
+	t.Parallel()
 	p := &Profile{
 		Description: `Client "X"`,
 		Model:       "opus",
@@ -141,6 +145,7 @@ func TestAppendProfileTableRendersAllFieldsAndRoundTrips(t *testing.T) {
 }
 
 func TestAppendProfileTableToEmptyConfig(t *testing.T) {
+	t.Parallel()
 	out, err := AppendProfileTable(nil, "solo", &Profile{Description: "d"})
 	if err != nil {
 		t.Fatal(err)
@@ -151,6 +156,7 @@ func TestAppendProfileTableToEmptyConfig(t *testing.T) {
 }
 
 func TestRemoveProfileTableWithSubtablesAndComments(t *testing.T) {
+	t.Parallel()
 	cfgText := userConfig + `
 [profiles.work.env]
 FOO = "bar"
@@ -186,6 +192,7 @@ FOO = "bar"
 }
 
 func TestRemoveProfileTableMissing(t *testing.T) {
+	t.Parallel()
 	out, removed, err := RemoveProfileTable([]byte(userConfig), "nope")
 	if err != nil || removed || string(out) != userConfig {
 		t.Errorf("missing profile should be a no-op: %v %v", err, removed)
@@ -193,6 +200,7 @@ func TestRemoveProfileTableMissing(t *testing.T) {
 }
 
 func TestRemoveProfileTableUnsupportedFormErrors(t *testing.T) {
+	t.Parallel()
 	inline := "[profiles]\nwork = { description = \"x\" }\n"
 	_, _, err := RemoveProfileTable([]byte(inline), "work")
 	if err == nil || !strings.Contains(err.Error(), "manually") {
@@ -201,6 +209,7 @@ func TestRemoveProfileTableUnsupportedFormErrors(t *testing.T) {
 }
 
 func TestSetTableKeyIgnoresCommentedHeader(t *testing.T) {
+	t.Parallel()
 	// The A13 case: "# [cloud]" must not count as the [cloud] table.
 	out, err := SetTableKey([]byte(userConfig), "cloud", "remote", quoteTOMLString("git@github.com:me/x.git"))
 	if err != nil {
@@ -221,6 +230,7 @@ func TestSetTableKeyIgnoresCommentedHeader(t *testing.T) {
 }
 
 func TestSetTableKeyReplacesAndInserts(t *testing.T) {
+	t.Parallel()
 	base := "[cloud]\nremote = \"old\"\nexclude = []\n\n[profiles.a]\n"
 	out, _ := SetTableKey([]byte(base), "cloud", "remote", `"new"`)
 	if strings.Count(string(out), "remote =") != 1 || !strings.Contains(string(out), `remote = "new"`) {
@@ -245,6 +255,7 @@ func TestSetTableKeyReplacesAndInserts(t *testing.T) {
 }
 
 func TestWriteConfigAtomic(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "sub", "config.toml")
 	if err := writeConfigAtomic(path, []byte("[profiles.a]\n")); err != nil {
 		t.Fatal(err)

@@ -8,19 +8,10 @@ import (
 	"testing"
 )
 
-// captureOutput redirects command output into a buffer for the test.
-func captureOutput(t *testing.T) *bytes.Buffer {
+// testApp returns an App with no config, for helpers that only print.
+func testApp(t *testing.T) (*App, *bytes.Buffer) {
 	t.Helper()
-	var buf bytes.Buffer
-	prev := SetOutput(&buf)
-	t.Cleanup(func() { SetOutput(prev) })
-	return &buf
-}
-
-// newTestApp returns an App for env whose output goes to the returned buffer.
-func newTestApp(t *testing.T, env testEnv) (*App, *bytes.Buffer) {
-	t.Helper()
-	return env.App, env.Out
+	return testAppAt(t, "")
 }
 
 // testAppAt returns an App for configPath whose output goes to the returned

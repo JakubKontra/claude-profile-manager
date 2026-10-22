@@ -8,6 +8,7 @@ import (
 )
 
 func TestLocalSecretsRuntimeOnly(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, "[profiles.work.env]\nAPI_TOKEN = 'public-default'\n")
 	secretPath := filepath.Join(ProfilesBaseDir(env.ConfigPath), "secrets.toml")
 	if err := os.WriteFile(secretPath, []byte("[profiles.work.env]\nAPI_TOKEN = 'private-value'\n"), 0o600); err != nil {
@@ -45,7 +46,6 @@ func TestLocalSecretsRuntimeOnly(t *testing.T) {
 
 func TestInitialCloudCommitBlocksConfigAndMCPSecrets(t *testing.T) {
 	requireGit(t)
-	captureOutput(t)
 	env := newCloudEnv(t, "[profiles.work.env]\nAPI_TOKEN = 'private'\n")
 	env.activate(t)
 	if err := env.App.CloudInit(""); err == nil {

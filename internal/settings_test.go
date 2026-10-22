@@ -8,6 +8,7 @@ import (
 )
 
 func TestDeepMergeReplacesArraysMergesMaps(t *testing.T) {
+	t.Parallel()
 	dst := map[string]any{
 		"permissions": map[string]any{"allow": []any{"a"}, "deny": []any{"x"}},
 		"model":       "opus",
@@ -29,6 +30,7 @@ func TestDeepMergeReplacesArraysMergesMaps(t *testing.T) {
 }
 
 func TestPatchSettingsDottedKeysAndIdempotent(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, `[profiles.work]
 [profiles.work.settings]
 effortLevel = "high"
@@ -38,7 +40,7 @@ commit = "Co-Authored-By: X"
 `)
 	profileDir := filepath.Join(env.profilesBase(), "work")
 	mustWrite(t, filepath.Join(profileDir, "settings.json"), `{"model": "opus", "permissions": {"deny": ["rm"]}, "attribution": {"commit": "old"}}`)
-	app, buf := testAppAt(t, "")
+	app, buf := testApp(t)
 
 	p := env.load(t).Profiles["work"]
 	if err := app.PatchSettings(profileDir, EffectiveSettingsOverrides(p)); err != nil {
@@ -69,6 +71,7 @@ commit = "Co-Authored-By: X"
 }
 
 func TestEffectiveSettingsAttributionWins(t *testing.T) {
+	t.Parallel()
 	p := &Profile{
 		Settings:    map[string]any{"attribution": map[string]any{"commit": "from settings"}, "x": 1},
 		Attribution: &Attribution{Commit: "from attribution"},
@@ -86,11 +89,12 @@ func TestEffectiveSettingsAttributionWins(t *testing.T) {
 }
 
 func TestCheckDivergenceWithSettingsOverrides(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, `[profiles.work]
 [profiles.work.settings]
 effortLevel = "high"
 `)
-	app, _ := testAppAt(t, env.ConfigPath)
+	app := env.App
 	mustWrite(t, filepath.Join(env.SourceDir, "settings.json"), `{"model": "opus"}`)
 	if err := app.InstallProfiles(env.load(t), InstallOptions{}); err != nil {
 		t.Fatal(err)
@@ -106,8 +110,9 @@ effortLevel = "high"
 }
 
 func TestCheckDivergenceUsesBaseline(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, "[profiles.work]\n")
-	app, _ := testAppAt(t, env.ConfigPath)
+	app := env.App
 	mustWrite(t, filepath.Join(env.SourceDir, "settings.json"), "{\n  \"v\": 1\n}\n")
 	if err := app.InstallProfiles(env.load(t), InstallOptions{}); err != nil {
 		t.Fatal(err)

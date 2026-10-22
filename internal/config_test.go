@@ -8,6 +8,7 @@ import (
 )
 
 func TestExpandPath(t *testing.T) {
+	t.Parallel()
 	home, _ := os.UserHomeDir()
 
 	tests := []struct {
@@ -30,6 +31,7 @@ func TestExpandPath(t *testing.T) {
 }
 
 func TestLoadConfig(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -79,6 +81,7 @@ add_dirs = ["~/Work/company"]
 }
 
 func TestLoadConfigWithAttribution(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -112,6 +115,7 @@ pr = "Generated with Claude Code"
 }
 
 func TestLoadConfigWithEnv(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -142,6 +146,7 @@ CLOUD_ML_REGION = "europe-west1"
 }
 
 func TestLoadConfigMissingFile(t *testing.T) {
+	t.Parallel()
 	_, err := LoadConfig("/nonexistent/config.toml")
 	if err == nil {
 		t.Error("expected error for missing config")
@@ -149,6 +154,7 @@ func TestLoadConfigMissingFile(t *testing.T) {
 }
 
 func TestLoadConfigNoProfiles(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -163,6 +169,7 @@ func TestLoadConfigNoProfiles(t *testing.T) {
 }
 
 func TestLoadConfigDefaults(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -192,6 +199,7 @@ description = "Test"
 }
 
 func TestProfilesBaseDir(t *testing.T) {
+	t.Parallel()
 	got := ProfilesBaseDir("/home/user/.claude-profiles/config.toml")
 	if got != "/home/user/.claude-profiles" {
 		t.Errorf("ProfilesBaseDir = %q, want /home/user/.claude-profiles", got)
@@ -199,6 +207,7 @@ func TestProfilesBaseDir(t *testing.T) {
 }
 
 func TestValidateProfileName(t *testing.T) {
+	t.Parallel()
 	valid := []string{"work", "personal", "work-vertex", "client_2", "A1"}
 	for _, n := range valid {
 		if err := ValidateProfileName(n); err != nil {
@@ -214,6 +223,7 @@ func TestValidateProfileName(t *testing.T) {
 }
 
 func TestLoadConfigRejectsInvalidProfileName(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.toml")
 	os.WriteFile(path, []byte("[profiles.\"../x\"]\ndescription = \"bad\"\n"), 0o644)
@@ -223,6 +233,7 @@ func TestLoadConfigRejectsInvalidProfileName(t *testing.T) {
 }
 
 func TestLoadConfigRejectsInvalidEnvName(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.toml")
 	os.WriteFile(path, []byte("[profiles.work]\n[profiles.work.env]\n\"BAD-NAME\" = \"1\"\n"), 0o644)
@@ -232,6 +243,7 @@ func TestLoadConfigRejectsInvalidEnvName(t *testing.T) {
 }
 
 func TestLoadConfigRecordsUndecodedKeys(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.toml")
 	os.WriteFile(path, []byte("sourcedir = \"x\"\n[profiles.work]\nmodl = \"sonnet\"\n"), 0o644)
@@ -246,6 +258,7 @@ func TestLoadConfigRecordsUndecodedKeys(t *testing.T) {
 }
 
 func TestLoadCloudConfigMissingFileUsesDefaults(t *testing.T) {
+	t.Parallel()
 	cfg, err := LoadCloudConfig(filepath.Join(t.TempDir(), "nope.toml"))
 	if err != nil {
 		t.Fatal(err)

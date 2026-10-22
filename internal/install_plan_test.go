@@ -43,7 +43,7 @@ func snapshotTree(t *testing.T, root string) map[string]string {
 
 func TestInstallDryRunIsReadOnlyAndMatchesApply(t *testing.T) {
 	env := newTestEnv(t, "[profiles.work]\n[cloud]\nauto_push = true\nauto_pull_on_install = true\n")
-	app, buf := testAppAt(t, env.ConfigPath)
+	app, buf := env.App, env.Out
 	t.Setenv("HOME", env.Root)
 	mustWrite(t, filepath.Join(env.SourceDir, "settings.json"), `{"env":{"API_TOKEN":"private-secret"},"theme":"dark"}`)
 	mustMkdir(t, filepath.Join(env.SourceDir, "skills"))
@@ -87,7 +87,7 @@ func TestInstallDryRunIsReadOnlyAndMatchesApply(t *testing.T) {
 
 func TestInstallPreviewSyncForceAndForeignWrapper(t *testing.T) {
 	env := newTestEnv(t, "[profiles.work]\n")
-	app, _ := testAppAt(t, env.ConfigPath)
+	app := env.App
 	t.Setenv("HOME", env.Root)
 	mustWrite(t, filepath.Join(env.SourceDir, "CLAUDE.md"), "base")
 	cfg := env.load(t)

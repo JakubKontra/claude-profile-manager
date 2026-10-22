@@ -21,6 +21,7 @@ func findCheck(checks []Check, name string) (Check, bool) {
 func noLookPath(string) (string, error) { return "", fmt.Errorf("not found") }
 
 func TestRunDoctorHookAndGitChecks(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, twoProfiles+"\n[cloud]\nremote = \"x\"\n")
 	stubKeychain(t, false)
 	home := t.TempDir()
@@ -63,7 +64,7 @@ func TestRunDoctorUnknownKeys(t *testing.T) {
 
 func TestRunDoctorWrapperOutdated(t *testing.T) {
 	env := newTestEnv(t, twoProfiles)
-	app, _ := testAppAt(t, env.ConfigPath)
+	app := env.App
 	stubKeychain(t, false)
 	if err := app.InstallProfiles(env.load(t), InstallOptions{}); err != nil {
 		t.Fatal(err)

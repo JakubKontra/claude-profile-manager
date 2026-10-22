@@ -8,7 +8,7 @@ import (
 
 func TestJSONShapes(t *testing.T) {
 	env := newTestEnv(t, twoProfiles)
-	app, buf := testAppAt(t, env.ConfigPath)
+	app, buf := env.App, env.Out
 	mustMkdir(t, filepath.Join(env.profilesBase(), "work"))
 	stubKeychain(t, true)
 	t.Setenv("CLAUDE_PROFILE", "work")

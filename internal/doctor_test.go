@@ -9,6 +9,7 @@ import (
 )
 
 func TestRunDoctorBasic(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sourceDir := filepath.Join(tmpDir, "source")
 	profilesBase := filepath.Join(tmpDir, "profiles")
@@ -47,6 +48,7 @@ func TestRunDoctorBasic(t *testing.T) {
 }
 
 func TestRunDoctorMissingSourceDir(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	cfg := &Config{
 		SourceDir: filepath.Join(tmpDir, "nonexistent"),
@@ -69,6 +71,7 @@ func TestRunDoctorMissingSourceDir(t *testing.T) {
 }
 
 func TestRunDoctorProfileNotInstalled(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sourceDir := filepath.Join(tmpDir, "source")
 	os.MkdirAll(sourceDir, 0o755)
@@ -94,6 +97,7 @@ func TestRunDoctorProfileNotInstalled(t *testing.T) {
 }
 
 func TestGetCredentialInfoNoFile(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	_, err := GetCredentialInfo(dir)
 	if err == nil {
@@ -102,6 +106,7 @@ func TestGetCredentialInfoNoFile(t *testing.T) {
 }
 
 func TestGetCredentialInfoWithEmail(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	creds := map[string]any{
 		"email":      "user@example.com",
@@ -123,6 +128,7 @@ func TestGetCredentialInfoWithEmail(t *testing.T) {
 }
 
 func TestGetCredentialInfoExpired(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	creds := map[string]any{
 		"email":      "user@example.com",
@@ -141,6 +147,7 @@ func TestGetCredentialInfoExpired(t *testing.T) {
 }
 
 func TestFormatDuration(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		d    time.Duration
 		want string
@@ -159,13 +166,14 @@ func TestFormatDuration(t *testing.T) {
 }
 
 func TestPrintChecks(t *testing.T) {
+	t.Parallel()
 	// Just verify it doesn't panic
 	checks := []Check{
 		{"test ok", "ok", "details"},
 		{"test warn", "warn", "details"},
 		{"test error", "error", "details"},
 	}
-	app, _ := testAppAt(t, "")
+	app, _ := testApp(t)
 	app.PrintChecks(checks)
 }
 

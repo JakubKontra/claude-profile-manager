@@ -9,6 +9,7 @@ import (
 )
 
 func TestLooksLikeSecret(t *testing.T) {
+	t.Parallel()
 	yes := [][2]string{
 		{"ANTHROPIC_API_KEY", "abc"},
 		{"GITHUB_TOKEN", "x"},
@@ -39,6 +40,7 @@ func TestLooksLikeSecret(t *testing.T) {
 }
 
 func TestScanForSecretsFindsEnvInSettings(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	mustWrite(t, filepath.Join(dir, "settings.json"), `{"env": {"ANTHROPIC_API_KEY": "sk-ant-1", "CLAUDE_CODE_USE_VERTEX": "1"}}`)
 	mustWrite(t, filepath.Join(dir, "CLAUDE.md"), "ANTHROPIC_API_KEY=sk-ant-not-json")
@@ -55,6 +57,7 @@ func TestScanForSecretsFindsEnvInSettings(t *testing.T) {
 }
 
 func TestSyncFilesForIncludeAndSkills(t *testing.T) {
+	t.Parallel()
 	cfg := &Config{Cloud: &CloudConfig{Include: []string{"settings.local.json", "../etc/passwd", "/abs", "./notes.md"}}}
 	got := strings.Join(syncFilesFor(cfg), ",")
 	if got != "settings.json,CLAUDE.md,settings.local.json,notes.md" {

@@ -8,6 +8,7 @@ import (
 )
 
 func TestGenerateUseOutput(t *testing.T) {
+	t.Parallel()
 	profile := &Profile{
 		Description: "Test",
 		Env: map[string]string{
@@ -32,6 +33,7 @@ func TestGenerateUseOutput(t *testing.T) {
 }
 
 func TestDetectProfileFile(t *testing.T) {
+	t.Parallel()
 	// Create nested directory structure with .claude-profile at root
 	tmpDir := t.TempDir()
 	projectDir := filepath.Join(tmpDir, "project")
@@ -51,6 +53,7 @@ func TestDetectProfileFile(t *testing.T) {
 }
 
 func TestDetectProfileFileInCurrentDir(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	os.WriteFile(filepath.Join(tmpDir, ".claude-profile"), []byte("personal"), 0o644)
 
@@ -64,6 +67,7 @@ func TestDetectProfileFileInCurrentDir(t *testing.T) {
 }
 
 func TestDetectProfileFileNotFound(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	_, err := DetectProfileFile(tmpDir)
 	if err == nil {
@@ -72,6 +76,7 @@ func TestDetectProfileFileNotFound(t *testing.T) {
 }
 
 func TestDetectProfileFileEmpty(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	os.WriteFile(filepath.Join(tmpDir, ".claude-profile"), []byte("  \n"), 0o644)
 
@@ -82,9 +87,10 @@ func TestDetectProfileFileEmpty(t *testing.T) {
 }
 
 func TestLinkProfile(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
-	app, _ := testAppAt(t, "")
+	app, _ := testApp(t)
 	if err := app.LinkProfile(tmpDir, "work"); err != nil {
 		t.Fatalf("LinkProfile failed: %v", err)
 	}
@@ -99,10 +105,11 @@ func TestLinkProfile(t *testing.T) {
 }
 
 func TestLinkProfileUpdatesGitignore(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	os.WriteFile(filepath.Join(tmpDir, ".gitignore"), []byte("node_modules\n"), 0o644)
 
-	app, _ := testAppAt(t, "")
+	app, _ := testApp(t)
 	app.LinkProfile(tmpDir, "work")
 
 	data, _ := os.ReadFile(filepath.Join(tmpDir, ".gitignore"))
@@ -115,10 +122,11 @@ func TestLinkProfileUpdatesGitignore(t *testing.T) {
 }
 
 func TestLinkProfileGitignoreIdempotent(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	os.WriteFile(filepath.Join(tmpDir, ".gitignore"), []byte(".claude-profile\n"), 0o644)
 
-	app, _ := testAppAt(t, "")
+	app, _ := testApp(t)
 	app.LinkProfile(tmpDir, "work")
 
 	data, _ := os.ReadFile(filepath.Join(tmpDir, ".gitignore"))
@@ -129,10 +137,11 @@ func TestLinkProfileGitignoreIdempotent(t *testing.T) {
 }
 
 func TestLinkProfileNoGitignore(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	// Should not fail if .gitignore doesn't exist
-	app, _ := testAppAt(t, "")
+	app, _ := testApp(t)
 	if err := app.LinkProfile(tmpDir, "work"); err != nil {
 		t.Fatalf("LinkProfile failed without .gitignore: %v", err)
 	}
@@ -144,6 +153,7 @@ func TestLinkProfileNoGitignore(t *testing.T) {
 }
 
 func TestUnlinkProfile(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	os.WriteFile(filepath.Join(tmpDir, ".claude-profile"), []byte("work"), 0o644)
 
@@ -157,6 +167,7 @@ func TestUnlinkProfile(t *testing.T) {
 }
 
 func TestUnlinkProfileNotFound(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	err := UnlinkProfile(tmpDir)
@@ -166,6 +177,7 @@ func TestUnlinkProfileNotFound(t *testing.T) {
 }
 
 func TestGenerateShellHook(t *testing.T) {
+	t.Parallel()
 	hook := GenerateShellHook(HookOptions{})
 
 	mustContain := []string{

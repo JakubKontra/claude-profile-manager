@@ -9,7 +9,8 @@ import (
 )
 
 func TestIsolationPromptDefaultsAndFlags(t *testing.T) {
-	app, _ := testAppAt(t, "")
+	t.Parallel()
+	app, _ := testApp(t)
 	opts := AddOptions{}
 	if err := app.ChooseIsolation(bufio.NewReader(strings.NewReader("\n\n")), &opts); err != nil {
 		t.Fatal(err)
@@ -28,6 +29,7 @@ func TestIsolationPromptDefaultsAndFlags(t *testing.T) {
 }
 
 func TestMCPIsolationPreservesOwnServersAndCompatibility(t *testing.T) {
+	t.Parallel()
 	global := map[string]any{"global": map[string]any{"command": "global"}}
 	if len(MergeMCPServers(global, &Profile{})) != 1 {
 		t.Fatal("legacy inheritance changed")
@@ -42,7 +44,7 @@ func TestMCPIsolationPreservesOwnServersAndCompatibility(t *testing.T) {
 
 func TestAddIsolatedProfileAndClearInheritedServers(t *testing.T) {
 	env := newTestEnv(t, "[profiles.old]\n")
-	app, _ := testAppAt(t, env.ConfigPath)
+	app := env.App
 	t.Setenv("HOME", env.Root)
 	mustMkdir(t, filepath.Join(env.SourceDir, "projects"))
 	mustWrite(t, filepath.Join(env.Root, ".claude.json"), `{"mcpServers":{"global":{"command":"global"}}}`)

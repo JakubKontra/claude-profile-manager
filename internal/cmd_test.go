@@ -17,8 +17,9 @@ description = "Personal"
 `
 
 func TestInstallProfilesCreatesDirsAndWrappers(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, twoProfiles)
-	app, buf := testAppAt(t, env.ConfigPath)
+	app, buf := env.App, env.Out
 	mustWrite(t, filepath.Join(env.SourceDir, "settings.json"), `{"model": "opus"}`)
 	mustMkdir(t, filepath.Join(env.SourceDir, "skills"))
 
@@ -52,8 +53,9 @@ func TestInstallProfilesCreatesDirsAndWrappers(t *testing.T) {
 }
 
 func TestInstallProfilesRefusesWhenDiverged(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, twoProfiles)
-	app, _ := testAppAt(t, env.ConfigPath)
+	app := env.App
 	mustWrite(t, filepath.Join(env.SourceDir, "settings.json"), `{"a": 1}`)
 	mustWrite(t, filepath.Join(env.profilesBase(), "work", "settings.json"), `{"a": 1, "local": true}`)
 
@@ -74,7 +76,7 @@ func TestInstallProfilesRefusesWhenDiverged(t *testing.T) {
 
 func TestListProfilesStatuses(t *testing.T) {
 	env := newTestEnv(t, twoProfiles)
-	app, buf := testAppAt(t, env.ConfigPath)
+	app, buf := env.App, env.Out
 	mustMkdir(t, filepath.Join(env.profilesBase(), "work"))
 	stubKeychain(t, true)
 	t.Setenv("CLAUDE_PROFILE", "work")
@@ -106,7 +108,7 @@ func TestListProfilesStatuses(t *testing.T) {
 
 func TestListProfilesNotAuthenticatedWithoutKeychainOrFile(t *testing.T) {
 	env := newTestEnv(t, twoProfiles)
-	app, _ := testAppAt(t, env.ConfigPath)
+	app := env.App
 	mustMkdir(t, filepath.Join(env.profilesBase(), "work"))
 	stubKeychain(t, false)
 
@@ -136,7 +138,7 @@ func TestWhichFromFile(t *testing.T) {
 	if r.Active || r.Profile != "personal" || r.Source != "file" {
 		t.Errorf("unexpected result: %+v", r)
 	}
-	app, buf := testAppAt(t, "")
+	app, buf := testApp(t)
 	app.RenderWhich(r)
 	if !strings.Contains(buf.String(), "not active in this shell") {
 		t.Errorf("render should hint about activation: %q", buf.String())
@@ -153,7 +155,7 @@ func TestWhichNone(t *testing.T) {
 
 func TestDoctorReportCountsAndExitCondition(t *testing.T) {
 	env := newTestEnv(t, twoProfiles)
-	app, buf := testAppAt(t, env.ConfigPath)
+	app, buf := env.App, env.Out
 	cfg := env.load(t)
 	cfg.SourceDir = filepath.Join(env.Root, "missing") // forces an error check
 	stubKeychain(t, false)
@@ -174,7 +176,7 @@ model = "sonnet"
 add_dirs = ["/extra"]
 env = { FOO = "bar" }
 `)
-	app, _ := testAppAt(t, env.ConfigPath)
+	app := env.App
 	// Fake claude on PATH.
 	fakeBin := t.TempDir()
 	mustWrite(t, filepath.Join(fakeBin, "claude"), "#!/bin/sh\n")
@@ -213,8 +215,9 @@ env = { FOO = "bar" }
 }
 
 func TestUseAutoAndDirenv(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, twoProfiles)
-	app, _ := testAppAt(t, env.ConfigPath)
+	app := env.App
 	dir := t.TempDir()
 	mustWrite(t, filepath.Join(dir, ".claude-profile"), "work\n")
 
@@ -239,9 +242,10 @@ func TestUseAutoAndDirenv(t *testing.T) {
 }
 
 func TestLinkAndUnlink(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, twoProfiles)
 	dir := t.TempDir()
-	app, _ := testAppAt(t, "")
+	app, _ := testApp(t)
 
 	if err := app.Link(env.load(t), dir, "nope"); err == nil {
 		t.Error("unknown profile should error")
@@ -262,6 +266,7 @@ func TestLinkAndUnlink(t *testing.T) {
 }
 
 func TestCheckDivergenceDeterministicOrder(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, `[profiles.b]
 [profiles.a]
 [profiles.c]
@@ -279,6 +284,7 @@ func TestCheckDivergenceDeterministicOrder(t *testing.T) {
 }
 
 func TestSortedProfileNames(t *testing.T) {
+	t.Parallel()
 	cfg := &Config{Profiles: map[string]*Profile{"z": {}, "a": {}, "m": {}}}
 	got := strings.Join(SortedProfileNames(cfg), ",")
 	if got != "a,m,z" {

@@ -8,8 +8,9 @@ import (
 )
 
 func TestCloneProfile(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, "[profiles.original]\ndescription = \"Original\"\nmodel = \"sonnet\"\n")
-	app, _ := testAppAt(t, env.ConfigPath)
+	app := env.App
 	srcProfile := filepath.Join(env.profilesBase(), "original")
 	mustWrite(t, filepath.Join(srcProfile, "settings.json"), `{"test": true}`)
 	mustWrite(t, filepath.Join(srcProfile, "CLAUDE.md"), "# Claude")
@@ -42,8 +43,9 @@ func TestCloneProfile(t *testing.T) {
 }
 
 func TestCloneProfileErrors(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, "[profiles.source]\n[profiles.taken]\n")
-	app, _ := testAppAt(t, env.ConfigPath)
+	app := env.App
 	cfg := env.load(t)
 
 	if err := app.CloneProfile("missing", "new", cfg); err == nil {
@@ -66,8 +68,9 @@ func TestCloneProfileErrors(t *testing.T) {
 }
 
 func TestCloneProfileDoesNotCopyCredentials(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, "[profiles.original]\n")
-	app, _ := testAppAt(t, env.ConfigPath)
+	app := env.App
 	srcProfile := filepath.Join(env.profilesBase(), "original")
 	mustWrite(t, filepath.Join(srcProfile, ".credentials.json"), `{"token": "secret"}`)
 	mustWrite(t, filepath.Join(srcProfile, "settings.json"), `{}`)

@@ -9,6 +9,7 @@ import (
 )
 
 func TestShellQuote(t *testing.T) {
+	t.Parallel()
 	cases := map[string]string{
 		"plain":      `'plain'`,
 		"":           `''`,
@@ -27,6 +28,7 @@ func TestShellQuote(t *testing.T) {
 }
 
 func TestLaunchSpecClaudeArgs(t *testing.T) {
+	t.Parallel()
 	spec := BuildLaunchSpec("work", "/p/work", &Profile{
 		Model:   "sonnet",
 		AddDirs: []string{"/extra"},
@@ -48,6 +50,7 @@ func TestLaunchSpecClaudeArgs(t *testing.T) {
 }
 
 func TestLaunchSpecEnviron(t *testing.T) {
+	t.Parallel()
 	spec := BuildLaunchSpec("work", "/p/work", &Profile{Env: map[string]string{"ZED": "1", "ALPHA": "2"}})
 	base := []string{"PATH=/bin", "CLAUDE_PROFILE=old", "ANTHROPIC_API_KEY=x", "HOME=/h"}
 	got := spec.Environ(base)
@@ -58,6 +61,7 @@ func TestLaunchSpecEnviron(t *testing.T) {
 }
 
 func TestGenerateWrapperBashSyntax(t *testing.T) {
+	t.Parallel()
 	bash, err := exec.LookPath("bash")
 	if err != nil {
 		t.Skip("bash not available")
@@ -110,6 +114,7 @@ func runWrapper(t *testing.T, profile *Profile, args ...string) string {
 }
 
 func TestGenerateWrapperExecutesWithQuotedValues(t *testing.T) {
+	t.Parallel()
 	profile := &Profile{
 		Model:   "sonnet",
 		AddDirs: []string{"/tmp/with space"},
@@ -129,6 +134,7 @@ func TestGenerateWrapperExecutesWithQuotedValues(t *testing.T) {
 }
 
 func TestGenerateWrapperExecutesBypassAndNoExtras(t *testing.T) {
+	t.Parallel()
 	// No add_dirs, no model: the empty array must not trip `set -u`.
 	out := runWrapper(t, &Profile{}, "-p", "x")
 	if strings.Contains(out, "ARG:--model") || !strings.Contains(out, "ARG:-p\n") {
@@ -152,6 +158,7 @@ func TestGenerateWrapperExecutesBypassAndNoExtras(t *testing.T) {
 }
 
 func TestGenerateUseOutputEvaluates(t *testing.T) {
+	t.Parallel()
 	bash, err := exec.LookPath("bash")
 	if err != nil {
 		t.Skip("bash not available")
@@ -170,10 +177,11 @@ func TestGenerateUseOutputEvaluates(t *testing.T) {
 }
 
 func TestBuildExecExec(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, `[profiles.work]
 env = { FOO = "bar" }
 `)
-	app, _ := testAppAt(t, env.ConfigPath)
+	app := env.App
 	spec, err := app.BuildExecExec(env.load(t), "work", []string{"env"})
 	if err != nil {
 		t.Fatal(err)

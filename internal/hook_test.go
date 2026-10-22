@@ -9,6 +9,7 @@ import (
 )
 
 func TestGenerateUseOutputFish(t *testing.T) {
+	t.Parallel()
 	out := GenerateUseOutput("work", "/p/work", &Profile{Env: map[string]string{"K": "v"}}, UseOptions{Shell: "fish"})
 	for _, want := range []string{
 		"set -gx CLAUDE_CONFIG_DIR '/p/work';",
@@ -31,6 +32,7 @@ func TestGenerateUseOutputFish(t *testing.T) {
 }
 
 func TestGenerateUseOutputPosixManagedVars(t *testing.T) {
+	t.Parallel()
 	out := GenerateUseOutput("work", "/p/work", &Profile{Env: map[string]string{"K": "v"}}, UseOptions{Quiet: true})
 	if !strings.Contains(out, `export CPM_MANAGED_VARS='CLAUDE_CONFIG_DIR CLAUDE_PROFILE K';`) {
 		t.Errorf("managed vars not exported:\n%s", out)
@@ -44,6 +46,7 @@ func TestGenerateUseOutputPosixManagedVars(t *testing.T) {
 }
 
 func TestDetectShell(t *testing.T) {
+	t.Parallel()
 	if DetectShell(func(string) string { return "/usr/local/bin/fish" }) != "fish" {
 		t.Error("fish not detected")
 	}
@@ -56,6 +59,7 @@ func TestDetectShell(t *testing.T) {
 }
 
 func TestGenerateShellHookVariants(t *testing.T) {
+	t.Parallel()
 	bash := GenerateShellHook(HookOptions{})
 	if !strings.Contains(bash, "PROMPT_COMMAND") || strings.Contains(bash, "alias cd") {
 		t.Error("bash hook should use PROMPT_COMMAND, not alias cd")
@@ -102,6 +106,7 @@ cat "$f"
 }
 
 func TestHookExecutionUnsetsOnlyManagedVars(t *testing.T) {
+	t.Parallel()
 	bash, err := exec.LookPath("bash")
 	if err != nil {
 		t.Skip("bash not available")
@@ -154,6 +159,7 @@ printf 'OUT:%s|%s|%s|%s\n' "${CLAUDE_PROFILE:-}" "${ANTHROPIC_BASE_URL:-}" "${CL
 }
 
 func TestHookExecutionDefaultProfile(t *testing.T) {
+	t.Parallel()
 	bash, err := exec.LookPath("bash")
 	if err != nil {
 		t.Skip("bash not available")
@@ -175,6 +181,7 @@ func TestHookExecutionDefaultProfile(t *testing.T) {
 }
 
 func TestFishHookSyntax(t *testing.T) {
+	t.Parallel()
 	fish, err := exec.LookPath("fish")
 	if err != nil {
 		t.Skip("fish not available")
@@ -192,6 +199,7 @@ func TestFishHookSyntax(t *testing.T) {
 }
 
 func TestSelectProfileInteractive(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, twoProfiles)
 	cfg := env.load(t)
 	var prompt strings.Builder

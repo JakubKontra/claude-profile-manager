@@ -19,6 +19,7 @@ func stubKeychain(t *testing.T, found bool) {
 }
 
 func TestKeychainServiceName(t *testing.T) {
+	t.Parallel()
 	// Vector matches what Claude Code derives: base service plus the first 8
 	// hex chars of sha256(configDir).
 	got := KeychainServiceName("/tmp/profiles/work")
@@ -120,6 +121,7 @@ func writeClaudeJSON(t *testing.T, dir, email, org string) {
 }
 
 func TestParseCredentialsJSONClaudeAiOauth(t *testing.T) {
+	t.Parallel()
 	now := time.Date(2026, 9, 25, 12, 0, 0, 0, time.UTC)
 	future := now.Add(2 * time.Hour)
 	data := []byte(fmt.Sprintf(`{"claudeAiOauth":{"accessToken":"sk-ant-x","refreshToken":"r","expiresAt":%d,"scopes":["user:inference"],"subscriptionType":"max"}}`, future.UnixMilli()))
@@ -141,6 +143,7 @@ func TestParseCredentialsJSONClaudeAiOauth(t *testing.T) {
 }
 
 func TestParseCredentialsJSONLegacyShapes(t *testing.T) {
+	t.Parallel()
 	now := time.Date(2026, 9, 25, 12, 0, 0, 0, time.UTC)
 
 	info, err := parseCredentialsJSON([]byte(`{"email":"a@b.c","expires_at":`+fmt.Sprint(now.Add(time.Hour).Unix())+`}`), time.Time{}, now)
