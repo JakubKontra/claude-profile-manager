@@ -159,6 +159,37 @@ func TestCLIIntegration(t *testing.T) {
 			t.Fatal("purge retained local credentials")
 		}
 	})
+	t.Run("hook_match", func(t *testing.T) {
+		m := newCLIMachine(t, binary, bash)
+		data, _ := os.ReadFile(m.config)
+		rules := "[profiles.client]\n\n[[match]]\nremote = 'github.com/company/*'\nprofile = 'work'\n\n[[match]]\npath = '~/clients/**'\nprofile = 'client'\n"
+		cliWrite(t, m.config, string(data)+rules, 0o600)
+		repo := filepath.Join(m.root, "src", "app")
+		m.command(t, true, "git", "init", "-q", repo)
+		m.command(t, true, "git", "-C", repo, "remote", "add", "origin", "git@github.com:company/app.git")
+		client := filepath.Join(m.home, "clients", "acme", "web")
+		if err := os.MkdirAll(client, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		script := `eval "$(cpm --config "$CONFIG" hook --shell bash)"
+cd "$REPO"; _cpm_prompt_hook; printf 'REPO:%s\n' "${CLAUDE_PROFILE:-}"
+cd "$CLIENT"; _cpm_prompt_hook; printf 'CLIENT:%s\n' "${CLAUDE_PROFILE:-}"
+cd /; _cpm_prompt_hook; printf 'NONE:%s\n' "${CLAUDE_PROFILE:-}"
+`
+		shell := m
+		shell.env = append(append([]string{}, m.env...), "CONFIG="+m.config, "REPO="+repo, "CLIENT="+client)
+		output := shell.command(t, true, bash, "-c", script)
+		for _, want := range []string{"REPO:work\n", "CLIENT:client\n", "NONE:\n", "[cpm] using profile: work", "[cpm] using profile: client"} {
+			if !strings.Contains(output, want) {
+				t.Fatalf("hook with [[match]] missing %q:\n%s", want, output)
+			}
+		}
+		cmd := exec.Command(m.cpm, "--config", m.config, "which")
+		cmd.Env, cmd.Dir = m.env, repo
+		if out, err := cmd.CombinedOutput(); err != nil || !strings.Contains(string(out), "Source:     [[match]] remote github.com/company/*") {
+			t.Fatalf("which in repo: %v\n%s", err, out)
+		}
+	})
 	t.Run("foreign_wrapper", func(t *testing.T) {
 		m := newCLIMachine(t, binary, bash)
 		cliWrite(t, filepath.Join(m.bin, "claude-work"), "foreign", 0o755)

@@ -122,7 +122,7 @@ func TestWhichFromEnv(t *testing.T) {
 	t.Parallel()
 	app, _ := testApp(t)
 	app.Env = []string{"CLAUDE_PROFILE=work", "CLAUDE_CONFIG_DIR=/p/work"}
-	r := app.Which(t.TempDir())
+	r := app.Which(&Config{}, t.TempDir())
 	if !r.Active || r.Profile != "work" || r.Source != "env" || r.ConfigDir != "/p/work" || r.Command != "claude-work" {
 		t.Errorf("unexpected result: %+v", r)
 	}
@@ -136,7 +136,7 @@ func TestWhichFromFile(t *testing.T) {
 	sub := filepath.Join(dir, "a", "b")
 	mustMkdir(t, sub)
 
-	r := app.Which(sub)
+	r := app.Which(&Config{}, sub)
 	if r.Active || r.Profile != "personal" || r.Source != "file" {
 		t.Errorf("unexpected result: %+v", r)
 	}
@@ -149,7 +149,7 @@ func TestWhichFromFile(t *testing.T) {
 func TestWhichNone(t *testing.T) {
 	t.Parallel()
 	app, _ := testApp(t)
-	r := app.Which(t.TempDir())
+	r := app.Which(&Config{}, t.TempDir())
 	if r.Active || r.Profile != "" {
 		t.Errorf("expected empty result, got %+v", r)
 	}
