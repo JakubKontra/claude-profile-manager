@@ -157,6 +157,12 @@ Behavior stays the same. For every PR, `go test -race ./...`, `golangci-lint run
   7. Support `--dry-run`.
 - **Rollback:** Each step records an undo action. On failure, the steps already done are reverted in reverse order.
 - **Done when:** after a rename, `claude-<new> auth status` shows the same account with no new login.
+- **Status:** done.
+  - Unlike the plan, `[[match]]` rules that use the old name are renamed in `config.toml` instead of only warned about. cpm edits that file anyway, and the result is checked by parsing it again. Only `.claude-profile` files get a reminder, because cpm cannot find them.
+  - The old Keychain entry is deleted last, after every other step succeeded, so a rollback never has to restore a secret.
+  - `KeychainStore.Write` sends `add-generic-password -X <hex>` to `security -i` on stdin, so the token never appears on a command line. The copy is read back and compared before the rename continues.
+  - Checked by hand against the real macOS Keychain with a throwaway entry. Unit tests use the in-memory Keychain, including a failed write and a rollback from the last step.
+  - Other machines still have the old name after `cloud pull`, which only adds the new profile.
 
 ### 2.4 `cpm login [profile|--all]`
 

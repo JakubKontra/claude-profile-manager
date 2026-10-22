@@ -159,3 +159,27 @@ are skipped.`,
 	cmd.Flags().BoolVar(&all, "all", false, "log in every profile without usable credentials")
 	return cmd
 }
+
+func renameCmd() *cobra.Command {
+	var dryRun bool
+	cmd := &cobra.Command{
+		Use:   "rename <old> <new>",
+		Short: "Rename a profile, keeping its login",
+		Long: `Rename a profile: its config and secrets.toml tables, [[match]] rules,
+directory, wrapper script and, on macOS, its Keychain login, whose name
+derives from the directory. The account stays logged in.
+
+If a step fails, the steps already done are reverted. Close Claude Code
+sessions of the profile first.`,
+		Args: cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := app.LoadConfig()
+			if err != nil {
+				return err
+			}
+			return app.RenameProfile(cfg, args[0], args[1], dryRun)
+		},
+	}
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "show the steps without changing anything")
+	return cmd
+}

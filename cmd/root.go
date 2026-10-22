@@ -44,6 +44,7 @@ func Execute() {
 		cloneCmd(),
 		addCmd(),
 		removeCmd(),
+		renameCmd(),
 		editCmd(),
 		promptCmd(),
 		credentialsCmd(),
