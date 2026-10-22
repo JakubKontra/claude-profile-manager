@@ -93,6 +93,8 @@ func RunDoctorWithOptions(cfg *Config, profilesBase string, opts DoctorOptions) 
 		checks = append(checks, Check{"bin dir on PATH", "warn", fmt.Sprintf("%s is not on PATH", cfg.BinDir)})
 	}
 
+	checks = append(checks, Check{"config version", "ok", fmt.Sprint(cfg.Version)})
+
 	// Unknown config keys are usually typos.
 	if len(cfg.Undecoded) > 0 {
 		checks = append(checks, Check{"config keys", "warn", "unknown keys (typo?): " + strings.Join(cfg.Undecoded, ", ")})

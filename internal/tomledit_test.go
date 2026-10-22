@@ -263,8 +263,9 @@ func TestWriteConfigAtomic(t *testing.T) {
 	if err := writeConfigAtomic(path, []byte("not = = toml")); err == nil {
 		t.Error("invalid TOML must be rejected")
 	}
+	// A new file gets the config version; the rejected write changes nothing.
 	data, _ := os.ReadFile(path)
-	if string(data) != "[profiles.a]\n" {
+	if string(data) != "version = 1\n[profiles.a]\n" {
 		t.Errorf("file changed by rejected write: %q", data)
 	}
 	leftovers, _ := filepath.Glob(filepath.Join(filepath.Dir(path), ".config-*"))

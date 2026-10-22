@@ -1,8 +1,10 @@
 package internal
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -265,5 +267,90 @@ func TestLoadCloudConfigMissingFileUsesDefaults(t *testing.T) {
 	}
 	if cfg.SourceDir == "" || cfg.BinDir == "" || len(cfg.Profiles) != 0 {
 		t.Errorf("unexpected defaults: %+v", cfg)
+	}
+}
+
+func TestConfigVersion(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		body, wantErr string
+	}{
+		{"[profiles.a]\n", ""},
+		{"version = 1\n[profiles.a]\n", ""},
+		{"version = 2\n[profiles.a]\n", "config version 2 needs a newer cpm (this one supports 1); run cpm upgrade"},
+		{"version = -1\n[profiles.a]\n", "invalid config version -1"},
+	}
+	for _, c := range cases {
+		path := filepath.Join(t.TempDir(), "config.toml")
+		mustWrite(t, path, c.body)
+		cfg, err := loadConfig(t.TempDir(), path, true)
+		switch {
+		case c.wantErr == "" && (err != nil || cfg.Version != 1):
+			t.Errorf("%q: version %v, err %v", c.body, cfg, err)
+		case c.wantErr != "" && (err == nil || !strings.Contains(err.Error(), c.wantErr)):
+			t.Errorf("%q: err = %v, want %q", c.body, err, c.wantErr)
+		}
+		if c.wantErr == "" && cfg != nil && len(cfg.Undecoded) != 0 {
+			t.Errorf("%q: version reported as unknown key: %v", c.body, cfg.Undecoded)
+		}
+	}
+}
+
+func TestConfigMigrationsRunInOrder(t *testing.T) {
+	t.Parallel()
+	var ran []int
+	step := func(from int) func(*Config) error {
+		return func(*Config) error {
+			ran = append(ran, from)
+			return nil
+		}
+	}
+	migrations := map[int]func(*Config) error{1: step(1), 2: step(2)}
+	cfg := &Config{}
+	if err := migrateConfigTo(cfg, 3, migrations); err != nil || cfg.Version != 3 || !reflect.DeepEqual(ran, []int{1, 2}) {
+		t.Errorf("err %v, version %d, ran %v", err, cfg.Version, ran)
+	}
+	migrations[1] = func(*Config) error { return errors.New("boom") }
+	if err := migrateConfigTo(&Config{}, 3, migrations); err == nil || !strings.Contains(err.Error(), "from version 1: boom") {
+		t.Errorf("err = %v", err)
+	}
+}
+
+func TestNewConfigFilesGetVersion(t *testing.T) {
+	t.Parallel()
+	env := newTestEnv(t, "")
+	if err := os.Remove(env.ConfigPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := env.App.AddProfile("work", AddOptions{NoInstall: true}); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(env.ConfigPath)
+	if !strings.HasPrefix(string(data), "version = 1\n") {
+		t.Errorf("new config:\n%s", data)
+	}
+	// Editing an existing file never adds it.
+	path := filepath.Join(t.TempDir(), "config.toml")
+	mustWrite(t, path, "[profiles.a]\n")
+	if err := saveCloudRemote(path, "url"); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := os.ReadFile(path); strings.Contains(string(data), "version") {
+		t.Errorf("existing config got a version:\n%s", data)
+	}
+}
+
+func TestMergeConfigRejectsNewerVersion(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	local, pulled := filepath.Join(dir, "config.toml"), filepath.Join(dir, "pulled.toml")
+	mustWrite(t, local, "[profiles.a]\n")
+	mustWrite(t, pulled, "version = 2\n[profiles.a]\n[profiles.b]\n")
+	app, _ := testApp(t)
+	if err := app.mergeConfigTOML(pulled, local); err == nil || !strings.Contains(err.Error(), "needs a newer cpm") {
+		t.Fatalf("err = %v", err)
+	}
+	if data, _ := os.ReadFile(local); string(data) != "[profiles.a]\n" {
+		t.Errorf("local config changed:\n%s", data)
 	}
 }

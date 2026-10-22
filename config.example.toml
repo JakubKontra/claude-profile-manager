@@ -3,6 +3,9 @@
 #
 # Profile names become CLI commands: claude-<name>
 
+# Config format version; a newer cpm may need a higher one.
+version = 1
+
 # Source directory for shared configuration (default: ~/.claude)
 source_dir = "~/.claude"
 

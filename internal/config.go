@@ -60,6 +60,8 @@ type CloudConfig struct {
 }
 
 type Config struct {
+	// Version is the config format; 0 (unset) means 1. See ConfigVersion.
+	Version   int    `toml:"version,omitempty"`
 	SourceDir string `toml:"source_dir"`
 	BinDir    string `toml:"bin_dir"`
 	// Share is the default list of source directories symlinked into every
@@ -127,7 +129,7 @@ func loadConfig(home, path string, requireProfiles bool) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if !requireProfiles && os.IsNotExist(err) {
-			cfg := &Config{}
+			cfg := &Config{Version: ConfigVersion}
 			applyConfigDefaults(cfg, home)
 			return cfg, nil
 		}
@@ -144,6 +146,9 @@ func loadConfig(home, path string, requireProfiles bool) (*Config, error) {
 	}
 	sort.Strings(cfg.Undecoded)
 
+	if err := migrateConfig(&cfg); err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
 	applyConfigDefaults(&cfg, home)
 
 	if requireProfiles && len(cfg.Profiles) == 0 {
@@ -160,6 +165,42 @@ func loadConfig(home, path string, requireProfiles bool) (*Config, error) {
 		return nil, err
 	}
 	return &cfg, nil
+}
+
+// ConfigVersion is the newest config format this cpm reads, and the version
+// written into new config files.
+const ConfigVersion = 1
+
+// configMigrations upgrades a decoded config from version n to n+1, keyed by
+// n. Migrations change only the in-memory config; the file keeps its version
+// until the user edits it.
+var configMigrations = map[int]func(*Config) error{}
+
+// migrateConfig rejects configs from a newer cpm and brings older ones up to
+// ConfigVersion.
+func migrateConfig(cfg *Config) error {
+	return migrateConfigTo(cfg, ConfigVersion, configMigrations)
+}
+
+func migrateConfigTo(cfg *Config, target int, migrations map[int]func(*Config) error) error {
+	if cfg.Version == 0 {
+		cfg.Version = 1
+	}
+	switch {
+	case cfg.Version < 0:
+		return fmt.Errorf("invalid config version %d", cfg.Version)
+	case cfg.Version > target:
+		return fmt.Errorf("config version %d needs a newer cpm (this one supports %d); run cpm upgrade", cfg.Version, target)
+	}
+	for cfg.Version < target {
+		if migrate := migrations[cfg.Version]; migrate != nil {
+			if err := migrate(cfg); err != nil {
+				return fmt.Errorf("cannot migrate config from version %d: %w", cfg.Version, err)
+			}
+		}
+		cfg.Version++
+	}
+	return nil
 }
 
 func applyConfigDefaults(cfg *Config, home string) {

@@ -403,6 +403,7 @@ With `indicator = true`, `cpm install` sets a `statusLine` in each profile's `se
 
 | Field | Default | Description |
 |-------|---------|-------------|
+| `version` | `1` | Config format. A config with a higher version needs a newer cpm; new configs get `version = 1` |
 | `source_dir` | `~/.claude` | Source for shared config |
 | `bin_dir` | `~/.local/bin` | Where wrapper scripts are installed |
 | `share` | `["commands", "skills", "agents", "plugins", "projects"]` | Default shared directories |

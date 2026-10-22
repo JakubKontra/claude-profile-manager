@@ -394,11 +394,16 @@ func assignedKey(line string) (string, bool) {
 }
 
 // writeConfigAtomic validates data as a config and replaces path atomically.
+// A new file gets `version = ConfigVersion` unless data sets a version.
 func writeConfigAtomic(path string, data []byte) error {
 	path = ExpandPath(path)
 	var cfg Config
-	if _, err := toml.Decode(string(data), &cfg); err != nil {
+	md, err := toml.Decode(string(data), &cfg)
+	if err != nil {
 		return fmt.Errorf("refusing to write invalid config: %w", err)
+	}
+	if _, err := os.Lstat(path); os.IsNotExist(err) && !md.IsDefined("version") {
+		data = SetRootKey(data, "version", fmt.Sprint(ConfigVersion))
 	}
 
 	dir := filepath.Dir(path)

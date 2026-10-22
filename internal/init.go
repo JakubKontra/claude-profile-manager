@@ -79,6 +79,7 @@ func (a *App) RunInit() error {
 
 	// Generate TOML
 	var b strings.Builder
+	fmt.Fprintf(&b, "version = %d\n", ConfigVersion)
 	fmt.Fprintf(&b, "source_dir = %q\n", sourceDir)
 	fmt.Fprintf(&b, "bin_dir = %q\n", binDir)
 
