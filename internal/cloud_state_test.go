@@ -7,9 +7,10 @@ import (
 )
 
 func TestCloudConflictPreservesWholePlanAndBaseline(t *testing.T) {
+	t.Parallel()
 	app, _ := testApp(t)
 	root := t.TempDir()
-	t.Setenv("HOME", root)
+	app.Home = root
 	repo, live := filepath.Join(root, "repo"), filepath.Join(root, "live")
 	cfg := &Config{SourceDir: live}
 	mustWrite(t, filepath.Join(repo, "commands", "shared.md"), "base")
@@ -49,9 +50,10 @@ func TestCloudConflictPreservesWholePlanAndBaseline(t *testing.T) {
 }
 
 func TestCloudFirstPullConflictAndLastRemoteFileDeletion(t *testing.T) {
+	t.Parallel()
 	app, _ := testApp(t)
 	root := t.TempDir()
-	t.Setenv("HOME", root)
+	app.Home = root
 	repo, live := filepath.Join(root, "repo"), filepath.Join(root, "live")
 	cfg := &Config{SourceDir: live}
 	path := filepath.Join("commands", "only.md")

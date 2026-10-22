@@ -2,8 +2,6 @@ package internal
 
 import (
 	"fmt"
-	"os"
-	"os/exec"
 	"path/filepath"
 )
 
@@ -26,12 +24,12 @@ func (a *App) BuildRunExec(cfg *Config, name string, userArgs []string) (ExecSpe
 	argv := append([]string{"claude"}, spec.ClaudeArgs(userArgs)...)
 	argv = append(argv, userArgs...)
 
-	claudePath, err := exec.LookPath("claude")
+	claudePath, err := a.lookPath("claude")
 	if err != nil {
 		return ExecSpec{}, fmt.Errorf("claude not found on PATH")
 	}
 
-	return ExecSpec{Path: claudePath, Argv: argv, Env: spec.Environ(os.Environ())}, nil
+	return ExecSpec{Path: claudePath, Argv: argv, Env: spec.Environ(a.Env)}, nil
 }
 
 // BuildExecExec resolves `cpm exec <profile> -- <command...>`: any command
@@ -47,11 +45,11 @@ func (a *App) BuildExecExec(cfg *Config, name string, argv []string) (ExecSpec, 
 	}
 	spec := BuildLaunchSpec(name, filepath.Join(a.BaseDir, name), profile)
 
-	path, err := exec.LookPath(argv[0])
+	path, err := a.lookPath(argv[0])
 	if err != nil {
 		return ExecSpec{}, fmt.Errorf("%s not found on PATH", argv[0])
 	}
-	return ExecSpec{Path: path, Argv: argv, Env: spec.Environ(os.Environ())}, nil
+	return ExecSpec{Path: path, Argv: argv, Env: spec.Environ(a.Env)}, nil
 }
 
 func trimCommandSeparator(args []string) []string {

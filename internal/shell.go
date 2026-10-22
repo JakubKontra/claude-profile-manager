@@ -78,13 +78,13 @@ func GenerateUnsetOutput(shell string) string {
 }
 
 // CurrentProfile returns the name of the currently active profile from env.
-func CurrentProfile() string {
-	return os.Getenv("CLAUDE_PROFILE")
+func (a *App) CurrentProfile() string {
+	return a.Getenv("CLAUDE_PROFILE")
 }
 
 // CurrentConfigDir returns the currently active CLAUDE_CONFIG_DIR from env.
-func CurrentConfigDir() string {
-	return os.Getenv("CLAUDE_CONFIG_DIR")
+func (a *App) CurrentConfigDir() string {
+	return a.Getenv("CLAUDE_CONFIG_DIR")
 }
 
 // DetectProfileFile walks up from the given directory looking for .claude-profile
@@ -263,10 +263,6 @@ func UnlinkProfile(dir string) error {
 	return os.Remove(profilePath)
 }
 
-func PromptString() string {
-	profile := CurrentProfile()
-	if profile == "" {
-		return ""
-	}
-	return profile
+func (a *App) PromptString() string {
+	return a.CurrentProfile()
 }

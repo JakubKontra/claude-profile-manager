@@ -20,7 +20,11 @@ type InstallAction struct {
 	Mode   os.FileMode
 }
 
-type installPlanner struct{ actions []InstallAction }
+type installPlanner struct {
+	actions []InstallAction
+	// globalClaudeJSON is the user's ~/.claude.json, seeded into new profiles.
+	globalClaudeJSON string
+}
 
 func (p *installPlanner) write(path string, data []byte, mode os.FileMode) error {
 	st, err := os.Lstat(path)
@@ -51,7 +55,7 @@ func (a *App) PlanInstall(cfg *Config, opts InstallOptions) ([]InstallAction, er
 			return nil, ErrDiverged
 		}
 	}
-	p := &installPlanner{}
+	p := &installPlanner{globalClaudeJSON: a.claudeJSONPath()}
 	active := map[string]bool{}
 	for _, name := range SortedProfileNames(cfg) {
 		profile := cfg.Profiles[name]
@@ -174,7 +178,7 @@ func (p *installPlanner) sharedDirs(dir, source string, shared []string) error {
 
 func (p *installPlanner) claudeJSON(dir string, profile *Profile) error {
 	var global map[string]any
-	if data, err := os.ReadFile(DefaultClaudeJSONPath()); err == nil {
+	if data, err := os.ReadFile(p.globalClaudeJSON); err == nil {
 		if err := json.Unmarshal(data, &global); err != nil {
 			return fmt.Errorf("invalid global .claude.json: %w", err)
 		}

@@ -99,29 +99,29 @@ func isValidEnvName(name string) bool {
 }
 
 func DefaultConfigPath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".claude-profiles", "config.toml")
+	return filepath.Join(userHome(), ".claude-profiles", "config.toml")
 }
 
 // LoadConfig reads and validates the config; at least one profile is required.
 func LoadConfig(path string) (*Config, error) {
-	return loadConfig(path, true)
+	return loadConfig(userHome(), path, true)
 }
 
 // LoadCloudConfig loads config without requiring profiles to be defined and
 // falls back to defaults when the file does not exist yet.
 func LoadCloudConfig(path string) (*Config, error) {
-	return loadConfig(path, false)
+	return loadConfig(userHome(), path, false)
 }
 
-func loadConfig(path string, requireProfiles bool) (*Config, error) {
-	path = ExpandPath(path)
+// loadConfig reads the config at path, expanding ~ against home.
+func loadConfig(home, path string, requireProfiles bool) (*Config, error) {
+	path = expandHome(home, path)
 
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if !requireProfiles && os.IsNotExist(err) {
 			cfg := &Config{}
-			applyConfigDefaults(cfg)
+			applyConfigDefaults(cfg, home)
 			return cfg, nil
 		}
 		return nil, fmt.Errorf("cannot read config: %w", err)
@@ -137,7 +137,7 @@ func loadConfig(path string, requireProfiles bool) (*Config, error) {
 	}
 	sort.Strings(cfg.Undecoded)
 
-	applyConfigDefaults(&cfg)
+	applyConfigDefaults(&cfg, home)
 
 	if requireProfiles && len(cfg.Profiles) == 0 {
 		return nil, fmt.Errorf("no profiles defined in %s", path)
@@ -155,15 +155,15 @@ func loadConfig(path string, requireProfiles bool) (*Config, error) {
 	return &cfg, nil
 }
 
-func applyConfigDefaults(cfg *Config) {
+func applyConfigDefaults(cfg *Config, home string) {
 	if cfg.SourceDir == "" {
 		cfg.SourceDir = "~/.claude"
 	}
 	if cfg.BinDir == "" {
 		cfg.BinDir = "~/.local/bin"
 	}
-	cfg.SourceDir = ExpandPath(cfg.SourceDir)
-	cfg.BinDir = ExpandPath(cfg.BinDir)
+	cfg.SourceDir = expandHome(home, cfg.SourceDir)
+	cfg.BinDir = expandHome(home, cfg.BinDir)
 }
 
 // shareEntryPattern restricts share/isolate entries to plain directory names.
@@ -206,15 +206,20 @@ func validateConfig(cfg *Config) error {
 	return nil
 }
 
-func ExpandPath(p string) string {
-	if len(p) == 0 {
-		return p
-	}
-	if p[0] == '~' {
-		home, _ := os.UserHomeDir()
+// ExpandPath resolves a leading ~ against the process's home directory.
+// Code that runs on an App uses a.expand instead.
+func ExpandPath(p string) string { return expandHome(userHome(), p) }
+
+func expandHome(home, p string) string {
+	if len(p) > 0 && p[0] == '~' {
 		return filepath.Join(home, p[1:])
 	}
 	return p
+}
+
+func userHome() string {
+	home, _ := os.UserHomeDir()
+	return home
 }
 
 func ProfilesBaseDir(configPath string) string {

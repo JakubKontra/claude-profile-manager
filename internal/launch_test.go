@@ -182,6 +182,7 @@ func TestBuildExecExec(t *testing.T) {
 env = { FOO = "bar" }
 `)
 	app := env.App
+	app.Env = []string{"PATH=/usr/bin:/bin"}
 	spec, err := app.BuildExecExec(env.load(t), "work", []string{"env"})
 	if err != nil {
 		t.Fatal(err)

@@ -8,10 +8,9 @@ import (
 	"strings"
 )
 
-// DefaultClaudeJSONPath is where Claude Code keeps the global ~/.claude.json.
-func DefaultClaudeJSONPath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".claude.json")
+// claudeJSONPath is where Claude Code keeps the global ~/.claude.json.
+func (a *App) claudeJSONPath() string {
+	return filepath.Join(a.Home, ".claude.json")
 }
 
 // claudeJSONSeedKeys are the keys copied from ~/.claude.json into a new

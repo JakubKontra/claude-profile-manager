@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"bufio"
-	"os"
 	"os/exec"
 
 	"github.com/jakubkontra/cpm/internal"
@@ -132,7 +131,7 @@ func editCmd() *cobra.Command {
 		Use:   "edit",
 		Short: "Open config.toml in $VISUAL / $EDITOR",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return app.EditConfig(os.Getenv, func(c *exec.Cmd) error { return c.Run() })
+			return app.EditConfig(app.Getenv, func(c *exec.Cmd) error { return c.Run() })
 		},
 	}
 }

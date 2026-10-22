@@ -179,6 +179,7 @@ func TestSyncMCPServersProfileOnlyServers(t *testing.T) {
 }
 
 func TestInstallProfilesSeedsThenSyncsMCP(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, `[profiles.work]
 mcp_exclude = ["notion"]
 [profiles.work.mcp_servers.jira]
@@ -187,8 +188,7 @@ command = "jira-mcp"
 	app := env.App
 	src := filepath.Join(env.Root, "claude.json")
 	mustWrite(t, src, sourceClaudeJSON)
-	// Point the install pipeline at our fake ~/.claude.json via HOME.
-	t.Setenv("HOME", env.Root)
+	// The test App's home is env.Root, so this is its ~/.claude.json.
 	os.Rename(src, filepath.Join(env.Root, ".claude.json"))
 
 	if err := app.InstallProfiles(env.load(t), InstallOptions{}); err != nil {

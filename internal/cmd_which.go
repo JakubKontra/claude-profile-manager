@@ -11,13 +11,13 @@ type WhichResult struct {
 
 // Which resolves the active profile from the environment, falling back to a
 // .claude-profile file found from cwd upwards.
-func Which(cwd string) WhichResult {
-	if profile := CurrentProfile(); profile != "" {
+func (a *App) Which(cwd string) WhichResult {
+	if profile := a.CurrentProfile(); profile != "" {
 		return WhichResult{
 			Active:    true,
 			Profile:   profile,
 			Source:    "env",
-			ConfigDir: CurrentConfigDir(),
+			ConfigDir: a.CurrentConfigDir(),
 			Command:   wrapperPrefix + profile,
 		}
 	}

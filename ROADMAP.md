@@ -77,6 +77,11 @@ Behavior stays the same. For every PR, `go test -race ./...`, `golangci-lint run
   - Read the home directory and environment through `App` instead of `os`.
   - Replace `t.Setenv` in unit tests with fields on the test `App`.
 - **Done when:** unit tests no longer call `t.Setenv`, and every unit test that does not stub a package variable runs in parallel.
+- **Status:** done.
+  - `App` has `Home` and `Env []string`, read through `a.Getenv`. A slice is simpler to set in tests than a `Getenv` function. `App.lookPath` searches the `PATH` in `Env`.
+  - `ExecRunner.Env` adds variables to git's environment, so the cloud tests isolate git without `t.Setenv`.
+  - Unit tests no longer read the real home directory. Before, tests that did not set `HOME` could pick up the user's `~/.claude.json` and other synced files.
+  - 188 of 193 unit tests run in parallel. The other 5 stub `httpClient`, `githubAPIBase` and `executablePath` in `version.go`.
 
 ### 1.5 Split `internal/` into packages (optional, after 1.2)
 

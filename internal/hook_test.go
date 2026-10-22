@@ -204,19 +204,19 @@ func TestSelectProfileInteractive(t *testing.T) {
 	cfg := env.load(t)
 	var prompt strings.Builder
 
-	name, err := SelectProfileInteractive(cfg, strings.NewReader("2\n"), &prompt)
+	name, err := SelectProfileInteractive(cfg, "", strings.NewReader("2\n"), &prompt)
 	if err != nil || name != "work" {
 		t.Errorf("numeric choice: %q %v", name, err)
 	}
 	if !strings.Contains(prompt.String(), "1) personal") || !strings.Contains(prompt.String(), "2) work") {
 		t.Errorf("menu: %q", prompt.String())
 	}
-	name, err = SelectProfileInteractive(cfg, strings.NewReader("personal\n"), &prompt)
+	name, err = SelectProfileInteractive(cfg, "", strings.NewReader("personal\n"), &prompt)
 	if err != nil || name != "personal" {
 		t.Errorf("name choice: %q %v", name, err)
 	}
 	for _, bad := range []string{"\n", "9\n", "nope\n", ""} {
-		if _, err := SelectProfileInteractive(cfg, strings.NewReader(bad), &prompt); err == nil {
+		if _, err := SelectProfileInteractive(cfg, "", strings.NewReader(bad), &prompt); err == nil {
 			t.Errorf("input %q should error", bad)
 		}
 	}

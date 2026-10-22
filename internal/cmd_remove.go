@@ -55,7 +55,7 @@ func (a *App) RemoveProfile(cfg *Config, name string, opts RemoveOptions) error 
 		a.outf("  %s (profile directory, sessions, history)\n", profileDir)
 		a.outf("  %s (wrapper script)\n", wrapperPath)
 		a.outf("  Keychain entry %q / .credentials.json\n", KeychainServiceName(profileDir))
-		a.outf("  [profiles.%s] in %s\n\n", name, ExpandPath(a.ConfigPath))
+		a.outf("  [profiles.%s] in %s\n\n", name, a.expand(a.ConfigPath))
 		a.outf("Delete profile %q and all its data? [y/N] ", name)
 		if !confirm(opts.Stdin) {
 			a.outln("Aborted.")
@@ -95,7 +95,7 @@ func (a *App) RemoveProfile(cfg *Config, name string, opts RemoveOptions) error 
 		a.outf("  removed %s\n", profileDir)
 	}
 
-	path := ExpandPath(a.ConfigPath)
+	path := a.expand(a.ConfigPath)
 	data, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("cannot read config: %w", err)

@@ -29,6 +29,7 @@ func testAppAt(t *testing.T, configPath string) (*App, *bytes.Buffer) {
 		Err:        &bytes.Buffer{},
 		Run:        ExecRunner{},
 		Keychain:   newFakeKeychain(),
+		Home:       t.TempDir(),
 	}, &out
 }
 
@@ -138,6 +139,7 @@ func newTestEnv(t *testing.T, profilesTOML string) testEnv {
 	writeTestConfig(t, env, profilesTOML)
 	env.App, env.Out = testAppAt(t, env.ConfigPath)
 	env.Keychain = env.App.Keychain.(*fakeKeychain)
+	env.App.Home = root
 	return env
 }
 

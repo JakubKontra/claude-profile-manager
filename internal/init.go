@@ -9,7 +9,7 @@ import (
 )
 
 func (a *App) RunInit() error {
-	configPath := ExpandPath(a.ConfigPath)
+	configPath := a.expand(a.ConfigPath)
 
 	if _, err := os.Stat(configPath); err == nil {
 		return fmt.Errorf("config already exists at %s", configPath)

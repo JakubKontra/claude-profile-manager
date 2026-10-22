@@ -75,7 +75,7 @@ func (a *App) CloneProfile(sourceName, targetName string, cfg *Config) error {
 	if newProfile.Description != "" {
 		newProfile.Description += " (clone)"
 	}
-	data, err := os.ReadFile(ExpandPath(a.ConfigPath))
+	data, err := os.ReadFile(a.expand(a.ConfigPath))
 	if err != nil {
 		return fmt.Errorf("cannot read config: %w", err)
 	}

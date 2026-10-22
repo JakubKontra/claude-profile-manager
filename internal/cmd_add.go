@@ -29,7 +29,7 @@ func (a *App) AddProfile(name string, opts AddOptions) error {
 		}
 	}
 
-	path := ExpandPath(a.ConfigPath)
+	path := a.expand(a.ConfigPath)
 	data, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("cannot read config: %w", err)
@@ -59,7 +59,7 @@ func (a *App) AddProfile(name string, opts AddOptions) error {
 		return nil
 	}
 
-	cfg, err := LoadConfig(path)
+	cfg, err := loadConfig(a.Home, path, true)
 	if err != nil {
 		return err
 	}
