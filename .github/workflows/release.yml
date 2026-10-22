@@ -28,5 +28,8 @@ jobs:
           version: "~> v2"
           args: release --clean
         env:
+          # Release the pushed tag, even when another tag (an RC) points at
+          # the same commit; goreleaser would otherwise pick one itself.
+          GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
