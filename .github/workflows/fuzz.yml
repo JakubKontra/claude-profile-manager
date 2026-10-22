@@ -1,0 +1,37 @@
+name: Fuzz
+
+on:
+  schedule:
+    - cron: "17 3 * * 1" # Mondays
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - FuzzRenameProfileTable
+          - FuzzAppendRemoveProfile
+          - FuzzSetRootKey
+          - FuzzGlobMatch
+          - FuzzNormalizeRemote
+          - FuzzGitRemoteURLs
+          - FuzzApplyIndicator
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+      - run: go test ./internal -run '^$' -fuzz '^${{ matrix.target }}$' -fuzztime 60s
+      # A failing input lands in internal/testdata/fuzz; commit it as a
+      # regression seed together with the fix.
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}-input
+          path: internal/testdata/fuzz

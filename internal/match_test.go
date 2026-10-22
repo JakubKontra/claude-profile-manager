@@ -275,3 +275,10 @@ func TestHookExecutionWithResolve(t *testing.T) {
 		t.Errorf("hook should follow cpm resolve:\n%s", text)
 	}
 }
+
+func TestGlobMatchNonASCII(t *testing.T) {
+	t.Parallel()
+	if !globMatch("/home/me/Práce/**", "/home/me/Práce/klient") || !globMatch("/data/?ber", "/data/über") {
+		t.Error("patterns with non-ASCII characters must match")
+	}
+}
