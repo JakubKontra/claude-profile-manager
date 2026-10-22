@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -198,5 +199,23 @@ func TestRunDoctorRelativeSymlinkNotBroken(t *testing.T) {
 				t.Errorf("broken symlink not reported: %+v", c)
 			}
 		}
+	}
+}
+
+func TestPlatformCheck(t *testing.T) {
+	t.Parallel()
+	cases := map[string]string{
+		"darwin/arm64":  "ok",
+		"linux/amd64":   "ok",
+		"windows/amd64": "warn",
+		"freebsd/amd64": "warn",
+	}
+	for platform, want := range cases {
+		if c := platformCheck(platform); c.Status != want || !strings.HasPrefix(c.Detail, platform) {
+			t.Errorf("%s: %+v", platform, c)
+		}
+	}
+	if c := platformCheck(""); c.Status != "ok" {
+		t.Errorf("running system: %+v", c)
 	}
 }

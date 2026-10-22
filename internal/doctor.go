@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -36,6 +37,30 @@ type DoctorOptions struct {
 	PathEnv string
 	// User names the Keychain account; empty means $USER.
 	User string
+	// Platform is GOOS/GOARCH; empty means the running system. WSL is
+	// detected from /proc/version only for the running system.
+	Platform string
+}
+
+// platformCheck reports the system and where it keeps logins. cpm supports
+// macOS and Linux; Windows only through WSL, which runs the Linux build.
+func platformCheck(platform string) Check {
+	wsl := false
+	if platform == "" {
+		platform = runtime.GOOS + "/" + runtime.GOARCH
+		if data, err := os.ReadFile("/proc/version"); err == nil && strings.Contains(strings.ToLower(string(data)), "microsoft") {
+			wsl = true
+		}
+	}
+	switch {
+	case strings.HasPrefix(platform, "darwin/"):
+		return Check{"platform", "ok", platform + " (logins in the macOS Keychain)", ""}
+	case strings.HasPrefix(platform, "linux/") && wsl:
+		return Check{"platform", "ok", platform + " under WSL (logins in .credentials.json)", ""}
+	case strings.HasPrefix(platform, "linux/"):
+		return Check{"platform", "ok", platform + " (logins in .credentials.json)", ""}
+	}
+	return Check{"platform", "warn", platform + " is not supported; use macOS, Linux or WSL", ""}
 }
 
 // rcFiles are the shell startup files scanned for the cpm hook.
@@ -63,6 +88,8 @@ func RunDoctorWithOptions(cfg *Config, profilesBase string, opts DoctorOptions) 
 		opts.User = os.Getenv("USER")
 	}
 	loggedIn := 0
+
+	checks = append(checks, platformCheck(opts.Platform))
 
 	// Check claude binary
 	claudePath, err := lookPath("claude")

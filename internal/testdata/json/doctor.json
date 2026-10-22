@@ -4,6 +4,11 @@
   "warnings": 2,
   "checks": [
     {
+      "name": "platform",
+      "status": "ok",
+      "detail": "linux/amd64 (logins in .credentials.json)"
+    },
+    {
       "name": "claude binary",
       "status": "error",
       "detail": "claude not found on PATH"

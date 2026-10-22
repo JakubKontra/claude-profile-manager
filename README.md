@@ -106,7 +106,7 @@ go install github.com/jakubkontra/cpm@latest
 
 </details>
 
-**Requirements:** macOS or Linux, Claude Code installed and on `PATH`, and `~/.local/bin` on `PATH` (or configure `bin_dir`).
+**Requirements:** macOS or Linux, Claude Code installed and on `PATH`, and `~/.local/bin` on `PATH` (or configure `bin_dir`). On Windows, use cpm inside WSL; native Windows is not supported. On macOS logins live in the Keychain, on Linux and WSL in each profile's `.credentials.json`.
 
 ## Quick start
 
