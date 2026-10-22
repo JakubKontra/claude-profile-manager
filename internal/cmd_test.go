@@ -78,7 +78,7 @@ func TestListProfilesStatuses(t *testing.T) {
 	env := newTestEnv(t, twoProfiles)
 	app, buf := env.App, env.Out
 	mustMkdir(t, filepath.Join(env.profilesBase(), "work"))
-	stubKeychain(t, true)
+	env.Keychain.login(filepath.Join(env.profilesBase(), "work"), "token")
 	t.Setenv("CLAUDE_PROFILE", "work")
 
 	entries := app.ListProfiles(env.load(t))
@@ -107,11 +107,10 @@ func TestListProfilesStatuses(t *testing.T) {
 }
 
 func TestListProfilesNotAuthenticatedWithoutKeychainOrFile(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, twoProfiles)
 	app := env.App
 	mustMkdir(t, filepath.Join(env.profilesBase(), "work"))
-	stubKeychain(t, false)
-
 	entries := app.ListProfiles(env.load(t))
 	if entries[1].Authenticated {
 		t.Errorf("work should not be authenticated: %+v", entries[1])
@@ -154,11 +153,11 @@ func TestWhichNone(t *testing.T) {
 }
 
 func TestDoctorReportCountsAndExitCondition(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, twoProfiles)
 	app, buf := env.App, env.Out
 	cfg := env.load(t)
 	cfg.SourceDir = filepath.Join(env.Root, "missing") // forces an error check
-	stubKeychain(t, false)
 
 	report := app.DoctorReportFor(cfg, DoctorOptions{})
 	if report.OK || report.Errors == 0 {

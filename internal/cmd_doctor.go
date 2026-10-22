@@ -16,6 +16,9 @@ type DoctorReport struct {
 
 // DoctorReportFor runs all checks and summarizes them.
 func (a *App) DoctorReportFor(cfg *Config, opts DoctorOptions) DoctorReport {
+	if opts.Keychain == nil {
+		opts.Keychain = a.Keychain
+	}
 	checks := RunDoctorWithOptions(cfg, a.BaseDir, opts)
 	report := DoctorReport{Checks: checks}
 	for _, c := range checks {

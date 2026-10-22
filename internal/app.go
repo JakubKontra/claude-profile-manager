@@ -8,8 +8,9 @@ import (
 )
 
 // App carries what commands need from their environment: the config
-// location and the streams they read from and write to. Tests build one
-// around a temp dir and a buffer instead of swapping globals.
+// location, the streams they read from and write to, and the external
+// programs and stores they talk to. Tests build one around a temp dir, a
+// buffer and fakes instead of swapping globals.
 type App struct {
 	// ConfigPath is the config.toml path as given (may start with ~).
 	ConfigPath string
@@ -19,6 +20,11 @@ type App struct {
 	In  io.Reader
 	Out io.Writer
 	Err io.Writer
+
+	// Run executes external programs (git).
+	Run Runner
+	// Keychain is the OS credential store; a no-op outside macOS.
+	Keychain KeychainStore
 }
 
 // NewApp returns an App for configPath wired to the process's stdio.
@@ -29,6 +35,8 @@ func NewApp(configPath string) *App {
 		In:         os.Stdin,
 		Out:        os.Stdout,
 		Err:        os.Stderr,
+		Run:        ExecRunner{},
+		Keychain:   platformKeychain(),
 	}
 }
 

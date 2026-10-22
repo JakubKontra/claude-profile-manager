@@ -85,7 +85,7 @@ func (a *App) RemoveProfile(cfg *Config, name string, opts RemoveOptions) error 
 		} else if !os.IsNotExist(err) {
 			return err
 		}
-		if err := DeleteProfileCredentials(profileDir); err != nil {
+		if err := DeleteProfileCredentials(a.Keychain, profileDir); err != nil {
 			return fmt.Errorf("cannot remove credentials: %w", err)
 		}
 		a.outln("  removed credentials")

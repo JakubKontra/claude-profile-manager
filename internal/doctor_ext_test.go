@@ -23,7 +23,6 @@ func noLookPath(string) (string, error) { return "", fmt.Errorf("not found") }
 func TestRunDoctorHookAndGitChecks(t *testing.T) {
 	t.Parallel()
 	env := newTestEnv(t, twoProfiles+"\n[cloud]\nremote = \"x\"\n")
-	stubKeychain(t, false)
 	home := t.TempDir()
 
 	checks := RunDoctorWithOptions(env.load(t), env.profilesBase(), DoctorOptions{HomeDir: home, LookPath: noLookPath})
@@ -53,8 +52,8 @@ func TestRunDoctorHookAndGitChecks(t *testing.T) {
 }
 
 func TestRunDoctorUnknownKeys(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, "[profiles.work]\nmodl = \"x\"\n")
-	stubKeychain(t, false)
 	checks := RunDoctorWithOptions(env.load(t), env.profilesBase(), DoctorOptions{HomeDir: t.TempDir(), LookPath: noLookPath})
 	c, found := findCheck(checks, "config keys")
 	if !found || c.Status != "warn" || !strings.Contains(c.Detail, "profiles.work.modl") {
@@ -63,9 +62,9 @@ func TestRunDoctorUnknownKeys(t *testing.T) {
 }
 
 func TestRunDoctorWrapperOutdated(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, twoProfiles)
 	app := env.App
-	stubKeychain(t, false)
 	if err := app.InstallProfiles(env.load(t), InstallOptions{}); err != nil {
 		t.Fatal(err)
 	}
@@ -88,16 +87,15 @@ func TestRunDoctorWrapperOutdated(t *testing.T) {
 }
 
 func TestRunDoctorVerifyKeychain(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, "[profiles.work]\n")
-	mustMkdir(t, filepath.Join(env.profilesBase(), "work"))
-	stubKeychain(t, true)
-	prev := keychainRead
-	past := time.Now().Add(-time.Hour)
-	keychainRead = func(service, account string) ([]byte, error) {
-		return []byte(fmt.Sprintf(`{"claudeAiOauth":{"expiresAt":%d,"subscriptionType":"max"}}`, past.UnixMilli())), nil
+	profileDir := filepath.Join(env.profilesBase(), "work")
+	mustMkdir(t, profileDir)
+	token := func(expires time.Time) string {
+		return fmt.Sprintf(`{"claudeAiOauth":{"expiresAt":%d,"subscriptionType":"max"}}`, expires.UnixMilli())
 	}
-	t.Cleanup(func() { keychainRead = prev })
-	opts := DoctorOptions{HomeDir: t.TempDir(), LookPath: noLookPath}
+	env.Keychain.login(profileDir, token(time.Now().Add(-time.Hour)))
+	opts := DoctorOptions{HomeDir: t.TempDir(), LookPath: noLookPath, Keychain: env.Keychain}
 
 	checks := RunDoctorWithOptions(env.load(t), env.profilesBase(), opts)
 	if c, _ := findCheck(checks, "profile/work/credentials"); c.Status != "ok" {
@@ -110,17 +108,14 @@ func TestRunDoctorVerifyKeychain(t *testing.T) {
 		t.Errorf("--verify should report the expired token: %+v", c)
 	}
 
-	future := time.Now().Add(time.Hour)
-	keychainRead = func(service, account string) ([]byte, error) {
-		return []byte(fmt.Sprintf(`{"claudeAiOauth":{"expiresAt":%d,"subscriptionType":"max"}}`, future.UnixMilli())), nil
-	}
+	env.Keychain.login(profileDir, token(time.Now().Add(time.Hour)))
 	checks = RunDoctorWithOptions(env.load(t), env.profilesBase(), opts)
 	if c, _ := findCheck(checks, "profile/work/credentials"); c.Status != "ok" || !strings.Contains(c.Detail, "(max)") || !strings.Contains(c.Detail, "valid until") {
 		t.Errorf("--verify should show subscription and expiry: %+v", c)
 	}
 
 	// Read failure keeps the plain status.
-	keychainRead = func(string, string) ([]byte, error) { return nil, fmt.Errorf("denied") }
+	env.Keychain.readErr = fmt.Errorf("denied")
 	checks = RunDoctorWithOptions(env.load(t), env.profilesBase(), opts)
 	if c, _ := findCheck(checks, "profile/work/credentials"); c.Status != "ok" {
 		t.Errorf("read failure must not fail the check: %+v", c)

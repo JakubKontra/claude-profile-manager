@@ -25,7 +25,7 @@ func (a *App) CredentialReport(cfg *Config) []CredentialEntry {
 		profileDir := filepath.Join(a.BaseDir, name)
 		entry := CredentialEntry{Name: name}
 
-		status, err := GetCredentialStatus(profileDir)
+		status, err := GetCredentialStatus(a.Keychain, profileDir)
 		if err != nil {
 			entry.Error = err.Error()
 		} else {

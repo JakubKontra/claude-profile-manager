@@ -178,6 +178,7 @@ func TestPrintChecks(t *testing.T) {
 }
 
 func TestRunDoctorRelativeSymlinkNotBroken(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, "[profiles.test]\n")
 	mustMkdir(t, filepath.Join(env.SourceDir, "skills"))
 	profileDir := filepath.Join(env.profilesBase(), "test")
@@ -188,8 +189,6 @@ func TestRunDoctorRelativeSymlinkNotBroken(t *testing.T) {
 	if err := os.Symlink("../../claude/missing", filepath.Join(profileDir, "plugins")); err != nil {
 		t.Fatal(err)
 	}
-	stubKeychain(t, false)
-
 	for _, c := range RunDoctor(env.load(t), env.profilesBase()) {
 		switch c.Name {
 		case "profile/test/skills":

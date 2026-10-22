@@ -7,6 +7,7 @@ import (
 )
 
 func TestRemoveThenPurgeLastProfile(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, "[profiles.work]\n")
 	app := env.App
 	cfg := env.load(t)
@@ -14,10 +15,6 @@ func TestRemoveThenPurgeLastProfile(t *testing.T) {
 		t.Fatal(err)
 	}
 	dir := filepath.Join(env.profilesBase(), "work")
-	// Avoid real Keychain access; use the existing test injection.
-	oldDelete := keychainDelete
-	keychainDelete = func(string, string) error { return nil }
-	t.Cleanup(func() { keychainDelete = oldDelete })
 	if err := app.RemoveProfile(cfg, "work", RemoveOptions{}); err != nil {
 		t.Fatal(err)
 	}
