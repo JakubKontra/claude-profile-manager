@@ -13,7 +13,13 @@ type Check struct {
 	Name   string `json:"name"`
 	Status string `json:"status"` // "ok", "warn", "error"
 	Detail string `json:"detail"`
+	// Fix is the command that fixes a failed check, if there is one.
+	// "cpm install" fixes are applied by doctor --fix.
+	Fix string `json:"fix,omitempty"`
 }
+
+// installFix is the Fix that doctor --fix applies.
+const installFix = "cpm install"
 
 // DoctorOptions tunes RunDoctor.
 type DoctorOptions struct {
@@ -61,23 +67,23 @@ func RunDoctorWithOptions(cfg *Config, profilesBase string, opts DoctorOptions) 
 	// Check claude binary
 	claudePath, err := lookPath("claude")
 	if err != nil {
-		checks = append(checks, Check{"claude binary", "error", "claude not found on PATH"})
+		checks = append(checks, Check{"claude binary", "error", "claude not found on PATH", ""})
 	} else {
-		checks = append(checks, Check{"claude binary", "ok", claudePath})
+		checks = append(checks, Check{"claude binary", "ok", claudePath, ""})
 	}
 
 	// Check source dir
 	if _, err := os.Stat(cfg.SourceDir); os.IsNotExist(err) {
-		checks = append(checks, Check{"source directory", "error", fmt.Sprintf("%s does not exist", cfg.SourceDir)})
+		checks = append(checks, Check{"source directory", "error", fmt.Sprintf("%s does not exist", cfg.SourceDir), ""})
 	} else {
-		checks = append(checks, Check{"source directory", "ok", cfg.SourceDir})
+		checks = append(checks, Check{"source directory", "ok", cfg.SourceDir, ""})
 	}
 
 	// Check bin dir
 	if _, err := os.Stat(cfg.BinDir); os.IsNotExist(err) {
-		checks = append(checks, Check{"bin directory", "warn", fmt.Sprintf("%s does not exist (will be created on install)", cfg.BinDir)})
+		checks = append(checks, Check{"bin directory", "warn", fmt.Sprintf("%s does not exist (will be created on install)", cfg.BinDir), installFix})
 	} else {
-		checks = append(checks, Check{"bin directory", "ok", cfg.BinDir})
+		checks = append(checks, Check{"bin directory", "ok", cfg.BinDir, ""})
 	}
 
 	// Check bin dir is on PATH
@@ -94,38 +100,38 @@ func RunDoctorWithOptions(cfg *Config, profilesBase string, opts DoctorOptions) 
 		}
 	}
 	if binOnPath {
-		checks = append(checks, Check{"bin dir on PATH", "ok", cfg.BinDir})
+		checks = append(checks, Check{"bin dir on PATH", "ok", cfg.BinDir, ""})
 	} else {
-		checks = append(checks, Check{"bin dir on PATH", "warn", fmt.Sprintf("%s is not on PATH", cfg.BinDir)})
+		checks = append(checks, Check{"bin dir on PATH", "warn", fmt.Sprintf("%s is not on PATH", cfg.BinDir), ""})
 	}
 
-	checks = append(checks, Check{"config version", "ok", fmt.Sprint(cfg.Version)})
+	checks = append(checks, Check{"config version", "ok", fmt.Sprint(cfg.Version), ""})
 
 	// Unknown config keys are usually typos.
 	if len(cfg.Undecoded) > 0 {
-		checks = append(checks, Check{"config keys", "warn", "unknown keys (typo?): " + strings.Join(cfg.Undecoded, ", ")})
+		checks = append(checks, Check{"config keys", "warn", "unknown keys (typo?): " + strings.Join(cfg.Undecoded, ", "), ""})
 	}
 
 	// git is needed once cloud sync is configured.
 	if cfg.Cloud != nil {
 		if gitPath, err := lookPath("git"); err != nil {
-			checks = append(checks, Check{"git binary", "error", "git not found on PATH (needed for cpm cloud)"})
+			checks = append(checks, Check{"git binary", "error", "git not found on PATH (needed for cpm cloud)", ""})
 		} else {
-			checks = append(checks, Check{"git binary", "ok", gitPath})
+			checks = append(checks, Check{"git binary", "ok", gitPath, ""})
 		}
 	}
 
 	// Shell hook installed?
 	if rc := hookInstalledIn(home); rc != "" {
-		checks = append(checks, Check{"shell hook", "ok", rc})
+		checks = append(checks, Check{"shell hook", "ok", rc, ""})
 	} else {
-		checks = append(checks, Check{"shell hook", "warn", "not found in shell rc files (add: eval \"$(cpm hook)\")"})
+		checks = append(checks, Check{"shell hook", "warn", "not found in shell rc files (add: eval \"$(cpm hook)\")", ""})
 	}
 
 	// [[match]] rules must point at configured profiles.
 	for i, r := range cfg.Match {
 		if _, ok := cfg.Profiles[r.Profile]; !ok {
-			checks = append(checks, Check{fmt.Sprintf("match #%d", i+1), "error", fmt.Sprintf("profile %q (%s) is not in config", r.Profile, r.describe())})
+			checks = append(checks, Check{fmt.Sprintf("match #%d", i+1), "error", fmt.Sprintf("profile %q (%s) is not in config", r.Profile, r.describe()), ""})
 		}
 	}
 
@@ -135,7 +141,7 @@ func RunDoctorWithOptions(cfg *Config, profilesBase string, opts DoctorOptions) 
 		profile := cfg.Profiles[name]
 
 		if _, err := os.Stat(profileDir); os.IsNotExist(err) {
-			checks = append(checks, Check{fmt.Sprintf("profile/%s", name), "warn", "not installed (run cpm install)"})
+			checks = append(checks, Check{fmt.Sprintf("profile/%s", name), "warn", "not installed (run cpm install)", installFix})
 			continue
 		}
 
@@ -147,7 +153,11 @@ func RunDoctorWithOptions(cfg *Config, profilesBase string, opts DoctorOptions) 
 				continue // Not a symlink or doesn't exist
 			}
 			if _, err := os.Stat(resolveLinkTarget(link, target)); os.IsNotExist(err) {
-				checks = append(checks, Check{fmt.Sprintf("profile/%s/%s", name, dir), "error", fmt.Sprintf("broken symlink -> %s", target)})
+				fix := ""
+				if fileExistsAt(filepath.Join(cfg.SourceDir, dir)) {
+					fix = installFix // install relinks it to the source dir
+				}
+				checks = append(checks, Check{fmt.Sprintf("profile/%s/%s", name, dir), "error", fmt.Sprintf("broken symlink -> %s", target), fix})
 			}
 		}
 
@@ -162,15 +172,15 @@ func RunDoctorWithOptions(cfg *Config, profilesBase string, opts DoctorOptions) 
 		}
 		switch via := externalAuth(profile); {
 		case err != nil && via != "":
-			checks = append(checks, Check{checkName, "ok", "no login needed (uses " + via + ")"})
+			checks = append(checks, Check{checkName, "ok", "no login needed (uses " + via + ")", ""})
 		case err != nil:
-			checks = append(checks, Check{checkName, "warn", "not authenticated (run cpm login " + name + ")"})
+			checks = append(checks, Check{checkName, "warn", "not authenticated (run cpm login " + name + ")", "cpm login " + name})
 		case status.Expired:
-			checks = append(checks, Check{checkName, "warn", "credentials expired (run cpm login " + name + ")"})
+			checks = append(checks, Check{checkName, "warn", "credentials expired (run cpm login " + name + ")", "cpm login " + name})
 		case status.Source == "file" && time.Since(status.LastUpdated) > 7*24*time.Hour:
-			checks = append(checks, Check{checkName, "warn", describeCredentials(status)})
+			checks = append(checks, Check{checkName, "warn", describeCredentials(status), ""})
 		default:
-			checks = append(checks, Check{checkName, "ok", describeCredentials(status)})
+			checks = append(checks, Check{checkName, "ok", describeCredentials(status), ""})
 		}
 
 		// Check wrapper script
@@ -178,25 +188,25 @@ func RunDoctorWithOptions(cfg *Config, profilesBase string, opts DoctorOptions) 
 		wrapperCheck := fmt.Sprintf("profile/%s/wrapper", name)
 		switch existing, err := os.ReadFile(scriptPath); {
 		case os.IsNotExist(err):
-			checks = append(checks, Check{wrapperCheck, "warn", "wrapper script missing (run cpm install)"})
+			checks = append(checks, Check{wrapperCheck, "warn", "wrapper script missing (run cpm install)", installFix})
 		case err != nil:
-			checks = append(checks, Check{wrapperCheck, "error", err.Error()})
+			checks = append(checks, Check{wrapperCheck, "error", err.Error(), ""})
 		case string(existing) != GenerateWrapper(name, profileDir, profile):
-			checks = append(checks, Check{wrapperCheck, "warn", "wrapper outdated (run cpm install)"})
+			checks = append(checks, Check{wrapperCheck, "warn", "wrapper outdated (run cpm install)", installFix})
 		default:
-			checks = append(checks, Check{wrapperCheck, "ok", scriptPath})
+			checks = append(checks, Check{wrapperCheck, "ok", scriptPath, ""})
 		}
 	}
 
 	// A login in ~/.claude while no profile has one: suggest adopting it.
 	if loggedIn == 0 && len(cfg.Profiles) > 0 {
 		if kc.Exists(keychainServiceBase, keychainAccountFor(opts.User)) || fileExistsAt(filepath.Join(home, ".claude", ".credentials.json")) {
-			checks = append(checks, Check{"default login", "warn", "~/.claude has a login and no profile does; use it with cpm adopt <profile>"})
+			checks = append(checks, Check{"default login", "warn", "~/.claude has a login and no profile does; use it with cpm adopt <profile>", "cpm adopt <profile>"})
 		}
 	}
 
 	for _, name := range orphanProfiles(cfg, profilesBase) {
-		checks = append(checks, Check{"orphan/" + name, "warn", fmt.Sprintf("profile data remains; remove with cpm remove %s --purge", name)})
+		checks = append(checks, Check{"orphan/" + name, "warn", fmt.Sprintf("profile data remains; remove with cpm remove %s --purge", name), "cpm remove " + name + " --purge"})
 	}
 	return checks
 }

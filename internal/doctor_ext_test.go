@@ -121,3 +121,58 @@ func TestRunDoctorVerifyKeychain(t *testing.T) {
 		t.Errorf("read failure must not fail the check: %+v", c)
 	}
 }
+
+func TestDoctorFix(t *testing.T) {
+	t.Parallel()
+	env := newTestEnv(t, "[profiles.work]\n[profiles.home]\n")
+	mustWrite(t, filepath.Join(env.SourceDir, "settings.json"), `{}`)
+	mustMkdir(t, filepath.Join(env.SourceDir, "skills"))
+	if err := env.App.InstallProfiles(env.load(t), InstallOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	// Break things install can repair: a deleted wrapper, a broken
+	// symlink into the source dir and a profile that was never installed.
+	os.Remove(filepath.Join(env.BinDir, "claude-work"))
+	link := filepath.Join(env.profilesBase(), "work", "skills")
+	os.Remove(link)
+	if err := os.Symlink(filepath.Join(env.Root, "gone"), link); err != nil {
+		t.Fatal(err)
+	}
+	writeTestConfig(t, env, "[profiles.work]\n[profiles.home]\n[profiles.new]\n")
+	opts := DoctorOptions{LookPath: noLookPath}
+
+	before := env.App.DoctorReportFor(env.load(t), opts)
+	for _, name := range []string{"profile/work/wrapper", "profile/work/skills", "profile/new"} {
+		if c, ok := findCheck(before.Checks, name); !ok || c.Status == "ok" || c.Fix != installFix {
+			t.Errorf("%s before: %+v", name, c)
+		}
+	}
+	if c, _ := findCheck(before.Checks, "profile/home/credentials"); c.Fix != "cpm login home" {
+		t.Errorf("credentials hint: %+v", c)
+	}
+
+	after, err := env.App.DoctorFix(env.load(t), opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range after.Checks {
+		if c.Status != "ok" && c.Fix == installFix {
+			t.Errorf("not fixed: %+v", c)
+		}
+	}
+	if !fileExists(filepath.Join(env.BinDir, "claude-work")) || !fileExists(filepath.Join(env.profilesBase(), "new")) {
+		t.Error("wrapper or profile not restored")
+	}
+	if !strings.Contains(env.Out.String(), "Fixing 3 checks with cpm install") {
+		t.Errorf("output:\n%s", env.Out.String())
+	}
+
+	// Nothing to fix: no install runs.
+	env.Out.Reset()
+	if _, err := env.App.DoctorFix(env.load(t), opts); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(env.Out.String(), "Fixing") {
+		t.Errorf("second fix ran install:\n%s", env.Out.String())
+	}
+}

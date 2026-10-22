@@ -329,7 +329,7 @@ In patterns, `*` matches within one path segment and `**` matches any depth; `~/
 | `cpm list [--json]` | List all profiles with status |
 | `cpm which [--json]` | Show active profile (from env, `.claude-profile` or `[[match]]`) |
 | `cpm status [--json]` | Check sync divergence |
-| `cpm doctor [--json] [--verify]` | Diagnose issues; exit code 3 on errors |
+| `cpm doctor [--json] [--verify] [--fix]` | Diagnose issues; `--fix` repairs what `cpm install` can; exit code 3 on errors |
 | `cpm credentials [--json]` | Show account, expiry and subscription for all profiles |
 | `cpm adopt <profile> [--from dir] [--move] [--dry-run] [--json]` | Copy an existing Claude Code login (default `~/.claude`) into a profile |
 | `cpm login [profile...] [--all] [--json]` | Run `claude auth login` for profiles one at a time, then print a summary |

@@ -169,9 +169,9 @@ func TestPrintChecks(t *testing.T) {
 	t.Parallel()
 	// Just verify it doesn't panic
 	checks := []Check{
-		{"test ok", "ok", "details"},
-		{"test warn", "warn", "details"},
-		{"test error", "error", "details"},
+		{Name: "test ok", Status: "ok", Detail: "details"},
+		{Name: "test warn", Status: "warn", Detail: "details"},
+		{Name: "test error", Status: "error", Detail: "details", Fix: "cpm install"},
 	}
 	app, _ := testApp(t)
 	app.PrintChecks(checks)

@@ -43,6 +43,7 @@ cpm credentials [flags]
     --json bool
 cpm direnv <profile>
 cpm doctor [flags]
+    --fix bool
     --json bool
     --verify bool
 cpm edit
