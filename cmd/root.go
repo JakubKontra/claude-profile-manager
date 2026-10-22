@@ -36,6 +36,7 @@ func Execute() {
 		direnvCmd(),
 		useCmd(),
 		whichCmd(),
+		resolveCmd(),
 		initCmd(),
 		doctorCmd(),
 		runCmd(),

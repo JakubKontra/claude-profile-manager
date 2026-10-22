@@ -13,14 +13,14 @@ import (
 func (a *App) Use(cfg *Config, name, cwd string, opts UseOptions) (string, error) {
 	if name == "auto" {
 		if _, isProfile := cfg.Profiles[name]; !isProfile {
-			detected, err := DetectProfileFile(cwd)
-			if err != nil {
-				return "", fmt.Errorf("no .claude-profile found in current or parent directories")
+			res, ok := a.ResolveProfile(cfg, cwd)
+			if !ok {
+				return "", fmt.Errorf("no .claude-profile in current or parent directories and no [[match]] rule applies")
 			}
-			if _, ok := cfg.Profiles[detected]; !ok {
-				return "", fmt.Errorf("profile %q from .claude-profile not found in config", detected)
+			if _, exists := cfg.Profiles[res.Profile]; !exists {
+				return "", fmt.Errorf("profile %q from %s not found in config", res.Profile, res.origin())
 			}
-			name = detected
+			name = res.Profile
 		}
 	}
 
