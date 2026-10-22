@@ -28,6 +28,8 @@ type DoctorOptions struct {
 	Keychain KeychainStore
 	// PathEnv is the PATH searched for the bin dir; empty means $PATH.
 	PathEnv string
+	// User names the Keychain account; empty means $USER.
+	User string
 }
 
 // rcFiles are the shell startup files scanned for the cpm hook.
@@ -51,6 +53,10 @@ func RunDoctorWithOptions(cfg *Config, profilesBase string, opts DoctorOptions) 
 	if home == "" {
 		home, _ = os.UserHomeDir()
 	}
+	if opts.User == "" {
+		opts.User = os.Getenv("USER")
+	}
+	loggedIn := 0
 
 	// Check claude binary
 	claudePath, err := lookPath("claude")
@@ -151,6 +157,9 @@ func RunDoctorWithOptions(cfg *Config, profilesBase string, opts DoctorOptions) 
 		if err == nil && opts.Verify && status.Source == "keychain" {
 			status = verifyKeychainToken(kc, profileDir, status)
 		}
+		if err == nil || externalAuth(profile) != "" {
+			loggedIn++
+		}
 		switch via := externalAuth(profile); {
 		case err != nil && via != "":
 			checks = append(checks, Check{checkName, "ok", "no login needed (uses " + via + ")"})
@@ -176,6 +185,13 @@ func RunDoctorWithOptions(cfg *Config, profilesBase string, opts DoctorOptions) 
 			checks = append(checks, Check{wrapperCheck, "warn", "wrapper outdated (run cpm install)"})
 		default:
 			checks = append(checks, Check{wrapperCheck, "ok", scriptPath})
+		}
+	}
+
+	// A login in ~/.claude while no profile has one: suggest adopting it.
+	if loggedIn == 0 && len(cfg.Profiles) > 0 {
+		if kc.Exists(keychainServiceBase, keychainAccountFor(opts.User)) || fileExistsAt(filepath.Join(home, ".claude", ".credentials.json")) {
+			checks = append(checks, Check{"default login", "warn", "~/.claude has a login and no profile does; use it with cpm adopt <profile>"})
 		}
 	}
 

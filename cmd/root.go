@@ -59,6 +59,7 @@ func NewRoot() *cobra.Command {
 		execCmd(),
 		cloneCmd(),
 		addCmd(),
+		adoptCmd(),
 		removeCmd(),
 		renameCmd(),
 		editCmd(),

@@ -216,6 +216,8 @@ claude-work auth logout    # clears only the work entry
 claude-work auth login     # OAuth in the browser
 ```
 
+Already logged in with plain `claude`? `cpm adopt <profile>` copies that login from `~/.claude` (or `--from <dir>`) into a profile, adding the profile if needed, so you skip the browser login. `--move` removes it from the source afterwards, and `--dry-run` shows the steps.
+
 To log in several profiles in one go, for example on a new machine, use `cpm login`. It runs `claude auth login` in each profile, one after another, and prints a summary:
 
 ```bash
@@ -329,6 +331,7 @@ In patterns, `*` matches within one path segment and `**` matches any depth; `~/
 | `cpm status [--json]` | Check sync divergence |
 | `cpm doctor [--json] [--verify]` | Diagnose issues; exit code 3 on errors |
 | `cpm credentials [--json]` | Show account, expiry and subscription for all profiles |
+| `cpm adopt <profile> [--from dir] [--move] [--dry-run] [--json]` | Copy an existing Claude Code login (default `~/.claude`) into a profile |
 | `cpm login [profile...] [--all] [--json]` | Run `claude auth login` for profiles one at a time, then print a summary |
 
 ### Cloud

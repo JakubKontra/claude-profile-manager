@@ -210,3 +210,37 @@ sessions of the profile first.`,
 	cmd.Flags().BoolVar(&asJSON, "json", false, "output the steps as JSON (progress goes to stderr)")
 	return cmd
 }
+
+func adoptCmd() *cobra.Command {
+	var opts internal.AdoptOptions
+	var asJSON bool
+	cmd := &cobra.Command{
+		Use:   "adopt <profile>",
+		Short: "Use an existing Claude Code login for a profile",
+		Long: `Copy the login of an existing Claude Code setup (by default ~/.claude) into
+a profile, so the profile needs no new login. A profile that is not in the
+config yet is added and installed first.
+
+The Keychain login (macOS) or .credentials.json is copied, along with the
+account shown by Claude Code. With --move the login is deleted from the
+source afterwards. If a step fails, the steps already done are reverted.`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := app.LoadCloudConfig()
+			if err != nil {
+				return err
+			}
+			app.JSON = asJSON
+			report, err := app.AdoptLogin(cfg, args[0], opts)
+			if err != nil || !asJSON {
+				return err
+			}
+			return app.PrintJSON(report)
+		},
+	}
+	cmd.Flags().StringVar(&opts.From, "from", "", "Claude Code config dir to take the login from (default ~/.claude)")
+	cmd.Flags().BoolVar(&opts.Move, "move", false, "delete the login from the source afterwards")
+	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "show the steps without changing anything")
+	cmd.Flags().BoolVar(&asJSON, "json", false, "output the steps as JSON (progress goes to stderr)")
+	return cmd
+}

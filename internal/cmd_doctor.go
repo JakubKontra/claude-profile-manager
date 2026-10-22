@@ -28,6 +28,9 @@ func (a *App) DoctorReportFor(cfg *Config, opts DoctorOptions) DoctorReport {
 	if opts.LookPath == nil {
 		opts.LookPath = a.lookPath
 	}
+	if opts.User == "" {
+		opts.User = a.Getenv("USER")
+	}
 	checks := RunDoctorWithOptions(cfg, a.BaseDir, opts)
 	report := DoctorReport{Checks: checks}
 	for _, c := range checks {
