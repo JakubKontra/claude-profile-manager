@@ -51,7 +51,7 @@ func TestRenameProfile(t *testing.T) {
 	base := env.profilesBase()
 	oldDir, newDir := filepath.Join(base, "work"), filepath.Join(base, "job")
 
-	if err := env.App.RenameProfile(env.load(t), "work", "job", false); err != nil {
+	if err := renameProfile(env.App, env.load(t), "work", "job", false); err != nil {
 		t.Fatal(err)
 	}
 	cfg := env.load(t)
@@ -97,7 +97,7 @@ func TestRenameProfileDryRun(t *testing.T) {
 	t.Parallel()
 	env := renameEnv(t)
 	before := snapshotTree(t, env.Root)
-	if err := env.App.RenameProfile(env.load(t), "work", "job", true); err != nil {
+	if err := renameProfile(env.App, env.load(t), "work", "job", true); err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(before, snapshotTree(t, env.Root)) {
@@ -123,7 +123,7 @@ func TestRenameProfileRollsBack(t *testing.T) {
 	}
 	t.Cleanup(func() { os.Chmod(env.BinDir, 0o755) })
 
-	err := env.App.RenameProfile(env.load(t), "work", "job", false)
+	err := renameProfile(env.App, env.load(t), "work", "job", false)
 	if err == nil || !strings.Contains(err.Error(), "wrapper") {
 		t.Fatalf("err = %v, want wrapper failure", err)
 	}
@@ -184,7 +184,7 @@ func TestRenameProfileKeychainWriteFails(t *testing.T) {
 	t.Parallel()
 	env := renameEnv(t)
 	env.Keychain.writeErr = errors.New("denied")
-	if err := env.App.RenameProfile(env.load(t), "work", "job", false); err == nil || !strings.Contains(err.Error(), "denied") {
+	if err := renameProfile(env.App, env.load(t), "work", "job", false); err == nil || !strings.Contains(err.Error(), "denied") {
 		t.Fatalf("err = %v", err)
 	}
 	if cfg := env.load(t); cfg.Profiles["work"] == nil || !fileExists(filepath.Join(env.profilesBase(), "work")) {
@@ -207,7 +207,7 @@ func TestRenameProfileRejects(t *testing.T) {
 		{"work", "stale", "Keychain already has an entry"},
 	}
 	for _, c := range cases {
-		if err := env.App.RenameProfile(env.load(t), c.old, c.new, false); err == nil || !strings.Contains(err.Error(), c.want) {
+		if err := renameProfile(env.App, env.load(t), c.old, c.new, false); err == nil || !strings.Contains(err.Error(), c.want) {
 			t.Errorf("rename %s -> %s: err = %v, want %q", c.old, c.new, err, c.want)
 		}
 	}
@@ -219,7 +219,7 @@ func TestRenameProfileRejects(t *testing.T) {
 func TestRenameProfileNotInstalled(t *testing.T) {
 	t.Parallel()
 	env := newTestEnv(t, "[profiles.work]\n")
-	if err := env.App.RenameProfile(env.load(t), "work", "job", false); err != nil {
+	if err := renameProfile(env.App, env.load(t), "work", "job", false); err != nil {
 		t.Fatal(err)
 	}
 	if env.load(t).Profiles["job"] == nil {
@@ -250,4 +250,9 @@ func TestRenameProfileTableForms(t *testing.T) {
 	if _, _, err := RenameMatchProfile([]byte("match = [{profile = \"work\"}]\n"), "work", "job"); err == nil {
 		t.Error("inline match rules must be refused")
 	}
+}
+
+func renameProfile(app *App, cfg *Config, old, new string, dryRun bool) error {
+	_, err := app.RenameProfile(cfg, old, new, dryRun)
+	return err
 }

@@ -35,6 +35,10 @@ type App struct {
 	Home string
 	// Env is the environment as KEY=value pairs, read through Getenv.
 	Env []string
+
+	// JSON keeps Out for a single JSON document: progress messages and the
+	// output of programs cpm runs go to Err instead.
+	JSON bool
 }
 
 // NewApp returns an App for configPath wired to the process's stdio.
@@ -104,6 +108,15 @@ func (a *App) PrintJSON(v any) error {
 	enc := json.NewEncoder(a.Out)
 	enc.SetIndent("", "  ")
 	return enc.Encode(v)
+}
+
+// progressf prints a progress message: to Out, or to Err in JSON mode.
+func (a *App) progressf(format string, args ...any) {
+	w := a.Out
+	if a.JSON {
+		w = a.Err
+	}
+	fmt.Fprintf(w, format, args...)
 }
 
 func (a *App) outf(format string, args ...any) { fmt.Fprintf(a.Out, format, args...) }

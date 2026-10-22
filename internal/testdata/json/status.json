@@ -1,0 +1,9 @@
+{
+  "in_sync": false,
+  "diverged": [
+    {
+      "profile": "work",
+      "file": "settings.json"
+    }
+  ]
+}

@@ -278,32 +278,73 @@ func (a *App) CloudPush(opts PushOptions) error {
 
 // CloudDiff stages the live files into the repo and shows the diff against
 // the last sync.
-func (a *App) CloudDiff() error {
+// CloudDiff stages the local files in the cloud repo and returns what
+// changed since the last sync: the file list and the full patch.
+func (a *App) CloudDiff() (CloudDiffReport, error) {
+	report := CloudDiffReport{Files: []CloudDiffFile{}}
 	repoDir := CloudRepoDir(a.ConfigPath)
 	if err := ensureCloudRepo(repoDir); err != nil {
-		return err
+		return report, err
 	}
 	cfg, err := a.LoadCloudConfig()
 	if err != nil {
-		return err
+		return report, err
 	}
 	files, err := a.GatherSyncFiles(cfg, a.ConfigPath)
 	if err != nil {
-		return err
+		return report, err
 	}
 	if err := a.stageSyncFiles(repoDir, cfg, files); err != nil {
-		return err
+		return report, err
 	}
-	diff, _ := a.git(repoDir, "diff", "--cached", "--stat")
-	full, _ := a.git(repoDir, "diff", "--cached")
-	if strings.TrimSpace(full) == "" {
+	names, _ := a.git(repoDir, "diff", "--cached", "--name-status")
+	for _, line := range strings.Split(strings.TrimSpace(names), "\n") {
+		fields := strings.Split(line, "\t")
+		if len(fields) < 2 {
+			continue
+		}
+		report.Files = append(report.Files, CloudDiffFile{Path: fields[len(fields)-1], Status: diffStatus(fields[0])})
+	}
+	report.stat, _ = a.git(repoDir, "diff", "--cached", "--stat")
+	report.patch, _ = a.git(repoDir, "diff", "--cached")
+	return report, nil
+}
+
+// CloudDiffReport is the result of `cpm cloud diff`; the patch is only
+// part of the text output.
+type CloudDiffReport struct {
+	Files []CloudDiffFile `json:"files"`
+	stat  string
+	patch string
+}
+
+// CloudDiffFile is one changed file: added, modified, deleted or renamed.
+type CloudDiffFile struct {
+	Path   string `json:"path"`
+	Status string `json:"status"`
+}
+
+func diffStatus(code string) string {
+	switch code[:1] {
+	case "A":
+		return "added"
+	case "D":
+		return "deleted"
+	case "R":
+		return "renamed"
+	}
+	return "modified"
+}
+
+// RenderCloudDiff prints the diffstat and the patch.
+func (a *App) RenderCloudDiff(r CloudDiffReport) {
+	if strings.TrimSpace(r.patch) == "" {
 		a.outln("No local changes since the last sync.")
-		return nil
+		return
 	}
-	a.outln(strings.TrimSpace(diff))
+	a.outln(strings.TrimSpace(r.stat))
 	a.outln()
-	a.out(full)
-	return nil
+	a.out(r.patch)
 }
 
 // stageSyncFiles copies the live files into the repo working tree, removes
@@ -460,56 +501,82 @@ func (a *App) CloudPull(dryRun bool) error {
 }
 
 // CloudStatus shows the state of the cloud sync repo.
-func (a *App) CloudStatus() error {
+func (a *App) CloudStatus() (CloudStatusReport, error) {
 	repoDir := CloudRepoDir(a.ConfigPath)
-
-	// Check if initialized
+	report := CloudStatusReport{Repo: repoDir, Recent: []CloudCommit{}, Modified: []string{}}
 	if _, err := os.Stat(filepath.Join(repoDir, ".git")); os.IsNotExist(err) {
-		a.outln("Cloud sync not initialized.")
-		a.outln("Run 'cpm cloud init' to get started.")
-		return nil
+		return report, nil
 	}
+	report.Initialized = true
 
-	a.outf("Cloud repo: %s\n", repoDir)
-
-	// Remote
 	if a.hasOriginRemote(repoDir) {
 		remote, _ := a.git(repoDir, "remote", "get-url", "origin")
-		a.outf("Remote:     %s", remote)
+		report.Remote = strings.TrimSpace(remote)
+	}
+
+	log, _ := a.git(repoDir, "log", "--format=%h %s", "-5")
+	for _, line := range strings.Split(strings.TrimSpace(log), "\n") {
+		if hash, subject, ok := strings.Cut(line, " "); ok {
+			report.Recent = append(report.Recent, CloudCommit{Hash: hash, Subject: subject})
+		}
+	}
+
+	cfg, err := a.LoadCloudConfig()
+	if err != nil {
+		return report, err
+	}
+	files, _ := a.GatherSyncFiles(cfg, a.ConfigPath)
+	for repoPath, srcPath := range files {
+		if filesAreDifferent(srcPath, filepath.Join(repoDir, repoPath)) {
+			report.Modified = append(report.Modified, repoPath)
+		}
+	}
+	sort.Strings(report.Modified)
+	return report, nil
+}
+
+// CloudStatusReport is the result of `cpm cloud status`.
+type CloudStatusReport struct {
+	Initialized bool          `json:"initialized"`
+	Repo        string        `json:"repo"`
+	Remote      string        `json:"remote,omitempty"`
+	Recent      []CloudCommit `json:"recent"`
+	// Modified lists synced files changed locally since the last push.
+	Modified []string `json:"modified"`
+}
+
+// CloudCommit is one recent sync in the cloud repo.
+type CloudCommit struct {
+	Hash    string `json:"hash"`
+	Subject string `json:"subject"`
+}
+
+// RenderCloudStatus prints the human-readable cloud status.
+func (a *App) RenderCloudStatus(r CloudStatusReport) {
+	if !r.Initialized {
+		a.outln("Cloud sync not initialized.")
+		a.outln("Run 'cpm cloud init' to get started.")
+		return
+	}
+	a.outf("Cloud repo: %s\n", r.Repo)
+	if r.Remote != "" {
+		a.outf("Remote:     %s\n", r.Remote)
 	} else {
 		a.outln("Remote:     (none)")
 	}
-
-	// Last commit
-	log, _ := a.git(repoDir, "log", "--oneline", "-5")
-	if log != "" {
+	if len(r.Recent) > 0 {
 		a.outf("\nRecent syncs:\n")
-		for _, line := range strings.Split(strings.TrimSpace(log), "\n") {
-			a.outf("  %s\n", line)
+		for _, c := range r.Recent {
+			a.outf("  %s %s\n", c.Hash, c.Subject)
 		}
 	}
-
-	// Local changes
-	cfg, err := a.LoadCloudConfig()
-	if err != nil {
-		return err
-	}
-
 	a.outln("\nLocal changes (not yet pushed):")
-	hasChanges := false
-	files, _ := a.GatherSyncFiles(cfg, a.ConfigPath)
-	for repoPath, srcPath := range files {
-		dstPath := filepath.Join(repoDir, repoPath)
-		if filesAreDifferent(srcPath, dstPath) {
-			a.outf("  modified: %s\n", repoPath)
-			hasChanges = true
-		}
+	for _, path := range r.Modified {
+		a.outf("  modified: %s\n", path)
 	}
-	if !hasChanges {
+	if len(r.Modified) == 0 {
 		a.outln("  (no changes)")
 	}
-
-	return nil
 }
 
 // CloudRemote sets or updates the remote URL.

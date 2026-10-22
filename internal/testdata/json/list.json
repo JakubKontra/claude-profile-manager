@@ -1,0 +1,23 @@
+[
+  {
+    "name": "personal",
+    "command": "claude-personal",
+    "description": "Personal",
+    "dir": "$ROOT/profiles/personal",
+    "installed": true,
+    "authenticated": false,
+    "expired": false,
+    "current": false
+  },
+  {
+    "name": "work",
+    "command": "claude-work",
+    "description": "Work",
+    "dir": "$ROOT/profiles/work",
+    "installed": true,
+    "authenticated": true,
+    "credential_source": "keychain",
+    "expired": false,
+    "current": true
+  }
+]

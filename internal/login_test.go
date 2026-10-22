@@ -57,7 +57,7 @@ CLAUDE_CODE_USE_VERTEX = "1"
 `, nil)
 	env.Keychain.login(filepath.Join(env.profilesBase(), "done"), "token")
 
-	if err := env.App.Login(env.load(t), nil, true); err != nil {
+	if err := loginAndRender(env.App, env.load(t), nil, true); err != nil {
 		t.Fatal(err)
 	}
 	// Sorted order, no profile flags for the auth subcommand.
@@ -75,7 +75,7 @@ CLAUDE_CODE_USE_VERTEX = "1"
 	// Everything is logged in now.
 	*calls = nil
 	env.Out.Reset()
-	if err := env.App.Login(env.load(t), nil, true); err != nil {
+	if err := loginAndRender(env.App, env.load(t), nil, true); err != nil {
 		t.Fatal(err)
 	}
 	if len(*calls) != 0 {
@@ -87,7 +87,7 @@ func TestLoginNamedRunsEvenWhenLoggedIn(t *testing.T) {
 	t.Parallel()
 	env, calls := loginEnv(t, "[profiles.a]\n[profiles.b]\n", nil)
 	env.Keychain.login(filepath.Join(env.profilesBase(), "b"), "token")
-	if err := env.App.Login(env.load(t), []string{"b", "a", "b"}, false); err != nil {
+	if err := loginAndRender(env.App, env.load(t), []string{"b", "a", "b"}, false); err != nil {
 		t.Fatal(err)
 	}
 	if want := []string{"b: claude auth login", "a: claude auth login"}; !reflect.DeepEqual(*calls, want) {
@@ -98,7 +98,7 @@ func TestLoginNamedRunsEvenWhenLoggedIn(t *testing.T) {
 func TestLoginContinuesAfterFailure(t *testing.T) {
 	t.Parallel()
 	env, calls := loginEnv(t, "[profiles.a]\n[profiles.b]\n", map[string]bool{"a": true})
-	err := env.App.Login(env.load(t), nil, true)
+	err := loginAndRender(env.App, env.load(t), nil, true)
 	if !errors.Is(err, ErrLoginFailed) {
 		t.Fatalf("err = %v, want ErrLoginFailed", err)
 	}
@@ -123,7 +123,7 @@ func TestLoginArgumentErrors(t *testing.T) {
 		{[]string{"a"}, true, "or pass --all"},
 		{[]string{"nope"}, false, `unknown profile "nope"`},
 	} {
-		if err := env.App.Login(cfg, c.names, c.all); err == nil || !strings.Contains(err.Error(), c.want) {
+		if err := loginAndRender(env.App, cfg, c.names, c.all); err == nil || !strings.Contains(err.Error(), c.want) {
 			t.Errorf("Login(%v, %v) = %v, want %q", c.names, c.all, err, c.want)
 		}
 	}
@@ -136,7 +136,7 @@ func TestLoginNotInstalled(t *testing.T) {
 	t.Parallel()
 	env, calls := loginEnv(t, "[profiles.a]\n", nil)
 	writeTestConfig(t, env, "[profiles.a]\n[profiles.new]\n")
-	if err := env.App.Login(env.load(t), []string{"new"}, false); !errors.Is(err, ErrLoginFailed) {
+	if err := loginAndRender(env.App, env.load(t), []string{"new"}, false); !errors.Is(err, ErrLoginFailed) {
 		t.Fatalf("err = %v", err)
 	}
 	if len(*calls) != 0 || !strings.Contains(env.Out.String(), "not installed (run cpm install)") {
@@ -175,4 +175,11 @@ func TestDoctorSuggestsLogin(t *testing.T) {
 	if c, _ := findCheck(checks, "profile/vertex/credentials"); c.Status != "ok" || c.Detail != "no login needed (uses CLAUDE_CODE_USE_VERTEX)" {
 		t.Errorf("vertex: %+v", c)
 	}
+}
+
+// loginAndRender runs Login and prints its summary like the command does.
+func loginAndRender(app *App, cfg *Config, names []string, all bool) error {
+	report, err := app.Login(cfg, names, all)
+	app.RenderLoginReport(report)
+	return err
 }

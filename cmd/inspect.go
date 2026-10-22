@@ -28,7 +28,8 @@ func listCmd() *cobra.Command {
 }
 
 func statusCmd() *cobra.Command {
-	return &cobra.Command{
+	var asJSON bool
+	cmd := &cobra.Command{
 		Use:   "status",
 		Short: "Show sync status of all profiles",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -36,10 +37,16 @@ func statusCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			app.ShowStatus(cfg)
+			report := app.Status(cfg)
+			if asJSON {
+				return app.PrintJSON(report)
+			}
+			app.RenderStatus(report)
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&asJSON, "json", false, "output as JSON")
+	return cmd
 }
 
 func doctorCmd() *cobra.Command {

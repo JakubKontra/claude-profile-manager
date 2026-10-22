@@ -1,0 +1,27 @@
+{
+  "old": "work",
+  "new": "job",
+  "dry_run": true,
+  "steps": [
+    {
+      "kind": "keychain",
+      "detail": "copy login \"Claude Code-credentials-HASH\" -\u003e \"Claude Code-credentials-HASH\""
+    },
+    {
+      "kind": "move",
+      "detail": "$ROOT/profiles/work -\u003e $ROOT/profiles/job"
+    },
+    {
+      "kind": "config",
+      "detail": "rename [profiles.work] in $ROOT/profiles/config.toml and 1 [[match]] rule"
+    },
+    {
+      "kind": "wrapper",
+      "detail": "$ROOT/bin/claude-work -\u003e $ROOT/bin/claude-job"
+    },
+    {
+      "kind": "keychain",
+      "detail": "delete old login \"Claude Code-credentials-HASH\""
+    }
+  ]
+}

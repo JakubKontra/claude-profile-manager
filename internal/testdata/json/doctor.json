@@ -1,0 +1,57 @@
+{
+  "ok": false,
+  "errors": 1,
+  "warnings": 2,
+  "checks": [
+    {
+      "name": "claude binary",
+      "status": "error",
+      "detail": "claude not found on PATH"
+    },
+    {
+      "name": "source directory",
+      "status": "ok",
+      "detail": "$ROOT/claude"
+    },
+    {
+      "name": "bin directory",
+      "status": "ok",
+      "detail": "$ROOT/bin"
+    },
+    {
+      "name": "bin dir on PATH",
+      "status": "ok",
+      "detail": "$ROOT/bin"
+    },
+    {
+      "name": "config version",
+      "status": "ok",
+      "detail": "1"
+    },
+    {
+      "name": "shell hook",
+      "status": "warn",
+      "detail": "not found in shell rc files (add: eval \"$(cpm hook)\")"
+    },
+    {
+      "name": "profile/personal/credentials",
+      "status": "warn",
+      "detail": "not authenticated (run cpm login personal)"
+    },
+    {
+      "name": "profile/personal/wrapper",
+      "status": "ok",
+      "detail": "$ROOT/bin/claude-personal"
+    },
+    {
+      "name": "profile/work/credentials",
+      "status": "ok",
+      "detail": "keychain"
+    },
+    {
+      "name": "profile/work/wrapper",
+      "status": "ok",
+      "detail": "$ROOT/bin/claude-work"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "active": true,
+  "profile": "work",
+  "source": "env",
+  "command": "claude-work"
+}

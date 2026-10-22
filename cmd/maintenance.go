@@ -1,19 +1,26 @@
 package cmd
 
 import (
+	"github.com/jakubkontra/cpm/internal"
 	"github.com/spf13/cobra"
 )
 
 func versionCmd() *cobra.Command {
-	var prerelease bool
+	var prerelease, asJSON bool
 	cmd := &cobra.Command{
 		Use:   "version",
 		Short: "Print version information",
-		Run: func(cmd *cobra.Command, args []string) {
-			app.PrintVersion(prerelease)
+		RunE: func(cmd *cobra.Command, args []string) error {
+			report := internal.VersionInfo(prerelease)
+			if asJSON {
+				return app.PrintJSON(report)
+			}
+			app.PrintVersion(report)
+			return nil
 		},
 	}
 	cmd.Flags().BoolVar(&prerelease, "prerelease", false, "also check prereleases (default when running one)")
+	cmd.Flags().BoolVar(&asJSON, "json", false, "output as JSON")
 	return cmd
 }
 
