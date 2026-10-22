@@ -68,7 +68,7 @@ func TestJSONGoldens(t *testing.T) {
 	assertJSONGolden(t, "list", app.ListProfiles(cfg), roots...)
 	assertJSONGolden(t, "which", app.Which(cfg, env.Root), roots...)
 	assertJSONGolden(t, "credentials", app.CredentialReport(cfg), roots...)
-	assertJSONGolden(t, "doctor", app.DoctorReportFor(cfg, DoctorOptions{LookPath: noLookPath}), roots...)
+	assertJSONGolden(t, "doctor", app.DoctorReportFor(cfg, DoctorOptions{LookPath: noLookPath, Platform: "linux/amd64"}), roots...)
 
 	mustWrite(t, filepath.Join(env.profilesBase(), "work", "settings.json"), `{"local": true}`)
 	assertJSONGolden(t, "status", app.Status(cfg), roots...)

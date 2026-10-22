@@ -319,6 +319,7 @@ Releases: 0.6 (contract), 0.7 (profile lifecycle), 0.8 (quality), then `v1.0.0-r
 #### 3.12 Supported platforms
 - **Steps:** state macOS and Linux in the README, and Windows only through WSL (native Windows does not build because of `syscall.Exec`). `cpm doctor` reports the platform.
 - **Done when:** the README and doctor show it.
+- **Status:** done. `cpm doctor` starts with a `platform` check: the OS and architecture, where logins are kept, and WSL when `/proc/version` says so. Any OS other than macOS or Linux is a warning.
 
 #### 3.13 Generated docs
 - **Steps:**
