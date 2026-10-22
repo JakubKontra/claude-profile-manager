@@ -49,7 +49,7 @@ func doctorCmd() *cobra.Command {
 		Use:   "doctor",
 		Short: "Diagnose issues with profiles and configuration",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := internal.LoadCloudConfig(configPath)
+			cfg, err := app.LoadCloudConfig()
 			base := internal.ProfilesBaseDir(configPath)
 			if err != nil {
 				return err

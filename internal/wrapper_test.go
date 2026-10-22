@@ -96,7 +96,8 @@ func TestInstallWrapper(t *testing.T) {
 	scriptPath := filepath.Join(dir, "claude-test")
 	content := "#!/usr/bin/env bash\n" + marker + "\necho test\n"
 
-	if err := InstallWrapper(scriptPath, content); err != nil {
+	app, _ := testAppAt(t, "")
+	if err := app.InstallWrapper(scriptPath, content); err != nil {
 		t.Fatalf("InstallWrapper failed: %v", err)
 	}
 
@@ -119,11 +120,12 @@ func TestInstallWrapperIdempotent(t *testing.T) {
 	scriptPath := filepath.Join(dir, "claude-test")
 	content := "#!/usr/bin/env bash\n" + marker + "\necho test\n"
 
-	InstallWrapper(scriptPath, content)
+	app, _ := testAppAt(t, "")
+	app.InstallWrapper(scriptPath, content)
 	info1, _ := os.Stat(scriptPath)
 
 	// Second install with same content should not rewrite
-	err := InstallWrapper(scriptPath, content)
+	err := app.InstallWrapper(scriptPath, content)
 	if err != nil {
 		t.Fatalf("second InstallWrapper failed: %v", err)
 	}
@@ -150,7 +152,8 @@ func TestCleanupStaleScripts(t *testing.T) {
 	os.WriteFile(other, []byte("#!/bin/bash\necho other\n"), 0o755)
 
 	activeNames := map[string]bool{"claude-keep": true}
-	CleanupStaleScripts(dir, activeNames)
+	app, _ := testAppAt(t, "")
+	app.CleanupStaleScripts(dir, activeNames)
 
 	if _, err := os.Stat(stale); !os.IsNotExist(err) {
 		t.Error("stale script should have been removed")
@@ -178,7 +181,8 @@ func TestCleanupStaleScriptsKeepsCpmBinary(t *testing.T) {
 	body := "#!/bin/bash\n# line 2\n# line 3\n# line 4\n# line 5\n# line 6\n" + marker + "\n"
 	os.WriteFile(notAWrapper, []byte(body), 0o755)
 
-	CleanupStaleScripts(dir, map[string]bool{})
+	app, _ := testAppAt(t, "")
+	app.CleanupStaleScripts(dir, map[string]bool{})
 
 	if _, err := os.Stat(binary); err != nil {
 		t.Error("cpm binary must not be removed by its own cleanup")
@@ -194,7 +198,8 @@ func TestCleanupStaleScriptsRemovesLegacyWrapper(t *testing.T) {
 	legacy := filepath.Join(dir, "claude-legacy")
 	os.WriteFile(legacy, []byte("#!/usr/bin/env bash\n"+legacyMarker+"\necho legacy\n"), 0o755)
 
-	CleanupStaleScripts(dir, map[string]bool{})
+	app, _ := testAppAt(t, "")
+	app.CleanupStaleScripts(dir, map[string]bool{})
 
 	if _, err := os.Stat(legacy); !os.IsNotExist(err) {
 		t.Error("wrapper from a pre-rename version should be removed")
@@ -210,7 +215,8 @@ func TestWrapperRefusesForeignTargets(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, path := range []string{foreign, link, dir} {
-		if err := InstallWrapper(path, GenerateWrapper("test", dir, &Profile{})); err == nil {
+		app, _ := testAppAt(t, "")
+		if err := app.InstallWrapper(path, GenerateWrapper("test", dir, &Profile{})); err == nil {
 			t.Fatalf("accepted %s", path)
 		}
 	}
@@ -227,14 +233,15 @@ func TestWrapperDescriptionAndSecrets(t *testing.T) {
 		t.Fatal("description injected a command")
 	}
 	path := filepath.Join(dir, "claude-test")
-	if err := InstallWrapper(path, script); err != nil {
+	app, _ := testAppAt(t, "")
+	if err := app.InstallWrapper(path, script); err != nil {
 		t.Fatal(err)
 	}
 	st, _ := os.Stat(path)
 	if st.Mode().Perm() != 0o700 {
 		t.Fatal("credential wrapper must be private")
 	}
-	if err := InstallWrapper(path, GenerateWrapper("test", dir, &Profile{})); err != nil {
+	if err := app.InstallWrapper(path, GenerateWrapper("test", dir, &Profile{})); err != nil {
 		t.Fatal(err)
 	}
 }

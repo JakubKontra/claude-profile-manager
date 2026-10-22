@@ -37,9 +37,9 @@ func TestSetupProfileIsolateReplacesSymlinkWithDir(t *testing.T) {
 		mustMkdir(t, filepath.Join(env.SourceDir, d))
 	}
 	profileDir := filepath.Join(env.profilesBase(), "work")
-	buf := captureOutput(t)
+	app, buf := testAppAt(t, "")
 
-	if err := SetupProfile("work", profileDir, env.SourceDir, defaultShareDirs, false); err != nil {
+	if err := app.SetupProfile("work", profileDir, env.SourceDir, defaultShareDirs, false); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Readlink(filepath.Join(profileDir, "projects")); err != nil {
@@ -48,7 +48,7 @@ func TestSetupProfileIsolateReplacesSymlinkWithDir(t *testing.T) {
 
 	buf.Reset()
 	dirs := EffectiveShareDirs(env.load(t), &Profile{Isolate: []string{"projects"}})
-	if err := SetupProfile("work", profileDir, env.SourceDir, dirs, false); err != nil {
+	if err := app.SetupProfile("work", profileDir, env.SourceDir, dirs, false); err != nil {
 		t.Fatal(err)
 	}
 	st, err := os.Lstat(filepath.Join(profileDir, "projects"))
@@ -65,7 +65,7 @@ func TestSetupProfileIsolateReplacesSymlinkWithDir(t *testing.T) {
 	// Sharing it again does not delete the (now real) directory.
 	mustWrite(t, filepath.Join(profileDir, "projects", "data.txt"), "keep")
 	buf.Reset()
-	if err := SetupProfile("work", profileDir, env.SourceDir, defaultShareDirs, false); err != nil {
+	if err := app.SetupProfile("work", profileDir, env.SourceDir, defaultShareDirs, false); err != nil {
 		t.Fatal(err)
 	}
 	if !fileExists(filepath.Join(profileDir, "projects", "data.txt")) {
@@ -84,8 +84,8 @@ func TestSetupProfileLeavesForeignSymlinks(t *testing.T) {
 	if err := os.Symlink(other, filepath.Join(profileDir, "mine")); err != nil {
 		t.Fatal(err)
 	}
-	captureOutput(t)
-	if err := SetupProfile("work", profileDir, env.SourceDir, defaultShareDirs, false); err != nil {
+	app, _ := testAppAt(t, "")
+	if err := app.SetupProfile("work", profileDir, env.SourceDir, defaultShareDirs, false); err != nil {
 		t.Fatal(err)
 	}
 	if target, err := os.Readlink(filepath.Join(profileDir, "mine")); err != nil || target != other {
@@ -116,8 +116,8 @@ share = ["plans"]
 	for _, d := range []string{"skills", "plans", "projects"} {
 		mustMkdir(t, filepath.Join(env.SourceDir, d))
 	}
-	captureOutput(t)
-	if err := InstallProfiles(env.load(t), env.ConfigPath, InstallOptions{}); err != nil {
+	app, _ := testAppAt(t, env.ConfigPath)
+	if err := app.InstallProfiles(env.load(t), InstallOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	a := filepath.Join(env.profilesBase(), "a")

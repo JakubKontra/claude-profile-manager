@@ -7,7 +7,7 @@ import (
 )
 
 // ChooseIsolation asks only for choices not explicitly supplied by flags.
-func ChooseIsolation(reader *bufio.Reader, opts *AddOptions) error {
+func (a *App) ChooseIsolation(reader *bufio.Reader, opts *AddOptions) error {
 	choices := []struct {
 		prompt string
 		value  **bool
@@ -20,7 +20,7 @@ func ChooseIsolation(reader *bufio.Reader, opts *AddOptions) error {
 			continue
 		}
 		for {
-			out(choice.prompt)
+			a.out(choice.prompt)
 			line, err := reader.ReadString('\n')
 			if err != nil {
 				return fmt.Errorf("reading isolation preference: %w", err)
@@ -36,7 +36,7 @@ func ChooseIsolation(reader *bufio.Reader, opts *AddOptions) error {
 				*choice.value = &v
 				break
 			}
-			outln("Please answer yes or no.")
+			a.outln("Please answer yes or no.")
 		}
 	}
 	return nil

@@ -15,9 +15,9 @@ func TestCloneProfile(t *testing.T) {
 	for _, dir := range []string{"skills", "plugins"} {
 		mustMkdir(t, filepath.Join(env.SourceDir, dir))
 	}
-	captureOutput(t)
+	app, _ := testAppAt(t, env.ConfigPath)
 
-	if err := CloneProfile("original", "cloned", env.ConfigPath, env.load(t)); err != nil {
+	if err := app.CloneProfile("original", "cloned", env.load(t)); err != nil {
 		t.Fatalf("CloneProfile failed: %v", err)
 	}
 
@@ -44,23 +44,23 @@ func TestCloneProfile(t *testing.T) {
 func TestCloneProfileErrors(t *testing.T) {
 	env := newTestEnv(t, "[profiles.source]\n[profiles.taken]\n")
 	cfg := env.load(t)
-	captureOutput(t)
+	app, _ := testAppAt(t, env.ConfigPath)
 
-	if err := CloneProfile("missing", "new", env.ConfigPath, cfg); err == nil {
+	if err := app.CloneProfile("missing", "new", cfg); err == nil {
 		t.Error("expected error for unknown source profile")
 	}
-	if err := CloneProfile("source", "new", env.ConfigPath, cfg); err == nil {
+	if err := app.CloneProfile("source", "new", cfg); err == nil {
 		t.Error("expected error for uninstalled source profile")
 	}
 	mustMkdir(t, filepath.Join(env.profilesBase(), "source"))
-	if err := CloneProfile("source", "taken", env.ConfigPath, cfg); err == nil {
+	if err := app.CloneProfile("source", "taken", cfg); err == nil {
 		t.Error("expected error when target exists in config")
 	}
-	if err := CloneProfile("source", "bad name", env.ConfigPath, cfg); err == nil {
+	if err := app.CloneProfile("source", "bad name", cfg); err == nil {
 		t.Error("expected error for invalid target name")
 	}
 	mustMkdir(t, filepath.Join(env.profilesBase(), "dirtaken"))
-	if err := CloneProfile("source", "dirtaken", env.ConfigPath, cfg); err == nil {
+	if err := app.CloneProfile("source", "dirtaken", cfg); err == nil {
 		t.Error("expected error when target directory exists")
 	}
 }
@@ -70,9 +70,9 @@ func TestCloneProfileDoesNotCopyCredentials(t *testing.T) {
 	srcProfile := filepath.Join(env.profilesBase(), "original")
 	mustWrite(t, filepath.Join(srcProfile, ".credentials.json"), `{"token": "secret"}`)
 	mustWrite(t, filepath.Join(srcProfile, "settings.json"), `{}`)
-	captureOutput(t)
+	app, _ := testAppAt(t, env.ConfigPath)
 
-	if err := CloneProfile("original", "cloned", env.ConfigPath, env.load(t)); err != nil {
+	if err := app.CloneProfile("original", "cloned", env.load(t)); err != nil {
 		t.Fatal(err)
 	}
 	if fileExists(filepath.Join(env.profilesBase(), "cloned", ".credentials.json")) {

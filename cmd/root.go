@@ -66,11 +66,11 @@ func Execute() {
 }
 
 func loadCfg() (*internal.Config, string, error) {
-	cfg, err := internal.LoadConfig(configPath)
+	cfg, err := app.LoadConfig()
 	if err != nil {
 		return nil, "", err
 	}
-	return cfg, internal.ProfilesBaseDir(configPath), nil
+	return cfg, app.BaseDir, nil
 }
 
 func cwd() (string, error) {

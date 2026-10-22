@@ -64,8 +64,8 @@ func TestRunDoctorUnknownKeys(t *testing.T) {
 func TestRunDoctorWrapperOutdated(t *testing.T) {
 	env := newTestEnv(t, twoProfiles)
 	stubKeychain(t, false)
-	captureOutput(t)
-	if err := InstallProfiles(env.load(t), env.ConfigPath, InstallOptions{}); err != nil {
+	app, _ := testAppAt(t, env.ConfigPath)
+	if err := app.InstallProfiles(env.load(t), InstallOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	opts := DoctorOptions{HomeDir: t.TempDir(), LookPath: noLookPath}

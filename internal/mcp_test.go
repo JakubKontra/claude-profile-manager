@@ -44,9 +44,9 @@ func TestSeedClaudeJSONWhitelist(t *testing.T) {
 	mustWrite(t, src, sourceClaudeJSON)
 	profileDir := filepath.Join(dir, "profile")
 	mustMkdir(t, profileDir)
-	captureOutput(t)
+	app, _ := testAppAt(t, "")
 
-	wrote, err := SeedClaudeJSON(profileDir, src)
+	wrote, err := app.SeedClaudeJSON(profileDir, src)
 	if err != nil || !wrote {
 		t.Fatalf("seed: %v wrote=%v", err, wrote)
 	}
@@ -66,7 +66,7 @@ func TestSeedClaudeJSONWhitelist(t *testing.T) {
 	}
 
 	// Existing file is never touched.
-	wrote, err = SeedClaudeJSON(profileDir, src)
+	wrote, err = app.SeedClaudeJSON(profileDir, src)
 	if err != nil || wrote {
 		t.Errorf("second seed must be a no-op: %v %v", err, wrote)
 	}
@@ -74,12 +74,13 @@ func TestSeedClaudeJSONWhitelist(t *testing.T) {
 
 func TestSeedClaudeJSONNoSourceOrNothingToSeed(t *testing.T) {
 	dir := t.TempDir()
-	if wrote, err := SeedClaudeJSON(dir, filepath.Join(dir, "missing")); err != nil || wrote {
+	app, _ := testAppAt(t, "")
+	if wrote, err := app.SeedClaudeJSON(dir, filepath.Join(dir, "missing")); err != nil || wrote {
 		t.Errorf("missing source: %v %v", err, wrote)
 	}
 	src := filepath.Join(dir, "empty.json")
 	mustWrite(t, src, `{"userID": "x"}`)
-	if wrote, err := SeedClaudeJSON(dir, src); err != nil || wrote {
+	if wrote, err := app.SeedClaudeJSON(dir, src); err != nil || wrote {
 		t.Errorf("nothing whitelisted: %v %v", err, wrote)
 	}
 	if fileExists(filepath.Join(dir, ".claude.json")) {
@@ -120,13 +121,13 @@ func TestSyncMCPServersMergeExcludeOverrideIdempotent(t *testing.T) {
 	mustWrite(t, src, sourceClaudeJSON)
 	profileDir := filepath.Join(dir, "profile")
 	mustWrite(t, filepath.Join(profileDir, ".claude.json"), `{"theme": "light", "mcpServers": {"old": {}}}`)
-	buf := captureOutput(t)
+	app, buf := testAppAt(t, "")
 
 	p := &Profile{
 		MCPExclude: []string{"notion"},
 		MCPServers: map[string]map[string]any{"jira": {"command": "jira-mcp", "args": []any{"--x"}}},
 	}
-	if err := SyncMCPServers(profileDir, p, src); err != nil {
+	if err := app.SyncMCPServers(profileDir, p, src); err != nil {
 		t.Fatal(err)
 	}
 	got := readJSON(t, filepath.Join(profileDir, ".claude.json"))
@@ -148,7 +149,7 @@ func TestSyncMCPServersMergeExcludeOverrideIdempotent(t *testing.T) {
 	}
 
 	buf.Reset()
-	if err := SyncMCPServers(profileDir, p, src); err != nil {
+	if err := app.SyncMCPServers(profileDir, p, src); err != nil {
 		t.Fatal(err)
 	}
 	if buf.String() != "" {
@@ -160,10 +161,10 @@ func TestSyncMCPServersProfileOnlyServers(t *testing.T) {
 	dir := t.TempDir()
 	profileDir := filepath.Join(dir, "profile")
 	mustWrite(t, filepath.Join(profileDir, ".claude.json"), `{}`)
-	captureOutput(t)
+	app, _ := testAppAt(t, "")
 
 	p := &Profile{MCPServers: map[string]map[string]any{"jira": {"command": "x"}}}
-	if err := SyncMCPServers(profileDir, p, filepath.Join(dir, "missing")); err != nil {
+	if err := app.SyncMCPServers(profileDir, p, filepath.Join(dir, "missing")); err != nil {
 		t.Fatal(err)
 	}
 	got := readJSON(t, filepath.Join(profileDir, ".claude.json"))
@@ -183,9 +184,9 @@ command = "jira-mcp"
 	// Point the install pipeline at our fake ~/.claude.json via HOME.
 	t.Setenv("HOME", env.Root)
 	os.Rename(src, filepath.Join(env.Root, ".claude.json"))
-	captureOutput(t)
+	app, _ := testAppAt(t, env.ConfigPath)
 
-	if err := InstallProfiles(env.load(t), env.ConfigPath, InstallOptions{}); err != nil {
+	if err := app.InstallProfiles(env.load(t), InstallOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	got := readJSON(t, filepath.Join(env.profilesBase(), "work", ".claude.json"))

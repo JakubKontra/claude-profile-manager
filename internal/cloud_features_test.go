@@ -157,10 +157,11 @@ func TestCloudPullResyncsProfiles(t *testing.T) {
 
 	b := newCloudEnv(t, "[profiles.work]\n")
 	b.activate(t)
+	app, _ := testAppAt(t, b.ConfigPath)
 	if err := CloudInit(b.ConfigPath, bare); err != nil {
 		t.Fatal(err)
 	}
-	if err := InstallProfiles(b.load(t), b.ConfigPath, InstallOptions{}); err != nil {
+	if err := app.InstallProfiles(b.load(t), InstallOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	profileSettings := filepath.Join(b.profilesBase(), "work", "settings.json")
@@ -201,6 +202,8 @@ func TestInstallProfilesAutoPullAndPush(t *testing.T) {
 
 	b := newCloudEnv(t, "[profiles.work]\n")
 	b.activate(t)
+	app, _ := testAppAt(t, b.ConfigPath)
+	app.Out = buf
 	if err := CloudInit(b.ConfigPath, bare); err != nil {
 		t.Fatal(err)
 	}
@@ -215,7 +218,7 @@ func TestInstallProfilesAutoPullAndPush(t *testing.T) {
 	b.activate(t)
 	mustWrite(t, filepath.Join(b.SourceDir, "commands", "b.md"), "made on B")
 	buf.Reset()
-	if err := InstallProfiles(b.load(t), b.ConfigPath, InstallOptions{}); err != nil {
+	if err := app.InstallProfiles(b.load(t), InstallOptions{}); err != nil {
 		t.Fatalf("install with auto pull/push: %v\n%s", err, buf.String())
 	}
 	if data, _ := os.ReadFile(filepath.Join(b.SourceDir, "CLAUDE.md")); string(data) != "from A v2" {

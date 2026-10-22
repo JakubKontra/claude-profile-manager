@@ -19,7 +19,7 @@ type AddOptions struct {
 }
 
 // AddProfile appends a profile to config.toml and installs it.
-func AddProfile(configPath, name string, opts AddOptions) error {
+func (a *App) AddProfile(name string, opts AddOptions) error {
 	if err := ValidateProfileName(name); err != nil {
 		return err
 	}
@@ -29,7 +29,7 @@ func AddProfile(configPath, name string, opts AddOptions) error {
 		}
 	}
 
-	path := ExpandPath(configPath)
+	path := ExpandPath(a.ConfigPath)
 	data, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("cannot read config: %w", err)
@@ -52,10 +52,10 @@ func AddProfile(configPath, name string, opts AddOptions) error {
 	if err := writeConfigAtomic(path, updated); err != nil {
 		return err
 	}
-	outf("Added [profiles.%s] to %s\n", name, path)
+	a.outf("Added [profiles.%s] to %s\n", name, path)
 
 	if opts.NoInstall {
-		outln("Run 'cpm install' to create the profile directory and wrapper script.")
+		a.outln("Run 'cpm install' to create the profile directory and wrapper script.")
 		return nil
 	}
 
@@ -63,10 +63,10 @@ func AddProfile(configPath, name string, opts AddOptions) error {
 	if err != nil {
 		return err
 	}
-	if err := InstallProfiles(cfg, path, InstallOptions{}); err != nil {
+	if err := a.InstallProfiles(cfg, InstallOptions{}); err != nil {
 		return err
 	}
-	outf("\nAuthenticate with: claude-%s\n", name)
+	a.outf("\nAuthenticate with: claude-%s\n", name)
 	return nil
 }
 

@@ -28,3 +28,9 @@ func PrintJSON(v any) error {
 func outf(format string, a ...any) { fmt.Fprintf(stdout, format, a...) }
 func outln(a ...any)               { fmt.Fprintln(stdout, a...) }
 func out(a ...any)                 { fmt.Fprint(stdout, a...) }
+
+// legacyApp bridges functions not yet migrated to App: it writes to the
+// package-level stdout so existing output capture keeps working.
+func legacyApp(configPath string) *App {
+	return &App{ConfigPath: configPath, BaseDir: ProfilesBaseDir(configPath), In: os.Stdin, Out: stdout, Err: os.Stderr}
+}

@@ -42,11 +42,11 @@ func (p *installPlanner) write(path string, data []byte, mode os.FileMode) error
 }
 
 // PlanInstall only reads local files. Cloud operations belong to the caller.
-func PlanInstall(cfg *Config, configPath string, opts InstallOptions) ([]InstallAction, error) {
+func (a *App) PlanInstall(cfg *Config, opts InstallOptions) ([]InstallAction, error) {
 	if opts.Sync && !opts.Force {
-		if changes := CheckDivergence(cfg, ProfilesBaseDir(configPath)); len(changes) > 0 {
+		if changes := CheckDivergence(cfg, a.BaseDir); len(changes) > 0 {
 			for _, d := range changes {
-				outf("  %s\n", d.Details)
+				a.outf("  %s\n", d.Details)
 			}
 			return nil, ErrDiverged
 		}
@@ -55,7 +55,7 @@ func PlanInstall(cfg *Config, configPath string, opts InstallOptions) ([]Install
 	active := map[string]bool{}
 	for _, name := range SortedProfileNames(cfg) {
 		profile := cfg.Profiles[name]
-		dir := filepath.Join(ProfilesBaseDir(configPath), name)
+		dir := filepath.Join(a.BaseDir, name)
 		if st, err := os.Lstat(dir); err == nil && (!st.IsDir() || st.Mode()&os.ModeSymlink != 0) {
 			return nil, fmt.Errorf("invalid profile directory %s", dir)
 		}
@@ -215,55 +215,55 @@ func (p *installPlanner) claudeJSON(dir string, profile *Profile) error {
 	return p.write(path, append(encoded, '\n'), 0o600)
 }
 
-func ApplyInstall(plan []InstallAction) error {
-	for _, a := range plan {
+func (a *App) ApplyInstall(plan []InstallAction) error {
+	for _, act := range plan {
 		var err error
-		switch a.Kind {
+		switch act.Kind {
 		case "write":
-			err = writeFileAtomic(a.Path, a.Data, a.Mode)
+			err = writeFileAtomic(act.Path, act.Data, act.Mode)
 		case "remove":
-			err = os.Remove(a.Path)
+			err = os.Remove(act.Path)
 		case "isolate":
-			if err = os.Remove(a.Path); err == nil {
-				err = os.MkdirAll(a.Path, 0o755)
+			if err = os.Remove(act.Path); err == nil {
+				err = os.MkdirAll(act.Path, 0o755)
 			}
 		case "symlink":
-			if err = os.MkdirAll(filepath.Dir(a.Path), 0o755); err == nil {
-				if err = os.Remove(a.Path); err == nil || os.IsNotExist(err) {
-					err = os.Symlink(a.Target, a.Path)
+			if err = os.MkdirAll(filepath.Dir(act.Path), 0o755); err == nil {
+				if err = os.Remove(act.Path); err == nil || os.IsNotExist(err) {
+					err = os.Symlink(act.Target, act.Path)
 				}
 			}
 		default:
-			return fmt.Errorf("unknown install action %q", a.Kind)
+			return fmt.Errorf("unknown install action %q", act.Kind)
 		}
 		if err != nil {
-			return fmt.Errorf("%s %s: %w", a.Kind, a.Path, err)
+			return fmt.Errorf("%s %s: %w", act.Kind, act.Path, err)
 		}
-		outf("  %s %s\n", a.Kind, a.Path)
+		a.outf("  %s %s\n", act.Kind, act.Path)
 	}
 	return nil
 }
 
-func RenderInstallPlan(plan []InstallAction, cfg *Config) {
-	outln("Dry run — local changes (cloud auto-pull/auto-push skipped):")
+func (a *App) RenderInstallPlan(plan []InstallAction, cfg *Config) {
+	a.outln("Dry run — local changes (cloud auto-pull/auto-push skipped):")
 	if len(plan) == 0 {
-		outln("  (no changes)")
+		a.outln("  (no changes)")
 	}
-	for _, a := range plan {
-		outf("  %s %s", a.Kind, a.Path)
-		if a.Kind == "symlink" {
-			outf(" -> %s", a.Target)
+	for _, act := range plan {
+		a.outf("  %s %s", act.Kind, act.Path)
+		if act.Kind == "symlink" {
+			a.outf(" -> %s", act.Target)
 		}
-		outln()
-		if a.Kind != "write" && a.Kind != "remove" {
+		a.outln()
+		if act.Kind != "write" && act.Kind != "remove" {
 			continue
 		}
-		before, after := redactPreview(a.Before, cfg), redactPreview(a.Data, cfg)
+		before, after := redactPreview(act.Before, cfg), redactPreview(act.Data, cfg)
 		if before == after {
 			continue
 		}
-		outf("--- %s\n+++ %s (planned)\n", a.Path, a.Path)
-		// A whole-file unified hunk keeps previews deterministic without a diff dependency.
+		a.outf("--- %s\n+++ %s (planned)\n", act.Path, act.Path)
+		// A whole-file unified hunk keeps previews deterministic without act diff dependency.
 		oldLines, newLines := strings.Split(strings.TrimSuffix(before, "\n"), "\n"), strings.Split(strings.TrimSuffix(after, "\n"), "\n")
 		if before == "" {
 			oldLines = nil
@@ -278,12 +278,12 @@ func RenderInstallPlan(plan []InstallAction, cfg *Config) {
 		if len(newLines) == 0 {
 			newStart = 0
 		}
-		outf("@@ -%d,%d +%d,%d @@\n", oldStart, len(oldLines), newStart, len(newLines))
+		a.outf("@@ -%d,%d +%d,%d @@\n", oldStart, len(oldLines), newStart, len(newLines))
 		for _, line := range oldLines {
-			outf("-%s\n", line)
+			a.outf("-%s\n", line)
 		}
 		for _, line := range newLines {
-			outf("+%s\n", line)
+			a.outf("+%s\n", line)
 		}
 	}
 }

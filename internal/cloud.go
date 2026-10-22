@@ -446,7 +446,7 @@ func CloudPull(configPath string, dryRun bool) error {
 	// pulled changes actually take effect.
 	if full, err := LoadConfig(configPath); err == nil {
 		outln("\nRe-syncing profiles:")
-		if err := InstallProfiles(full, configPath, InstallOptions{Sync: true, skipCloud: true}); err != nil {
+		if err := legacyApp(configPath).InstallProfiles(full, InstallOptions{Sync: true, skipCloud: true}); err != nil {
 			if errors.Is(err, ErrDiverged) {
 				outln("Profiles with local changes were left alone; run 'cpm install --sync --force' to overwrite them.")
 				return err

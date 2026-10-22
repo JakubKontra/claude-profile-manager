@@ -18,13 +18,19 @@ func captureOutput(t *testing.T) *bytes.Buffer {
 }
 
 // newTestApp returns an App for env whose output goes to the returned buffer.
-// Errors and prompts go to a separate buffer so tests see only stdout.
 func newTestApp(t *testing.T, env testEnv) (*App, *bytes.Buffer) {
+	t.Helper()
+	return testAppAt(t, env.ConfigPath)
+}
+
+// testAppAt returns an App for configPath whose output goes to the returned
+// buffer. Errors and prompts go to a separate buffer so tests see only stdout.
+func testAppAt(t *testing.T, configPath string) (*App, *bytes.Buffer) {
 	t.Helper()
 	var out bytes.Buffer
 	return &App{
-		ConfigPath: env.ConfigPath,
-		BaseDir:    ProfilesBaseDir(env.ConfigPath),
+		ConfigPath: configPath,
+		BaseDir:    ProfilesBaseDir(configPath),
 		In:         strings.NewReader(""),
 		Out:        &out,
 		Err:        &bytes.Buffer{},

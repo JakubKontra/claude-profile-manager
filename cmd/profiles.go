@@ -20,7 +20,7 @@ func installCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return internal.InstallProfiles(cfg, configPath, opts)
+			return app.InstallProfiles(cfg, opts)
 		},
 	}
 
@@ -36,7 +36,7 @@ func initCmd() *cobra.Command {
 		Use:   "init",
 		Short: "Interactive setup wizard for config.toml",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return internal.RunInit(configPath)
+			return app.RunInit()
 		},
 	}
 }
@@ -51,7 +51,7 @@ func cloneCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return internal.CloneProfile(args[0], args[1], configPath, cfg)
+			return app.CloneProfile(args[0], args[1], cfg)
 		},
 	}
 }
@@ -78,11 +78,11 @@ func addCmd() *cobra.Command {
 				opts.InheritMCP = &inheritMCP
 			}
 			if stdinIsTerminal() {
-				if err := internal.ChooseIsolation(bufio.NewReader(os.Stdin), &opts); err != nil {
+				if err := app.ChooseIsolation(bufio.NewReader(app.In), &opts); err != nil {
 					return err
 				}
 			}
-			return internal.AddProfile(configPath, args[0], opts)
+			return app.AddProfile(args[0], opts)
 		},
 	}
 
@@ -111,13 +111,13 @@ its Keychain entry are deleted as well. This asks for confirmation unless
 --yes is given.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := internal.LoadCloudConfig(configPath)
+			cfg, err := app.LoadCloudConfig()
 			if err != nil {
 				return err
 			}
-			opts.Stdin = os.Stdin
+			opts.Stdin = app.In
 			opts.IsTerminal = stdinIsTerminal()
-			return internal.RemoveProfile(cfg, configPath, args[0], opts)
+			return app.RemoveProfile(cfg, args[0], opts)
 		},
 	}
 
@@ -132,7 +132,7 @@ func editCmd() *cobra.Command {
 		Use:   "edit",
 		Short: "Open config.toml in $VISUAL / $EDITOR",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return internal.EditConfig(configPath, os.Getenv, func(c *exec.Cmd) error { return c.Run() })
+			return app.EditConfig(os.Getenv, func(c *exec.Cmd) error { return c.Run() })
 		},
 	}
 }

@@ -20,9 +20,9 @@ func TestInstallProfilesCreatesDirsAndWrappers(t *testing.T) {
 	env := newTestEnv(t, twoProfiles)
 	mustWrite(t, filepath.Join(env.SourceDir, "settings.json"), `{"model": "opus"}`)
 	mustMkdir(t, filepath.Join(env.SourceDir, "skills"))
-	buf := captureOutput(t)
+	app, buf := testAppAt(t, env.ConfigPath)
 
-	if err := InstallProfiles(env.load(t), env.ConfigPath, InstallOptions{}); err != nil {
+	if err := app.InstallProfiles(env.load(t), InstallOptions{}); err != nil {
 		t.Fatalf("InstallProfiles: %v", err)
 	}
 
@@ -43,7 +43,7 @@ func TestInstallProfilesCreatesDirsAndWrappers(t *testing.T) {
 
 	// Second run must be idempotent (no re-install messages).
 	buf.Reset()
-	if err := InstallProfiles(env.load(t), env.ConfigPath, InstallOptions{}); err != nil {
+	if err := app.InstallProfiles(env.load(t), InstallOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(buf.String(), "installed ") {
@@ -55,15 +55,15 @@ func TestInstallProfilesRefusesWhenDiverged(t *testing.T) {
 	env := newTestEnv(t, twoProfiles)
 	mustWrite(t, filepath.Join(env.SourceDir, "settings.json"), `{"a": 1}`)
 	mustWrite(t, filepath.Join(env.profilesBase(), "work", "settings.json"), `{"a": 1, "local": true}`)
-	captureOutput(t)
+	app, _ := testAppAt(t, env.ConfigPath)
 
-	err := InstallProfiles(env.load(t), env.ConfigPath, InstallOptions{Sync: true})
+	err := app.InstallProfiles(env.load(t), InstallOptions{Sync: true})
 	if !errors.Is(err, ErrDiverged) {
 		t.Fatalf("expected ErrDiverged, got %v", err)
 	}
 
 	// --force overwrites.
-	if err := InstallProfiles(env.load(t), env.ConfigPath, InstallOptions{Sync: true, Force: true}); err != nil {
+	if err := app.InstallProfiles(env.load(t), InstallOptions{Sync: true, Force: true}); err != nil {
 		t.Fatalf("forced sync: %v", err)
 	}
 	data, _ := os.ReadFile(filepath.Join(env.profilesBase(), "work", "settings.json"))

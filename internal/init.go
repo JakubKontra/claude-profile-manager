@@ -8,8 +8,8 @@ import (
 	"strings"
 )
 
-func RunInit(configPath string) error {
-	configPath = ExpandPath(configPath)
+func (a *App) RunInit() error {
+	configPath := ExpandPath(a.ConfigPath)
 
 	if _, err := os.Stat(configPath); err == nil {
 		return fmt.Errorf("config already exists at %s", configPath)
@@ -22,10 +22,10 @@ func RunInit(configPath string) error {
 
 	reader := bufio.NewReader(os.Stdin)
 
-	out("Welcome to cpm (Claude Profile Manager) setup!\n\n")
+	a.out("Welcome to cpm (Claude Profile Manager) setup!\n\n")
 
 	// Source dir
-	out("Source directory [~/.claude]: ")
+	a.out("Source directory [~/.claude]: ")
 	sourceDir, _ := reader.ReadString('\n')
 	sourceDir = strings.TrimSpace(sourceDir)
 	if sourceDir == "" {
@@ -33,7 +33,7 @@ func RunInit(configPath string) error {
 	}
 
 	// Bin dir
-	out("Bin directory [~/.local/bin]: ")
+	a.out("Bin directory [~/.local/bin]: ")
 	binDir, _ := reader.ReadString('\n')
 	binDir = strings.TrimSpace(binDir)
 	if binDir == "" {
@@ -42,35 +42,35 @@ func RunInit(configPath string) error {
 
 	// Profiles
 	var profiles []profileEntry
-	out("\nLet's add your profiles. Enter an empty name to finish.\n\n")
+	a.out("\nLet's add your profiles. Enter an empty name to finish.\n\n")
 
 	for i := 1; ; i++ {
-		outf("Profile %d name (e.g. personal, work): ", i)
+		a.outf("Profile %d name (e.g. personal, work): ", i)
 		name, _ := reader.ReadString('\n')
 		name = strings.TrimSpace(name)
 		if name == "" {
 			break
 		}
 		if err := ValidateProfileName(name); err != nil {
-			outf("  %v — try again\n\n", err)
+			a.outf("  %v — try again\n\n", err)
 			i--
 			continue
 		}
 
-		outf("  Description: ")
+		a.outf("  Description: ")
 		desc, _ := reader.ReadString('\n')
 		desc = strings.TrimSpace(desc)
 
-		outf("  Default model (leave empty for none): ")
+		a.outf("  Default model (leave empty for none): ")
 		model, _ := reader.ReadString('\n')
 		model = strings.TrimSpace(model)
 
 		var isolation AddOptions
-		if err := ChooseIsolation(reader, &isolation); err != nil {
+		if err := a.ChooseIsolation(reader, &isolation); err != nil {
 			return err
 		}
 		profiles = append(profiles, profileEntry{name: name, desc: desc, model: model, shareProjects: *isolation.ShareProjects, inheritMCP: *isolation.InheritMCP})
-		outln()
+		a.outln()
 	}
 
 	if len(profiles) == 0 {
@@ -98,8 +98,8 @@ func RunInit(configPath string) error {
 		return fmt.Errorf("cannot write config: %w", err)
 	}
 
-	outf("\nConfig written to %s\n", configPath)
-	outln("Run 'cpm install' to create profiles and wrapper scripts.")
+	a.outf("\nConfig written to %s\n", configPath)
+	a.outln("Run 'cpm install' to create profiles and wrapper scripts.")
 
 	return nil
 }

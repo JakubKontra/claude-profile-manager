@@ -18,7 +18,8 @@ func TestPatchAttribution(t *testing.T) {
 		PR:     "Generated with Claude Code",
 	}
 
-	if err := PatchAttribution(dir, attr); err != nil {
+	app, _ := testAppAt(t, "")
+	if err := app.PatchAttribution(dir, attr); err != nil {
 		t.Fatalf("PatchAttribution failed: %v", err)
 	}
 
@@ -46,8 +47,9 @@ func TestPatchAttributionNil(t *testing.T) {
 	os.WriteFile(settingsPath, []byte(original), 0o644)
 
 	// nil attribution should be a no-op
-	if err := PatchAttribution(dir, nil); err != nil {
-		t.Fatalf("PatchAttribution(nil) failed: %v", err)
+	app, _ := testAppAt(t, "")
+	if err := app.PatchAttribution(dir, nil); err != nil {
+		t.Fatalf("app.PatchAttribution(nil) failed: %v", err)
 	}
 
 	data, _ := os.ReadFile(settingsPath)
@@ -63,11 +65,12 @@ func TestPatchAttributionIdempotent(t *testing.T) {
 	os.WriteFile(settingsPath, []byte(`{"attribution": {"commit": "test"}}`), 0o644)
 
 	attr := &Attribution{Commit: "test"}
-	PatchAttribution(dir, attr)
+	app, _ := testAppAt(t, "")
+	app.PatchAttribution(dir, attr)
 
 	info1, _ := os.Stat(settingsPath)
 
-	PatchAttribution(dir, attr)
+	app.PatchAttribution(dir, attr)
 
 	info2, _ := os.Stat(settingsPath)
 
@@ -127,7 +130,8 @@ func TestCheckDivergenceDetectsChanges(t *testing.T) {
 
 func TestSyncMCPServersNoSourceFile(t *testing.T) {
 	dir := t.TempDir()
-	err := SyncMCPServers(dir, &Profile{}, filepath.Join(dir, "missing.json"))
+	app, _ := testAppAt(t, "")
+	err := app.SyncMCPServers(dir, &Profile{}, filepath.Join(dir, "missing.json"))
 	if err != nil {
 		t.Errorf("SyncMCPServers should not error on missing source: %v", err)
 	}
