@@ -27,6 +27,9 @@ type App struct {
 	Run Runner
 	// Keychain is the OS credential store; a no-op outside macOS.
 	Keychain KeychainStore
+	// Attach, when set, replaces running an interactive program (claude
+	// auth login) on the app's stdio. Tests use it to record calls.
+	Attach func(ExecSpec) error
 
 	// Home is the user's home directory; ~ in paths expands to it.
 	Home string

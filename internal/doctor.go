@@ -149,11 +149,13 @@ func RunDoctorWithOptions(cfg *Config, profilesBase string, opts DoctorOptions) 
 		if err == nil && opts.Verify && status.Source == "keychain" {
 			status = verifyKeychainToken(kc, profileDir, status)
 		}
-		switch {
+		switch via := externalAuth(profile); {
+		case err != nil && via != "":
+			checks = append(checks, Check{checkName, "ok", "no login needed (uses " + via + ")"})
 		case err != nil:
-			checks = append(checks, Check{checkName, "warn", "not authenticated (run claude-" + name + " auth login)"})
+			checks = append(checks, Check{checkName, "warn", "not authenticated (run cpm login " + name + ")"})
 		case status.Expired:
-			checks = append(checks, Check{checkName, "warn", fmt.Sprintf("credentials expired (run claude-%s auth login)", name)})
+			checks = append(checks, Check{checkName, "warn", "credentials expired (run cpm login " + name + ")"})
 		case status.Source == "file" && time.Since(status.LastUpdated) > 7*24*time.Hour:
 			checks = append(checks, Check{checkName, "warn", describeCredentials(status)})
 		default:

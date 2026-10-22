@@ -167,6 +167,11 @@ Behavior stays the same. For every PR, `go test -race ./...`, `golangci-lint run
   - Print a summary at the end.
   - When a profile has no login, `cpm doctor` suggests `cpm login <name>`.
 - **Done when:** an end-to-end test with the fake `claude` binary checks the order and that profiles already logged in are skipped.
+- **Status:** done.
+  - `cpm login <name>...` logs in the named profiles even when they are logged in, which is how you switch a profile to another account. `--all` takes every profile without usable credentials (missing or expired).
+  - `--all` also skips profiles that authenticate through an API key, a token or a cloud provider (`ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_CODE_USE_BEDROCK`/`VERTEX`/`FOUNDRY`). `cpm doctor` now reports those as "no login needed" instead of "not authenticated".
+  - A failed login does not stop the others. The command exits non-zero after the summary.
+  - `App.Attach` runs the interactive login, so unit tests record the calls without starting a process.
 
 ---
 

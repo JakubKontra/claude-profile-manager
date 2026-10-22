@@ -2,6 +2,7 @@ package internal
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -29,7 +30,11 @@ func testAppAt(t *testing.T, configPath string) (*App, *bytes.Buffer) {
 		Err:        &bytes.Buffer{},
 		Run:        ExecRunner{},
 		Keychain:   newFakeKeychain(),
-		Home:       t.TempDir(),
+		Attach: func(spec ExecSpec) error {
+			t.Errorf("unexpected interactive run of %v", spec.Argv)
+			return errors.New("interactive runs are not allowed in this test")
+		},
+		Home: t.TempDir(),
 	}, &out
 }
 

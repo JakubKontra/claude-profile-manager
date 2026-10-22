@@ -215,6 +215,15 @@ claude-work auth logout    # clears only the work entry
 claude-work auth login     # OAuth in the browser
 ```
 
+To log in several profiles in one go, for example on a new machine, use `cpm login`. It runs `claude auth login` in each profile, one after another, and prints a summary:
+
+```bash
+cpm login --all            # every profile without usable credentials
+cpm login work personal    # these profiles, even if already logged in
+```
+
+`--all` skips profiles that are already logged in and profiles that authenticate through `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`, Bedrock, Vertex or Foundry.
+
 > [!WARNING]
 > A bare `claude auth logout` has no `CLAUDE_CONFIG_DIR` set and logs out your **default** profile instead.
 
@@ -318,6 +327,7 @@ In patterns, `*` matches within one path segment and `**` matches any depth; `~/
 | `cpm status` | Check sync divergence |
 | `cpm doctor [--json] [--verify]` | Diagnose issues; exit code 1 on errors |
 | `cpm credentials [--json]` | Show account, expiry and subscription for all profiles |
+| `cpm login [profile...] [--all]` | Run `claude auth login` for profiles one at a time, then print a summary |
 
 ### Cloud
 
