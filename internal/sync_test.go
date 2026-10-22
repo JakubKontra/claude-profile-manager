@@ -8,6 +8,7 @@ import (
 )
 
 func TestPatchAttribution(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	settingsPath := filepath.Join(dir, "settings.json")
 
@@ -18,7 +19,8 @@ func TestPatchAttribution(t *testing.T) {
 		PR:     "Generated with Claude Code",
 	}
 
-	if err := PatchAttribution(dir, attr); err != nil {
+	app, _ := testApp(t)
+	if err := app.PatchAttribution(dir, attr); err != nil {
 		t.Fatalf("PatchAttribution failed: %v", err)
 	}
 
@@ -39,6 +41,7 @@ func TestPatchAttribution(t *testing.T) {
 }
 
 func TestPatchAttributionNil(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	settingsPath := filepath.Join(dir, "settings.json")
 
@@ -46,8 +49,9 @@ func TestPatchAttributionNil(t *testing.T) {
 	os.WriteFile(settingsPath, []byte(original), 0o644)
 
 	// nil attribution should be a no-op
-	if err := PatchAttribution(dir, nil); err != nil {
-		t.Fatalf("PatchAttribution(nil) failed: %v", err)
+	app, _ := testApp(t)
+	if err := app.PatchAttribution(dir, nil); err != nil {
+		t.Fatalf("app.PatchAttribution(nil) failed: %v", err)
 	}
 
 	data, _ := os.ReadFile(settingsPath)
@@ -57,17 +61,19 @@ func TestPatchAttributionNil(t *testing.T) {
 }
 
 func TestPatchAttributionIdempotent(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	settingsPath := filepath.Join(dir, "settings.json")
 
 	os.WriteFile(settingsPath, []byte(`{"attribution": {"commit": "test"}}`), 0o644)
 
 	attr := &Attribution{Commit: "test"}
-	PatchAttribution(dir, attr)
+	app, _ := testApp(t)
+	app.PatchAttribution(dir, attr)
 
 	info1, _ := os.Stat(settingsPath)
 
-	PatchAttribution(dir, attr)
+	app.PatchAttribution(dir, attr)
 
 	info2, _ := os.Stat(settingsPath)
 
@@ -77,6 +83,7 @@ func TestPatchAttributionIdempotent(t *testing.T) {
 }
 
 func TestCheckDivergenceInSync(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sourceDir := filepath.Join(tmpDir, "source")
 	profileDir := filepath.Join(tmpDir, "profiles", "test")
@@ -102,6 +109,7 @@ func TestCheckDivergenceInSync(t *testing.T) {
 }
 
 func TestCheckDivergenceDetectsChanges(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sourceDir := filepath.Join(tmpDir, "source")
 	profileDir := filepath.Join(tmpDir, "profiles", "test")
@@ -126,14 +134,17 @@ func TestCheckDivergenceDetectsChanges(t *testing.T) {
 }
 
 func TestSyncMCPServersNoSourceFile(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
-	err := SyncMCPServers(dir, &Profile{}, filepath.Join(dir, "missing.json"))
+	app, _ := testApp(t)
+	err := app.SyncMCPServers(dir, &Profile{}, filepath.Join(dir, "missing.json"))
 	if err != nil {
 		t.Errorf("SyncMCPServers should not error on missing source: %v", err)
 	}
 }
 
 func TestPluralS(t *testing.T) {
+	t.Parallel()
 	if s := pluralS(0); s != "s" {
 		t.Errorf("pluralS(0) = %q, want %q", s, "s")
 	}

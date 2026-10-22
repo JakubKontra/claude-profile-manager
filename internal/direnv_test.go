@@ -6,6 +6,7 @@ import (
 )
 
 func TestGenerateDirenvSnippet(t *testing.T) {
+	t.Parallel()
 	out := GenerateDirenvSnippet("work", "/home/user/.claude-profiles/work", &Profile{})
 
 	mustContain := []string{

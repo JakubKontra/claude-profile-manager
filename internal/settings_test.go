@@ -8,6 +8,7 @@ import (
 )
 
 func TestDeepMergeReplacesArraysMergesMaps(t *testing.T) {
+	t.Parallel()
 	dst := map[string]any{
 		"permissions": map[string]any{"allow": []any{"a"}, "deny": []any{"x"}},
 		"model":       "opus",
@@ -29,6 +30,7 @@ func TestDeepMergeReplacesArraysMergesMaps(t *testing.T) {
 }
 
 func TestPatchSettingsDottedKeysAndIdempotent(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, `[profiles.work]
 [profiles.work.settings]
 effortLevel = "high"
@@ -38,10 +40,10 @@ commit = "Co-Authored-By: X"
 `)
 	profileDir := filepath.Join(env.profilesBase(), "work")
 	mustWrite(t, filepath.Join(profileDir, "settings.json"), `{"model": "opus", "permissions": {"deny": ["rm"]}, "attribution": {"commit": "old"}}`)
-	buf := captureOutput(t)
+	app, buf := testApp(t)
 
 	p := env.load(t).Profiles["work"]
-	if err := PatchSettings(profileDir, EffectiveSettingsOverrides(p)); err != nil {
+	if err := app.PatchSettings(profileDir, EffectiveSettingsOverrides(p)); err != nil {
 		t.Fatal(err)
 	}
 	got := readJSON(t, filepath.Join(profileDir, "settings.json"))
@@ -60,7 +62,7 @@ commit = "Co-Authored-By: X"
 	}
 
 	buf.Reset()
-	if err := PatchSettings(profileDir, EffectiveSettingsOverrides(p)); err != nil {
+	if err := app.PatchSettings(profileDir, EffectiveSettingsOverrides(p)); err != nil {
 		t.Fatal(err)
 	}
 	if buf.String() != "" {
@@ -69,6 +71,7 @@ commit = "Co-Authored-By: X"
 }
 
 func TestEffectiveSettingsAttributionWins(t *testing.T) {
+	t.Parallel()
 	p := &Profile{
 		Settings:    map[string]any{"attribution": map[string]any{"commit": "from settings"}, "x": 1},
 		Attribution: &Attribution{Commit: "from attribution"},
@@ -86,13 +89,14 @@ func TestEffectiveSettingsAttributionWins(t *testing.T) {
 }
 
 func TestCheckDivergenceWithSettingsOverrides(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, `[profiles.work]
 [profiles.work.settings]
 effortLevel = "high"
 `)
+	app := env.App
 	mustWrite(t, filepath.Join(env.SourceDir, "settings.json"), `{"model": "opus"}`)
-	captureOutput(t)
-	if err := InstallProfiles(env.load(t), env.ConfigPath, InstallOptions{}); err != nil {
+	if err := app.InstallProfiles(env.load(t), InstallOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	// The patched file must not count as diverged.
@@ -106,10 +110,11 @@ effortLevel = "high"
 }
 
 func TestCheckDivergenceUsesBaseline(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, "[profiles.work]\n")
+	app := env.App
 	mustWrite(t, filepath.Join(env.SourceDir, "settings.json"), "{\n  \"v\": 1\n}\n")
-	captureOutput(t)
-	if err := InstallProfiles(env.load(t), env.ConfigPath, InstallOptions{}); err != nil {
+	if err := app.InstallProfiles(env.load(t), InstallOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	if !fileExists(filepath.Join(env.profilesBase(), "work", ".cpm", "baseline", "settings.json")) {
@@ -121,7 +126,7 @@ func TestCheckDivergenceUsesBaseline(t *testing.T) {
 	if d := CheckDivergence(env.load(t), env.profilesBase()); len(d) != 0 {
 		t.Errorf("upstream change must not count as local divergence: %v", d)
 	}
-	if err := InstallProfiles(env.load(t), env.ConfigPath, InstallOptions{Sync: true}); err != nil {
+	if err := app.InstallProfiles(env.load(t), InstallOptions{Sync: true}); err != nil {
 		t.Fatalf("sync should succeed: %v", err)
 	}
 	data, _ := os.ReadFile(filepath.Join(env.profilesBase(), "work", "settings.json"))
@@ -134,7 +139,7 @@ func TestCheckDivergenceUsesBaseline(t *testing.T) {
 	if d := CheckDivergence(env.load(t), env.profilesBase()); len(d) != 1 {
 		t.Errorf("local edit not detected: %v", d)
 	}
-	if err := InstallProfiles(env.load(t), env.ConfigPath, InstallOptions{Sync: true}); err == nil {
+	if err := app.InstallProfiles(env.load(t), InstallOptions{Sync: true}); err == nil {
 		t.Error("sync must refuse to overwrite local edits")
 	}
 }

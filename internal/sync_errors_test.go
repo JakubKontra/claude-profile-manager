@@ -8,11 +8,13 @@ import (
 )
 
 func TestApplyDistributeReportsPartialFailure(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	src := filepath.Join(dir, "source")
 	mustWrite(t, src, "valid")
 	good := filepath.Join(dir, "good")
-	err := ApplyDistribute([]DistributeAction{
+	app, _ := testApp(t)
+	err := app.ApplyDistribute([]DistributeAction{
 		{Kind: "create", RepoPath: "missing", Source: filepath.Join(dir, "absent"), Dest: filepath.Join(dir, "bad")},
 		{Kind: "create", RepoPath: "good", Source: src, Dest: good},
 		{Kind: "merge", RepoPath: "config", Source: src, Dest: filepath.Join(dir, "config")},
@@ -27,6 +29,7 @@ func TestApplyDistributeReportsPartialFailure(t *testing.T) {
 }
 
 func TestStageSyncFilesFailsOnCopyError(t *testing.T) {
+	t.Parallel()
 	if err := stageSyncFiles(t.TempDir(), &Config{}, map[string]string{"missing": filepath.Join(t.TempDir(), "absent")}); err == nil {
 		t.Fatal("copy failure hidden")
 	}

@@ -4,16 +4,28 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
-// captureOutput redirects command output into a buffer for the test.
-func captureOutput(t *testing.T) *bytes.Buffer {
+// testApp returns an App with no config, for helpers that only print.
+func testApp(t *testing.T) (*App, *bytes.Buffer) {
 	t.Helper()
-	var buf bytes.Buffer
-	prev := SetOutput(&buf)
-	t.Cleanup(func() { SetOutput(prev) })
-	return &buf
+	return testAppAt(t, "")
+}
+
+// testAppAt returns an App for configPath whose output goes to the returned
+// buffer. Errors and prompts go to a separate buffer so tests see only stdout.
+func testAppAt(t *testing.T, configPath string) (*App, *bytes.Buffer) {
+	t.Helper()
+	var out bytes.Buffer
+	return &App{
+		ConfigPath: configPath,
+		BaseDir:    ProfilesBaseDir(configPath),
+		In:         strings.NewReader(""),
+		Out:        &out,
+		Err:        &bytes.Buffer{},
+	}, &out
 }
 
 // testEnv is a self-contained cpm layout inside a temp dir.
@@ -22,6 +34,9 @@ type testEnv struct {
 	SourceDir  string
 	BinDir     string
 	ConfigPath string
+	// App runs commands against this layout; its output lands in Out.
+	App *App
+	Out *bytes.Buffer
 }
 
 // newTestEnv creates source/bin dirs and writes config.toml with the given
@@ -39,6 +54,7 @@ func newTestEnv(t *testing.T, profilesTOML string) testEnv {
 	mustMkdir(t, env.BinDir)
 	mustMkdir(t, filepath.Dir(env.ConfigPath))
 	writeTestConfig(t, env, profilesTOML)
+	env.App, env.Out = testAppAt(t, env.ConfigPath)
 	return env
 }
 

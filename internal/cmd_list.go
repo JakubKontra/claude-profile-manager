@@ -20,13 +20,13 @@ type ProfileListEntry struct {
 }
 
 // ListProfiles gathers the status of every configured profile.
-func ListProfiles(cfg *Config, profilesBase string) []ProfileListEntry {
+func (a *App) ListProfiles(cfg *Config) []ProfileListEntry {
 	current := CurrentProfile()
 	var entries []ProfileListEntry
 
 	for _, name := range SortedProfileNames(cfg) {
 		profile := cfg.Profiles[name]
-		profileDir := filepath.Join(profilesBase, name)
+		profileDir := filepath.Join(a.BaseDir, name)
 
 		entry := ProfileListEntry{
 			Name:        name,
@@ -50,7 +50,7 @@ func ListProfiles(cfg *Config, profilesBase string) []ProfileListEntry {
 }
 
 // RenderProfileList prints the human-readable list.
-func RenderProfileList(entries []ProfileListEntry) {
+func (a *App) RenderProfileList(entries []ProfileListEntry) {
 	for _, e := range entries {
 		status := "not installed"
 		switch {
@@ -72,6 +72,6 @@ func RenderProfileList(entries []ProfileListEntry) {
 			marker = "* "
 		}
 
-		outf("%s%-26s %s  [%s]\n", marker, e.Command, desc, status)
+		a.outf("%s%-26s %s  [%s]\n", marker, e.Command, desc, status)
 	}
 }

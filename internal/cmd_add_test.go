@@ -10,11 +10,11 @@ import (
 
 func TestAddProfileAppendsAndInstalls(t *testing.T) {
 	env := newTestEnv(t, twoProfiles)
+	app, buf := env.App, env.Out
 	mustWrite(t, filepath.Join(env.SourceDir, "settings.json"), `{}`)
 	stubKeychain(t, false)
-	buf := captureOutput(t)
 
-	err := AddProfile(env.ConfigPath, "client", AddOptions{
+	err := app.AddProfile("client", AddOptions{
 		Description: "Client",
 		Model:       "opus",
 		AddDirs:     []string{"~/c"},
@@ -37,30 +37,32 @@ func TestAddProfileAppendsAndInstalls(t *testing.T) {
 }
 
 func TestAddProfileNoInstallAndErrors(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, twoProfiles)
-	captureOutput(t)
+	app := env.App
 
-	if err := AddProfile(env.ConfigPath, "x", AddOptions{NoInstall: true}); err != nil {
+	if err := app.AddProfile("x", AddOptions{NoInstall: true}); err != nil {
 		t.Fatal(err)
 	}
 	if fileExists(filepath.Join(env.BinDir, "claude-x")) {
 		t.Error("--no-install must not install")
 	}
-	if err := AddProfile(env.ConfigPath, "work", AddOptions{NoInstall: true}); err == nil {
+	if err := app.AddProfile("work", AddOptions{NoInstall: true}); err == nil {
 		t.Error("duplicate must be rejected")
 	}
-	if err := AddProfile(env.ConfigPath, "bad name", AddOptions{NoInstall: true}); err == nil {
+	if err := app.AddProfile("bad name", AddOptions{NoInstall: true}); err == nil {
 		t.Error("invalid name must be rejected")
 	}
-	if err := AddProfile(env.ConfigPath, "y", AddOptions{NoInstall: true, Env: map[string]string{"BAD-KEY": "1"}}); err == nil {
+	if err := app.AddProfile("y", AddOptions{NoInstall: true, Env: map[string]string{"BAD-KEY": "1"}}); err == nil {
 		t.Error("invalid env name must be rejected")
 	}
 }
 
 func TestAddProfileCreatesConfigWhenMissing(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "config.toml")
-	captureOutput(t)
-	if err := AddProfile(path, "first", AddOptions{NoInstall: true, Description: "d"}); err != nil {
+	app, _ := testAppAt(t, path)
+	if err := app.AddProfile("first", AddOptions{NoInstall: true, Description: "d"}); err != nil {
 		t.Fatal(err)
 	}
 	cfg, err := LoadConfig(path)
@@ -70,6 +72,7 @@ func TestAddProfileCreatesConfigWhenMissing(t *testing.T) {
 }
 
 func TestParseEnvFlag(t *testing.T) {
+	t.Parallel()
 	env, err := ParseEnvFlag([]string{"A=1", "B=x=y", "C="})
 	if err != nil || env["A"] != "1" || env["B"] != "x=y" || env["C"] != "" {
 		t.Errorf("unexpected: %v %v", env, err)
@@ -99,9 +102,9 @@ func stubKeychainDelete(t *testing.T) *[]string {
 func installedEnv(t *testing.T) testEnv {
 	t.Helper()
 	env := newTestEnv(t, twoProfiles)
+	app := env.App
 	mustWrite(t, filepath.Join(env.SourceDir, "settings.json"), `{}`)
-	captureOutput(t)
-	if err := InstallProfiles(env.load(t), env.ConfigPath, InstallOptions{}); err != nil {
+	if err := app.InstallProfiles(env.load(t), InstallOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	mustWrite(t, filepath.Join(env.profilesBase(), "work", ".credentials.json"), `{}`)
@@ -110,9 +113,10 @@ func installedEnv(t *testing.T) testEnv {
 
 func TestRemoveProfileKeepsDirWithoutPurge(t *testing.T) {
 	env := installedEnv(t)
+	app := env.App
 	deleted := stubKeychainDelete(t)
 
-	err := RemoveProfile(env.load(t), env.ConfigPath, "work", RemoveOptions{})
+	err := app.RemoveProfile(env.load(t), "work", RemoveOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,10 +140,11 @@ func TestRemoveProfileKeepsDirWithoutPurge(t *testing.T) {
 
 func TestRemoveProfilePurgeDeletesEverything(t *testing.T) {
 	env := installedEnv(t)
+	app := env.App
 	deleted := stubKeychainDelete(t)
 	profileDir := filepath.Join(env.profilesBase(), "work")
 
-	err := RemoveProfile(env.load(t), env.ConfigPath, "work", RemoveOptions{Purge: true, Yes: true})
+	err := app.RemoveProfile(env.load(t), "work", RemoveOptions{Purge: true, Yes: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,16 +161,17 @@ func TestRemoveProfilePurgeDeletesEverything(t *testing.T) {
 
 func TestRemoveProfilePromptAndNonInteractive(t *testing.T) {
 	env := installedEnv(t)
+	app := env.App
 	stubKeychainDelete(t)
 	profileDir := filepath.Join(env.profilesBase(), "work")
 
-	err := RemoveProfile(env.load(t), env.ConfigPath, "work", RemoveOptions{Purge: true, IsTerminal: false})
+	err := app.RemoveProfile(env.load(t), "work", RemoveOptions{Purge: true, IsTerminal: false})
 	if err == nil || !strings.Contains(err.Error(), "--yes") {
 		t.Errorf("non-interactive purge must require --yes, got %v", err)
 	}
 
 	// Declined prompt: nothing happens.
-	err = RemoveProfile(env.load(t), env.ConfigPath, "work", RemoveOptions{Purge: true, IsTerminal: true, Stdin: strings.NewReader("n\n")})
+	err = app.RemoveProfile(env.load(t), "work", RemoveOptions{Purge: true, IsTerminal: true, Stdin: strings.NewReader("n\n")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,7 +180,7 @@ func TestRemoveProfilePromptAndNonInteractive(t *testing.T) {
 	}
 
 	// Accepted prompt.
-	err = RemoveProfile(env.load(t), env.ConfigPath, "work", RemoveOptions{Purge: true, IsTerminal: true, Stdin: strings.NewReader("y\n")})
+	err = app.RemoveProfile(env.load(t), "work", RemoveOptions{Purge: true, IsTerminal: true, Stdin: strings.NewReader("y\n")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,20 +190,24 @@ func TestRemoveProfilePromptAndNonInteractive(t *testing.T) {
 }
 
 func TestRemoveProfileErrors(t *testing.T) {
+	t.Parallel()
 	env := installedEnv(t)
-	if err := RemoveProfile(env.load(t), env.ConfigPath, "nope", RemoveOptions{}); err == nil {
+	app := env.App
+	if err := app.RemoveProfile(env.load(t), "nope", RemoveOptions{}); err == nil {
 		t.Error("unknown profile should error")
 	}
-	if err := RemoveProfile(env.load(t), env.ConfigPath, "../x", RemoveOptions{}); err == nil {
+	if err := app.RemoveProfile(env.load(t), "../x", RemoveOptions{}); err == nil {
 		t.Error("invalid name should error")
 	}
 }
 
 func TestRemoveProfileKeepsForeignBinary(t *testing.T) {
+	t.Parallel()
 	env := installedEnv(t)
+	app := env.App
 	// A user-provided script with the wrapper's name but no marker.
 	mustWrite(t, filepath.Join(env.BinDir, "claude-personal"), "#!/bin/sh\necho mine\n")
-	if err := RemoveProfile(env.load(t), env.ConfigPath, "personal", RemoveOptions{}); err != nil {
+	if err := app.RemoveProfile(env.load(t), "personal", RemoveOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	if !fileExists(filepath.Join(env.BinDir, "claude-personal")) {
@@ -206,6 +216,7 @@ func TestRemoveProfileKeepsForeignBinary(t *testing.T) {
 }
 
 func TestEditorCommand(t *testing.T) {
+	t.Parallel()
 	get := func(m map[string]string) func(string) string { return func(k string) string { return m[k] } }
 	if got := EditorCommand(get(map[string]string{"VISUAL": "code --wait", "EDITOR": "vim"})); strings.Join(got, " ") != "code --wait" {
 		t.Errorf("VISUAL should win: %v", got)
@@ -219,8 +230,9 @@ func TestEditorCommand(t *testing.T) {
 }
 
 func TestEditConfigRunsEditorAndValidates(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, twoProfiles)
-	buf := captureOutput(t)
+	app, buf := env.App, env.Out
 	var ran []string
 	run := func(c *exec.Cmd) error {
 		ran = c.Args
@@ -232,7 +244,7 @@ func TestEditConfigRunsEditorAndValidates(t *testing.T) {
 		}
 		return ""
 	}
-	if err := EditConfig(env.ConfigPath, getenv, run); err != nil {
+	if err := app.EditConfig(getenv, run); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Join(ran, " ") != "myedit --flag "+env.ConfigPath {
@@ -245,14 +257,15 @@ func TestEditConfigRunsEditorAndValidates(t *testing.T) {
 	// Invalid config after editing is reported, not fatal.
 	buf.Reset()
 	os.WriteFile(env.ConfigPath, []byte("[profiles.\"bad name\"]\n"), 0o644)
-	if err := EditConfig(env.ConfigPath, getenv, run); err != nil {
+	if err := app.EditConfig(getenv, run); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(buf.String(), "Warning") {
 		t.Errorf("invalid config should warn: %q", buf.String())
 	}
 
-	if err := EditConfig(filepath.Join(t.TempDir(), "missing.toml"), getenv, run); err == nil {
+	missing, _ := testAppAt(t, filepath.Join(t.TempDir(), "missing.toml"))
+	if err := missing.EditConfig(getenv, run); err == nil {
 		t.Error("missing config should error")
 	}
 }

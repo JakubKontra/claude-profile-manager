@@ -85,18 +85,18 @@ func protectDistribute(plan []DistributeAction, repoDir string) []DistributeActi
 
 // prepareDistribute checks the entire plan before touching live data and saves
 // recoverable copies of all files it will overwrite or remove.
-func prepareDistribute(plan []DistributeAction) error {
+func (a *App) prepareDistribute(plan []DistributeAction) error {
 	var failures []error
-	for _, a := range plan {
-		if a.Kind == "conflict" {
-			failures = append(failures, fmt.Errorf("sync conflict: %s (reconcile local and cloud files, then retry)", a.RepoPath))
+	for _, act := range plan {
+		if act.Kind == "conflict" {
+			failures = append(failures, fmt.Errorf("sync conflict: %s (reconcile local and cloud files, then retry)", act.RepoPath))
 		}
-		if a.StatePath == "" || a.Kind == "excluded" {
+		if act.StatePath == "" || act.Kind == "excluded" {
 			continue
 		}
-		hash, err := fileHash(a.Dest)
-		if err != nil || hash != a.LocalHash {
-			failures = append(failures, fmt.Errorf("file changed while planning: %s", a.RepoPath))
+		hash, err := fileHash(act.Dest)
+		if err != nil || hash != act.LocalHash {
+			failures = append(failures, fmt.Errorf("file changed while planning: %s", act.RepoPath))
 		}
 	}
 	if err := errors.Join(failures...); err != nil {
@@ -104,15 +104,15 @@ func prepareDistribute(plan []DistributeAction) error {
 	}
 	var backupDir string
 	manifest := map[string]string{}
-	for _, a := range plan {
-		if a.StatePath == "" || a.LocalHash == "" {
+	for _, act := range plan {
+		if act.StatePath == "" || act.LocalHash == "" {
 			continue
 		}
-		if a.Kind != "update" && a.Kind != "delete" && a.Kind != "merge" {
+		if act.Kind != "update" && act.Kind != "delete" && act.Kind != "merge" {
 			continue
 		}
 		if backupDir == "" {
-			root := filepath.Join(filepath.Dir(a.StatePath), "backups")
+			root := filepath.Join(filepath.Dir(act.StatePath), "backups")
 			if err := os.MkdirAll(root, 0o700); err != nil {
 				return err
 			}
@@ -122,15 +122,15 @@ func prepareDistribute(plan []DistributeAction) error {
 				return err
 			}
 		}
-		data, err := os.ReadFile(a.Dest)
+		data, err := os.ReadFile(act.Dest)
 		if err != nil {
 			return err
 		}
-		dest := filepath.Join(backupDir, a.RepoPath)
+		dest := filepath.Join(backupDir, act.RepoPath)
 		if err := writeFileAtomic(dest, data, 0o600); err != nil {
 			return err
 		}
-		manifest[a.RepoPath] = a.Dest
+		manifest[act.RepoPath] = act.Dest
 	}
 	if backupDir != "" {
 		data, err := json.MarshalIndent(manifest, "", "  ")
@@ -140,7 +140,7 @@ func prepareDistribute(plan []DistributeAction) error {
 		if err := writeFileAtomic(filepath.Join(backupDir, "restore-paths.json"), data, 0o600); err != nil {
 			return err
 		}
-		outf("Backup: %s (restore-paths.json lists original locations)\n", backupDir)
+		a.outf("Backup: %s (restore-paths.json lists original locations)\n", backupDir)
 	}
 	return nil
 }

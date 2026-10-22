@@ -30,7 +30,7 @@ var claudeJSONSeedKeys = []string{
 
 // SeedClaudeJSON creates <profileDir>/.claude.json from the whitelisted keys
 // of sourcePath when the profile has none yet. It reports whether it wrote.
-func SeedClaudeJSON(profileDir, sourcePath string) (bool, error) {
+func (a *App) SeedClaudeJSON(profileDir, sourcePath string) (bool, error) {
 	profilePath := filepath.Join(profileDir, ".claude.json")
 	if _, err := os.Stat(profilePath); err == nil {
 		return false, nil
@@ -62,7 +62,7 @@ func SeedClaudeJSON(profileDir, sourcePath string) (bool, error) {
 	if err := os.WriteFile(profilePath, append(out, '\n'), 0o600); err != nil {
 		return false, err
 	}
-	outln("  seeded .claude.json (onboarding skipped)")
+	a.outln("  seeded .claude.json (onboarding skipped)")
 	return true, nil
 }
 
@@ -88,7 +88,7 @@ func MergeMCPServers(source map[string]any, p *Profile) map[string]any {
 
 // SyncMCPServers writes the merged MCP server set into the profile's
 // .claude.json. It is a no-op until the profile file exists.
-func SyncMCPServers(profileDir string, p *Profile, sourcePath string) error {
+func (a *App) SyncMCPServers(profileDir string, p *Profile, sourcePath string) error {
 	var source map[string]any
 	if sourceData, err := os.ReadFile(sourcePath); err == nil {
 		_ = json.Unmarshal(sourceData, &source)
@@ -129,7 +129,7 @@ func SyncMCPServers(profileDir string, p *Profile, sourcePath string) error {
 		return err
 	}
 
-	outf("  synced mcpServers (%d server%s)\n", len(servers), pluralS(len(servers)))
+	a.outf("  synced mcpServers (%d server%s)\n", len(servers), pluralS(len(servers)))
 	return nil
 }
 
@@ -195,15 +195,15 @@ func deepCopyMap(m map[string]any) map[string]any {
 }
 
 // PatchAttribution keeps the old entry point; attribution is one override.
-func PatchAttribution(profileDir string, attr *Attribution) error {
+func (a *App) PatchAttribution(profileDir string, attr *Attribution) error {
 	if attr == nil {
 		return nil
 	}
-	return PatchSettings(profileDir, map[string]any{"attribution": attributionMap(attr)})
+	return a.PatchSettings(profileDir, map[string]any{"attribution": attributionMap(attr)})
 }
 
 // PatchSettings deep-merges overrides into the profile's settings.json.
-func PatchSettings(profileDir string, overrides map[string]any) error {
+func (a *App) PatchSettings(profileDir string, overrides map[string]any) error {
 	if len(overrides) == 0 {
 		return nil
 	}
@@ -222,7 +222,7 @@ func PatchSettings(profileDir string, overrides map[string]any) error {
 		return err
 	}
 
-	outln("  patched settings.json")
+	a.outln("  patched settings.json")
 	return nil
 }
 

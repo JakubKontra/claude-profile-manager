@@ -8,6 +8,7 @@ import (
 )
 
 func TestGenerateWrapperBasic(t *testing.T) {
+	t.Parallel()
 	profile := &Profile{
 		Description: "Personal account",
 	}
@@ -31,6 +32,7 @@ func TestGenerateWrapperBasic(t *testing.T) {
 }
 
 func TestGenerateWrapperWithModel(t *testing.T) {
+	t.Parallel()
 	profile := &Profile{
 		Description: "Work",
 		Model:       "sonnet",
@@ -47,6 +49,7 @@ func TestGenerateWrapperWithModel(t *testing.T) {
 }
 
 func TestGenerateWrapperWithAddDirs(t *testing.T) {
+	t.Parallel()
 	home, _ := os.UserHomeDir()
 	profile := &Profile{
 		Description: "Work",
@@ -62,6 +65,7 @@ func TestGenerateWrapperWithAddDirs(t *testing.T) {
 }
 
 func TestGenerateWrapperWithEnv(t *testing.T) {
+	t.Parallel()
 	profile := &Profile{
 		Description: "Vertex",
 		Env: map[string]string{
@@ -81,6 +85,7 @@ func TestGenerateWrapperWithEnv(t *testing.T) {
 }
 
 func TestGenerateWrapperSubcommandBypass(t *testing.T) {
+	t.Parallel()
 	profile := &Profile{Description: "Test"}
 	out := GenerateWrapper("test", "/profiles/test", profile)
 
@@ -92,11 +97,13 @@ func TestGenerateWrapperSubcommandBypass(t *testing.T) {
 }
 
 func TestInstallWrapper(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	scriptPath := filepath.Join(dir, "claude-test")
 	content := "#!/usr/bin/env bash\n" + marker + "\necho test\n"
 
-	if err := InstallWrapper(scriptPath, content); err != nil {
+	app, _ := testApp(t)
+	if err := app.InstallWrapper(scriptPath, content); err != nil {
 		t.Fatalf("InstallWrapper failed: %v", err)
 	}
 
@@ -115,15 +122,17 @@ func TestInstallWrapper(t *testing.T) {
 }
 
 func TestInstallWrapperIdempotent(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	scriptPath := filepath.Join(dir, "claude-test")
 	content := "#!/usr/bin/env bash\n" + marker + "\necho test\n"
 
-	InstallWrapper(scriptPath, content)
+	app, _ := testApp(t)
+	app.InstallWrapper(scriptPath, content)
 	info1, _ := os.Stat(scriptPath)
 
 	// Second install with same content should not rewrite
-	err := InstallWrapper(scriptPath, content)
+	err := app.InstallWrapper(scriptPath, content)
 	if err != nil {
 		t.Fatalf("second InstallWrapper failed: %v", err)
 	}
@@ -135,6 +144,7 @@ func TestInstallWrapperIdempotent(t *testing.T) {
 }
 
 func TestCleanupStaleScripts(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 
 	// Create a stale script with our marker
@@ -150,7 +160,8 @@ func TestCleanupStaleScripts(t *testing.T) {
 	os.WriteFile(other, []byte("#!/bin/bash\necho other\n"), 0o755)
 
 	activeNames := map[string]bool{"claude-keep": true}
-	CleanupStaleScripts(dir, activeNames)
+	app, _ := testApp(t)
+	app.CleanupStaleScripts(dir, activeNames)
 
 	if _, err := os.Stat(stale); !os.IsNotExist(err) {
 		t.Error("stale script should have been removed")
@@ -164,6 +175,7 @@ func TestCleanupStaleScripts(t *testing.T) {
 }
 
 func TestCleanupStaleScriptsKeepsCpmBinary(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 
 	// The cpm binary embeds the marker as a compiled-in string constant, so a
@@ -178,7 +190,8 @@ func TestCleanupStaleScriptsKeepsCpmBinary(t *testing.T) {
 	body := "#!/bin/bash\n# line 2\n# line 3\n# line 4\n# line 5\n# line 6\n" + marker + "\n"
 	os.WriteFile(notAWrapper, []byte(body), 0o755)
 
-	CleanupStaleScripts(dir, map[string]bool{})
+	app, _ := testApp(t)
+	app.CleanupStaleScripts(dir, map[string]bool{})
 
 	if _, err := os.Stat(binary); err != nil {
 		t.Error("cpm binary must not be removed by its own cleanup")
@@ -189,12 +202,14 @@ func TestCleanupStaleScriptsKeepsCpmBinary(t *testing.T) {
 }
 
 func TestCleanupStaleScriptsRemovesLegacyWrapper(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 
 	legacy := filepath.Join(dir, "claude-legacy")
 	os.WriteFile(legacy, []byte("#!/usr/bin/env bash\n"+legacyMarker+"\necho legacy\n"), 0o755)
 
-	CleanupStaleScripts(dir, map[string]bool{})
+	app, _ := testApp(t)
+	app.CleanupStaleScripts(dir, map[string]bool{})
 
 	if _, err := os.Stat(legacy); !os.IsNotExist(err) {
 		t.Error("wrapper from a pre-rename version should be removed")
@@ -202,6 +217,7 @@ func TestCleanupStaleScriptsRemovesLegacyWrapper(t *testing.T) {
 }
 
 func TestWrapperRefusesForeignTargets(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	foreign := filepath.Join(dir, "foreign")
 	mustWrite(t, foreign, "do not replace")
@@ -210,7 +226,8 @@ func TestWrapperRefusesForeignTargets(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, path := range []string{foreign, link, dir} {
-		if err := InstallWrapper(path, GenerateWrapper("test", dir, &Profile{})); err == nil {
+		app, _ := testApp(t)
+		if err := app.InstallWrapper(path, GenerateWrapper("test", dir, &Profile{})); err == nil {
 			t.Fatalf("accepted %s", path)
 		}
 	}
@@ -221,20 +238,22 @@ func TestWrapperRefusesForeignTargets(t *testing.T) {
 }
 
 func TestWrapperDescriptionAndSecrets(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	script := GenerateWrapper("test", dir, &Profile{Description: "hello\necho injected\rbye", Env: map[string]string{"API_TOKEN": "private"}})
 	if strings.Contains(script, "\necho injected") {
 		t.Fatal("description injected a command")
 	}
 	path := filepath.Join(dir, "claude-test")
-	if err := InstallWrapper(path, script); err != nil {
+	app, _ := testApp(t)
+	if err := app.InstallWrapper(path, script); err != nil {
 		t.Fatal(err)
 	}
 	st, _ := os.Stat(path)
 	if st.Mode().Perm() != 0o700 {
 		t.Fatal("credential wrapper must be private")
 	}
-	if err := InstallWrapper(path, GenerateWrapper("test", dir, &Profile{})); err != nil {
+	if err := app.InstallWrapper(path, GenerateWrapper("test", dir, &Profile{})); err != nil {
 		t.Fatal(err)
 	}
 }

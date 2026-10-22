@@ -69,7 +69,7 @@ func GenerateWrapper(name string, profileDir string, profile *Profile) string {
 	return b.String()
 }
 
-func InstallWrapper(scriptPath, content string) error {
+func (a *App) InstallWrapper(scriptPath, content string) error {
 	dir := filepath.Dir(scriptPath)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
@@ -86,11 +86,11 @@ func InstallWrapper(scriptPath, content string) error {
 	if err := writeFileAtomic(scriptPath, []byte(content), mode); err != nil {
 		return err
 	}
-	outf("  installed %s\n", scriptPath)
+	a.outf("  installed %s\n", scriptPath)
 	return nil
 }
 
-func CleanupStaleScripts(binDir string, activeNames map[string]bool) {
+func (a *App) CleanupStaleScripts(binDir string, activeNames map[string]bool) {
 	entries, err := os.ReadDir(binDir)
 	if err != nil {
 		return
@@ -114,7 +114,7 @@ func CleanupStaleScripts(binDir string, activeNames map[string]bool) {
 			continue
 		}
 		os.Remove(path)
-		outf("  removed stale script %s\n", path)
+		a.outf("  removed stale script %s\n", path)
 	}
 }
 

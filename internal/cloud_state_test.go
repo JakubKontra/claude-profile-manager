@@ -7,13 +7,13 @@ import (
 )
 
 func TestCloudConflictPreservesWholePlanAndBaseline(t *testing.T) {
-	captureOutput(t)
+	app, _ := testApp(t)
 	root := t.TempDir()
 	t.Setenv("HOME", root)
 	repo, live := filepath.Join(root, "repo"), filepath.Join(root, "live")
 	cfg := &Config{SourceDir: live}
 	mustWrite(t, filepath.Join(repo, "commands", "shared.md"), "base")
-	if err := DistributeSyncFiles(repo, cfg); err != nil {
+	if err := app.DistributeSyncFiles(repo, cfg); err != nil {
 		t.Fatal(err)
 	}
 	before, _ := os.ReadFile(cloudStatePath(repo))
@@ -21,7 +21,7 @@ func TestCloudConflictPreservesWholePlanAndBaseline(t *testing.T) {
 	mustWrite(t, filepath.Join(live, "commands", "new-local.md"), "new")
 	mustWrite(t, filepath.Join(repo, "commands", "shared.md"), "remote")
 	mustWrite(t, filepath.Join(repo, "commands", "new-remote.md"), "new")
-	if err := DistributeSyncFiles(repo, cfg); err == nil {
+	if err := app.DistributeSyncFiles(repo, cfg); err == nil {
 		t.Fatal("conflict accepted")
 	}
 	after, _ := os.ReadFile(cloudStatePath(repo))
@@ -32,7 +32,7 @@ func TestCloudConflictPreservesWholePlanAndBaseline(t *testing.T) {
 		t.Fatal("partial apply on conflict")
 	}
 	mustWrite(t, filepath.Join(live, "commands", "shared.md"), "base")
-	if err := DistributeSyncFiles(repo, cfg); err != nil {
+	if err := app.DistributeSyncFiles(repo, cfg); err != nil {
 		t.Fatal(err)
 	}
 	if !fileExistsAt(filepath.Join(live, "commands", "new-local.md")) {
@@ -49,7 +49,7 @@ func TestCloudConflictPreservesWholePlanAndBaseline(t *testing.T) {
 }
 
 func TestCloudFirstPullConflictAndLastRemoteFileDeletion(t *testing.T) {
-	captureOutput(t)
+	app, _ := testApp(t)
 	root := t.TempDir()
 	t.Setenv("HOME", root)
 	repo, live := filepath.Join(root, "repo"), filepath.Join(root, "live")
@@ -57,15 +57,15 @@ func TestCloudFirstPullConflictAndLastRemoteFileDeletion(t *testing.T) {
 	path := filepath.Join("commands", "only.md")
 	mustWrite(t, filepath.Join(repo, path), "remote")
 	mustWrite(t, filepath.Join(live, path), "local")
-	if err := DistributeSyncFiles(repo, cfg); err == nil {
+	if err := app.DistributeSyncFiles(repo, cfg); err == nil {
 		t.Fatal("first pull overwrote local file")
 	}
 	mustWrite(t, filepath.Join(live, path), "remote")
-	if err := DistributeSyncFiles(repo, cfg); err != nil {
+	if err := app.DistributeSyncFiles(repo, cfg); err != nil {
 		t.Fatal(err)
 	}
 	os.RemoveAll(filepath.Join(repo, "commands"))
-	if err := DistributeSyncFiles(repo, cfg); err != nil {
+	if err := app.DistributeSyncFiles(repo, cfg); err != nil {
 		t.Fatal(err)
 	}
 	if fileExistsAt(filepath.Join(live, path)) {

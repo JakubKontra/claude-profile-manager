@@ -8,6 +8,7 @@ import (
 )
 
 func TestEffectiveShareDirsInheritance(t *testing.T) {
+	t.Parallel()
 	join := func(d []string) string { return strings.Join(d, ",") }
 
 	if got := EffectiveShareDirs(&Config{}, &Profile{}); join(got) != "commands,skills,agents,plugins,projects" {
@@ -32,14 +33,15 @@ func TestEffectiveShareDirsInheritance(t *testing.T) {
 }
 
 func TestSetupProfileIsolateReplacesSymlinkWithDir(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, twoProfiles)
 	for _, d := range []string{"skills", "projects"} {
 		mustMkdir(t, filepath.Join(env.SourceDir, d))
 	}
 	profileDir := filepath.Join(env.profilesBase(), "work")
-	buf := captureOutput(t)
+	app, buf := testApp(t)
 
-	if err := SetupProfile("work", profileDir, env.SourceDir, defaultShareDirs, false); err != nil {
+	if err := app.SetupProfile("work", profileDir, env.SourceDir, defaultShareDirs, false); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Readlink(filepath.Join(profileDir, "projects")); err != nil {
@@ -48,7 +50,7 @@ func TestSetupProfileIsolateReplacesSymlinkWithDir(t *testing.T) {
 
 	buf.Reset()
 	dirs := EffectiveShareDirs(env.load(t), &Profile{Isolate: []string{"projects"}})
-	if err := SetupProfile("work", profileDir, env.SourceDir, dirs, false); err != nil {
+	if err := app.SetupProfile("work", profileDir, env.SourceDir, dirs, false); err != nil {
 		t.Fatal(err)
 	}
 	st, err := os.Lstat(filepath.Join(profileDir, "projects"))
@@ -65,7 +67,7 @@ func TestSetupProfileIsolateReplacesSymlinkWithDir(t *testing.T) {
 	// Sharing it again does not delete the (now real) directory.
 	mustWrite(t, filepath.Join(profileDir, "projects", "data.txt"), "keep")
 	buf.Reset()
-	if err := SetupProfile("work", profileDir, env.SourceDir, defaultShareDirs, false); err != nil {
+	if err := app.SetupProfile("work", profileDir, env.SourceDir, defaultShareDirs, false); err != nil {
 		t.Fatal(err)
 	}
 	if !fileExists(filepath.Join(profileDir, "projects", "data.txt")) {
@@ -77,6 +79,7 @@ func TestSetupProfileIsolateReplacesSymlinkWithDir(t *testing.T) {
 }
 
 func TestSetupProfileLeavesForeignSymlinks(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, twoProfiles)
 	profileDir := filepath.Join(env.profilesBase(), "work")
 	mustMkdir(t, profileDir)
@@ -84,8 +87,8 @@ func TestSetupProfileLeavesForeignSymlinks(t *testing.T) {
 	if err := os.Symlink(other, filepath.Join(profileDir, "mine")); err != nil {
 		t.Fatal(err)
 	}
-	captureOutput(t)
-	if err := SetupProfile("work", profileDir, env.SourceDir, defaultShareDirs, false); err != nil {
+	app, _ := testApp(t)
+	if err := app.SetupProfile("work", profileDir, env.SourceDir, defaultShareDirs, false); err != nil {
 		t.Fatal(err)
 	}
 	if target, err := os.Readlink(filepath.Join(profileDir, "mine")); err != nil || target != other {
@@ -94,6 +97,7 @@ func TestSetupProfileLeavesForeignSymlinks(t *testing.T) {
 }
 
 func TestLoadConfigRejectsBadShareEntry(t *testing.T) {
+	t.Parallel()
 	for _, body := range []string{
 		"share = [\"../x\"]\n[profiles.a]\n",
 		"[profiles.a]\nisolate = [\"a/b\"]\n",
@@ -108,16 +112,17 @@ func TestLoadConfigRejectsBadShareEntry(t *testing.T) {
 }
 
 func TestInstallProfilesHonoursShareConfig(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, `share = ["skills"]
 [profiles.a]
 [profiles.b]
 share = ["plans"]
 `)
+	app := env.App
 	for _, d := range []string{"skills", "plans", "projects"} {
 		mustMkdir(t, filepath.Join(env.SourceDir, d))
 	}
-	captureOutput(t)
-	if err := InstallProfiles(env.load(t), env.ConfigPath, InstallOptions{}); err != nil {
+	if err := app.InstallProfiles(env.load(t), InstallOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	a := filepath.Join(env.profilesBase(), "a")

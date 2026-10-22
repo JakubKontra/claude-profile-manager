@@ -20,8 +20,8 @@ func EditorCommand(getenv func(string) string) []string {
 
 // EditConfig opens the config in the user's editor and validates it after.
 // run is injected for tests.
-func EditConfig(configPath string, getenv func(string) string, run func(*exec.Cmd) error) error {
-	path := ExpandPath(configPath)
+func (a *App) EditConfig(getenv func(string) string, run func(*exec.Cmd) error) error {
+	path := ExpandPath(a.ConfigPath)
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return fmt.Errorf("config not found at %s (run 'cpm init' first)", path)
 	}
@@ -36,9 +36,9 @@ func EditConfig(configPath string, getenv func(string) string, run func(*exec.Cm
 	}
 
 	if _, err := LoadConfig(path); err != nil {
-		outf("Warning: %v\n", err)
+		a.outf("Warning: %v\n", err)
 		return nil
 	}
-	outln("Config is valid. Run 'cpm install' to apply changes.")
+	a.outln("Config is valid. Run 'cpm install' to apply changes.")
 	return nil
 }

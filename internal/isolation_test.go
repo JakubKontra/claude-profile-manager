@@ -9,9 +9,10 @@ import (
 )
 
 func TestIsolationPromptDefaultsAndFlags(t *testing.T) {
-	captureOutput(t)
+	t.Parallel()
+	app, _ := testApp(t)
 	opts := AddOptions{}
-	if err := ChooseIsolation(bufio.NewReader(strings.NewReader("\n\n")), &opts); err != nil {
+	if err := app.ChooseIsolation(bufio.NewReader(strings.NewReader("\n\n")), &opts); err != nil {
 		t.Fatal(err)
 	}
 	if *opts.ShareProjects || *opts.InheritMCP {
@@ -19,7 +20,7 @@ func TestIsolationPromptDefaultsAndFlags(t *testing.T) {
 	}
 	yes := true
 	opts = AddOptions{ShareProjects: &yes}
-	if err := ChooseIsolation(bufio.NewReader(strings.NewReader("invalid\nyes\n")), &opts); err != nil {
+	if err := app.ChooseIsolation(bufio.NewReader(strings.NewReader("invalid\nyes\n")), &opts); err != nil {
 		t.Fatal(err)
 	}
 	if !*opts.ShareProjects || !*opts.InheritMCP {
@@ -28,6 +29,7 @@ func TestIsolationPromptDefaultsAndFlags(t *testing.T) {
 }
 
 func TestMCPIsolationPreservesOwnServersAndCompatibility(t *testing.T) {
+	t.Parallel()
 	global := map[string]any{"global": map[string]any{"command": "global"}}
 	if len(MergeMCPServers(global, &Profile{})) != 1 {
 		t.Fatal("legacy inheritance changed")
@@ -41,13 +43,13 @@ func TestMCPIsolationPreservesOwnServersAndCompatibility(t *testing.T) {
 }
 
 func TestAddIsolatedProfileAndClearInheritedServers(t *testing.T) {
-	captureOutput(t)
 	env := newTestEnv(t, "[profiles.old]\n")
+	app := env.App
 	t.Setenv("HOME", env.Root)
 	mustMkdir(t, filepath.Join(env.SourceDir, "projects"))
 	mustWrite(t, filepath.Join(env.Root, ".claude.json"), `{"mcpServers":{"global":{"command":"global"}}}`)
 	no := false
-	if err := AddProfile(env.ConfigPath, "private", AddOptions{ShareProjects: &no, InheritMCP: &no}); err != nil {
+	if err := app.AddProfile("private", AddOptions{ShareProjects: &no, InheritMCP: &no}); err != nil {
 		t.Fatal(err)
 	}
 	cfg := env.load(t)
@@ -66,7 +68,7 @@ func TestAddIsolatedProfileAndClearInheritedServers(t *testing.T) {
 	// Disabling inheritance clears stale servers even without global settings.
 	os.Remove(filepath.Join(env.Root, ".claude.json"))
 	mustWrite(t, path, `{"mcpServers":{"stale":{"command":"old"}}}`)
-	if err := InstallProfiles(cfg, env.ConfigPath, InstallOptions{}); err != nil {
+	if err := app.InstallProfiles(cfg, InstallOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	data, _ = os.ReadFile(path)

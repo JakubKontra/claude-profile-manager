@@ -81,7 +81,7 @@ func isHomebrewPath(path string) bool {
 
 // Upgrade replaces the running cpm binary with the latest GitHub release,
 // after verifying its SHA-256 against the published checksums.txt.
-func Upgrade() error {
+func (a *App) Upgrade() error {
 	exe, err := executablePath()
 	if err != nil {
 		return fmt.Errorf("cannot locate running binary: %w", err)
@@ -99,7 +99,7 @@ func Upgrade() error {
 	}
 
 	if release.TagName == "v"+Version || release.TagName == Version {
-		outf("Already at latest version: %s\n", Version)
+		a.outf("Already at latest version: %s\n", Version)
 		return nil
 	}
 
@@ -129,7 +129,7 @@ func Upgrade() error {
 		return fmt.Errorf("%s has no entry for %s", checksumsAsset, assetName)
 	}
 
-	outf("Downloading %s...\n", release.TagName)
+	a.outf("Downloading %s...\n", release.TagName)
 
 	tmpPath, err := downloadToTemp(downloadURL, filepath.Dir(exe))
 	if err != nil {
@@ -147,7 +147,7 @@ func Upgrade() error {
 		return fmt.Errorf("cannot replace binary: %w", err)
 	}
 
-	outf("Updated %s to %s\n", exe, release.TagName)
+	a.outf("Updated %s to %s\n", exe, release.TagName)
 	return nil
 }
 

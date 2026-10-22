@@ -225,7 +225,7 @@ _cpm_auto_switch
 }
 
 // LinkProfile creates a .claude-profile file in the given directory and adds it to .gitignore.
-func LinkProfile(dir, profileName string) error {
+func (a *App) LinkProfile(dir, profileName string) error {
 	profilePath := filepath.Join(dir, ".claude-profile")
 	if err := os.WriteFile(profilePath, []byte(profileName+"\n"), 0o644); err != nil {
 		return fmt.Errorf("cannot write .claude-profile: %w", err)
@@ -247,7 +247,7 @@ func LinkProfile(dir, profileName string) error {
 			if err := os.WriteFile(gitignorePath, append(data, []byte(entry)...), 0o644); err != nil {
 				return fmt.Errorf("cannot update .gitignore: %w", err)
 			}
-			outln("  added .claude-profile to .gitignore")
+			a.outln("  added .claude-profile to .gitignore")
 		}
 	}
 

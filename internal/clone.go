@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 )
 
-func CloneProfile(sourceName, targetName, configPath string, cfg *Config) error {
-	profilesBase := ProfilesBaseDir(configPath)
+func (a *App) CloneProfile(sourceName, targetName string, cfg *Config) error {
+	profilesBase := a.BaseDir
 	sourceDir := cfg.SourceDir
 	if _, err := lookupProfile(cfg, sourceName); err != nil {
 		return fmt.Errorf("unknown source profile %q", sourceName)
@@ -51,7 +51,7 @@ func CloneProfile(sourceName, targetName, configPath string, cfg *Config) error 
 				return fmt.Errorf("cannot copy baseline for %s: %w", filename, err)
 			}
 		}
-		outf("  copied %s\n", filename)
+		a.outf("  copied %s\n", filename)
 	}
 
 	// Re-create symlinks pointing to the original source dir
@@ -66,7 +66,7 @@ func CloneProfile(sourceName, targetName, configPath string, cfg *Config) error 
 		if err := os.Symlink(target, link); err != nil {
 			return fmt.Errorf("cannot symlink %s: %w", dirname, err)
 		}
-		outf("  symlinked %s/ -> %s\n", dirname, target)
+		a.outf("  symlinked %s/ -> %s\n", dirname, target)
 	}
 
 	// Register the new profile in config.toml with the source's settings.
@@ -75,7 +75,7 @@ func CloneProfile(sourceName, targetName, configPath string, cfg *Config) error 
 	if newProfile.Description != "" {
 		newProfile.Description += " (clone)"
 	}
-	data, err := os.ReadFile(ExpandPath(configPath))
+	data, err := os.ReadFile(ExpandPath(a.ConfigPath))
 	if err != nil {
 		return fmt.Errorf("cannot read config: %w", err)
 	}
@@ -83,14 +83,14 @@ func CloneProfile(sourceName, targetName, configPath string, cfg *Config) error 
 	if err != nil {
 		return err
 	}
-	if err := writeConfigAtomic(configPath, updated); err != nil {
+	if err := writeConfigAtomic(a.ConfigPath, updated); err != nil {
 		return err
 	}
-	outf("  added [profiles.%s] to %s\n", targetName, configPath)
+	a.outf("  added [profiles.%s] to %s\n", targetName, a.ConfigPath)
 
-	outf("\nProfile %q cloned from %q.\n", targetName, sourceName)
-	outln("Note: credentials are NOT cloned — authenticate with: claude-" + targetName)
-	outln("Run 'cpm install' to generate the wrapper script.")
+	a.outf("\nProfile %q cloned from %q.\n", targetName, sourceName)
+	a.outln("Note: credentials are NOT cloned — authenticate with: claude-" + targetName)
+	a.outln("Run 'cpm install' to generate the wrapper script.")
 
 	return nil
 }

@@ -17,12 +17,13 @@ description = "Personal"
 `
 
 func TestInstallProfilesCreatesDirsAndWrappers(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, twoProfiles)
+	app, buf := env.App, env.Out
 	mustWrite(t, filepath.Join(env.SourceDir, "settings.json"), `{"model": "opus"}`)
 	mustMkdir(t, filepath.Join(env.SourceDir, "skills"))
-	buf := captureOutput(t)
 
-	if err := InstallProfiles(env.load(t), env.ConfigPath, InstallOptions{}); err != nil {
+	if err := app.InstallProfiles(env.load(t), InstallOptions{}); err != nil {
 		t.Fatalf("InstallProfiles: %v", err)
 	}
 
@@ -43,7 +44,7 @@ func TestInstallProfilesCreatesDirsAndWrappers(t *testing.T) {
 
 	// Second run must be idempotent (no re-install messages).
 	buf.Reset()
-	if err := InstallProfiles(env.load(t), env.ConfigPath, InstallOptions{}); err != nil {
+	if err := app.InstallProfiles(env.load(t), InstallOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(buf.String(), "installed ") {
@@ -52,18 +53,19 @@ func TestInstallProfilesCreatesDirsAndWrappers(t *testing.T) {
 }
 
 func TestInstallProfilesRefusesWhenDiverged(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, twoProfiles)
+	app := env.App
 	mustWrite(t, filepath.Join(env.SourceDir, "settings.json"), `{"a": 1}`)
 	mustWrite(t, filepath.Join(env.profilesBase(), "work", "settings.json"), `{"a": 1, "local": true}`)
-	captureOutput(t)
 
-	err := InstallProfiles(env.load(t), env.ConfigPath, InstallOptions{Sync: true})
+	err := app.InstallProfiles(env.load(t), InstallOptions{Sync: true})
 	if !errors.Is(err, ErrDiverged) {
 		t.Fatalf("expected ErrDiverged, got %v", err)
 	}
 
 	// --force overwrites.
-	if err := InstallProfiles(env.load(t), env.ConfigPath, InstallOptions{Sync: true, Force: true}); err != nil {
+	if err := app.InstallProfiles(env.load(t), InstallOptions{Sync: true, Force: true}); err != nil {
 		t.Fatalf("forced sync: %v", err)
 	}
 	data, _ := os.ReadFile(filepath.Join(env.profilesBase(), "work", "settings.json"))
@@ -74,11 +76,12 @@ func TestInstallProfilesRefusesWhenDiverged(t *testing.T) {
 
 func TestListProfilesStatuses(t *testing.T) {
 	env := newTestEnv(t, twoProfiles)
+	app, buf := env.App, env.Out
 	mustMkdir(t, filepath.Join(env.profilesBase(), "work"))
 	stubKeychain(t, true)
 	t.Setenv("CLAUDE_PROFILE", "work")
 
-	entries := ListProfiles(env.load(t), env.profilesBase())
+	entries := app.ListProfiles(env.load(t))
 	if len(entries) != 2 {
 		t.Fatalf("expected 2 entries, got %d", len(entries))
 	}
@@ -94,8 +97,7 @@ func TestListProfilesStatuses(t *testing.T) {
 		t.Errorf("work should be installed+authenticated via keychain and current: %+v", work)
 	}
 
-	buf := captureOutput(t)
-	RenderProfileList(entries)
+	app.RenderProfileList(entries)
 	if !strings.Contains(buf.String(), "* claude-work") || !strings.Contains(buf.String(), "[authenticated]") {
 		t.Errorf("unexpected render: %q", buf.String())
 	}
@@ -106,10 +108,11 @@ func TestListProfilesStatuses(t *testing.T) {
 
 func TestListProfilesNotAuthenticatedWithoutKeychainOrFile(t *testing.T) {
 	env := newTestEnv(t, twoProfiles)
+	app := env.App
 	mustMkdir(t, filepath.Join(env.profilesBase(), "work"))
 	stubKeychain(t, false)
 
-	entries := ListProfiles(env.load(t), env.profilesBase())
+	entries := app.ListProfiles(env.load(t))
 	if entries[1].Authenticated {
 		t.Errorf("work should not be authenticated: %+v", entries[1])
 	}
@@ -135,8 +138,8 @@ func TestWhichFromFile(t *testing.T) {
 	if r.Active || r.Profile != "personal" || r.Source != "file" {
 		t.Errorf("unexpected result: %+v", r)
 	}
-	buf := captureOutput(t)
-	RenderWhich(r)
+	app, buf := testApp(t)
+	app.RenderWhich(r)
 	if !strings.Contains(buf.String(), "not active in this shell") {
 		t.Errorf("render should hint about activation: %q", buf.String())
 	}
@@ -152,16 +155,16 @@ func TestWhichNone(t *testing.T) {
 
 func TestDoctorReportCountsAndExitCondition(t *testing.T) {
 	env := newTestEnv(t, twoProfiles)
+	app, buf := env.App, env.Out
 	cfg := env.load(t)
 	cfg.SourceDir = filepath.Join(env.Root, "missing") // forces an error check
 	stubKeychain(t, false)
 
-	report := DoctorReportFor(cfg, env.profilesBase(), DoctorOptions{})
+	report := app.DoctorReportFor(cfg, DoctorOptions{})
 	if report.OK || report.Errors == 0 {
 		t.Errorf("expected failing report, got %+v", report)
 	}
-	buf := captureOutput(t)
-	RenderDoctorReport(report)
+	app.RenderDoctorReport(report)
 	if !strings.Contains(buf.String(), "Some checks failed") {
 		t.Errorf("unexpected render: %q", buf.String())
 	}
@@ -173,6 +176,7 @@ model = "sonnet"
 add_dirs = ["/extra"]
 env = { FOO = "bar" }
 `)
+	app := env.App
 	// Fake claude on PATH.
 	fakeBin := t.TempDir()
 	mustWrite(t, filepath.Join(fakeBin, "claude"), "#!/bin/sh\n")
@@ -181,7 +185,7 @@ env = { FOO = "bar" }
 	t.Setenv("CLAUDE_PROFILE", "stale")
 	t.Setenv("ANTHROPIC_API_KEY", "leak")
 
-	spec, err := BuildRunExec(env.load(t), env.profilesBase(), "work", []string{"-p", "hi"})
+	spec, err := app.BuildRunExec(env.load(t), "work", []string{"-p", "hi"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,57 +204,60 @@ env = { FOO = "bar" }
 	}
 
 	// User-supplied --model wins.
-	spec, _ = BuildRunExec(env.load(t), env.profilesBase(), "work", []string{"--model", "opus"})
+	spec, _ = app.BuildRunExec(env.load(t), "work", []string{"--model", "opus"})
 	if strings.Count(strings.Join(spec.Argv, " "), "--model") != 1 {
 		t.Errorf("profile model should be skipped when user passes --model: %v", spec.Argv)
 	}
 
-	if _, err := BuildRunExec(env.load(t), env.profilesBase(), "nope", nil); err == nil {
+	if _, err := app.BuildRunExec(env.load(t), "nope", nil); err == nil {
 		t.Error("unknown profile should error")
 	}
 }
 
 func TestUseAutoAndDirenv(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, twoProfiles)
+	app := env.App
 	dir := t.TempDir()
 	mustWrite(t, filepath.Join(dir, ".claude-profile"), "work\n")
 
-	snippet, err := Use(env.load(t), env.profilesBase(), "auto", dir, UseOptions{})
+	snippet, err := app.Use(env.load(t), "auto", dir, UseOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(snippet, `CLAUDE_PROFILE='work'`) {
 		t.Errorf("auto should resolve to work: %q", snippet)
 	}
-	if _, err := Use(env.load(t), env.profilesBase(), "auto", t.TempDir(), UseOptions{}); err == nil {
+	if _, err := app.Use(env.load(t), "auto", t.TempDir(), UseOptions{}); err == nil {
 		t.Error("auto without .claude-profile should error")
 	}
-	if _, err := Use(env.load(t), env.profilesBase(), "nope", dir, UseOptions{}); err == nil {
+	if _, err := app.Use(env.load(t), "nope", dir, UseOptions{}); err == nil {
 		t.Error("unknown profile should error")
 	}
 
-	out, err := Direnv(env.load(t), env.profilesBase(), "personal")
+	out, err := app.Direnv(env.load(t), "personal")
 	if err != nil || !strings.Contains(out, `CLAUDE_PROFILE='personal'`) {
 		t.Errorf("direnv: %v %q", err, out)
 	}
 }
 
 func TestLinkAndUnlink(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, twoProfiles)
 	dir := t.TempDir()
-	captureOutput(t)
+	app, _ := testApp(t)
 
-	if err := Link(env.load(t), dir, "nope"); err == nil {
+	if err := app.Link(env.load(t), dir, "nope"); err == nil {
 		t.Error("unknown profile should error")
 	}
-	if err := Link(env.load(t), dir, "work"); err != nil {
+	if err := app.Link(env.load(t), dir, "work"); err != nil {
 		t.Fatal(err)
 	}
 	data, _ := os.ReadFile(filepath.Join(dir, ".claude-profile"))
 	if strings.TrimSpace(string(data)) != "work" {
 		t.Errorf(".claude-profile = %q", data)
 	}
-	if err := Unlink(dir); err != nil {
+	if err := app.Unlink(dir); err != nil {
 		t.Fatal(err)
 	}
 	if fileExists(filepath.Join(dir, ".claude-profile")) {
@@ -259,6 +266,7 @@ func TestLinkAndUnlink(t *testing.T) {
 }
 
 func TestCheckDivergenceDeterministicOrder(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, `[profiles.b]
 [profiles.a]
 [profiles.c]
@@ -276,6 +284,7 @@ func TestCheckDivergenceDeterministicOrder(t *testing.T) {
 }
 
 func TestSortedProfileNames(t *testing.T) {
+	t.Parallel()
 	cfg := &Config{Profiles: map[string]*Profile{"z": {}, "a": {}, "m": {}}}
 	got := strings.Join(SortedProfileNames(cfg), ",")
 	if got != "a,m,z" {

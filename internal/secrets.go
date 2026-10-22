@@ -68,7 +68,7 @@ func privateSyncFile(path, configPath string) bool {
 	return resolved == secret || filepath.Base(resolved) == ".credentials.json"
 }
 
-func checkSyncSecrets(files map[string]string, allowed bool) error {
+func (a *App) checkSyncSecrets(files map[string]string, allowed bool) error {
 	if allowed {
 		return nil
 	}
@@ -76,9 +76,9 @@ func checkSyncSecrets(files map[string]string, allowed bool) error {
 	if len(findings) == 0 {
 		return nil
 	}
-	outln("Refusing to sync: secrets or unreadable structured files detected:")
+	a.outln("Refusing to sync: secrets or unreadable structured files detected:")
 	for _, f := range findings {
-		outf("  %s: %s\n", f.File, f.Key)
+		a.outf("  %s: %s\n", f.File, f.Key)
 	}
 	return fmt.Errorf("move credentials to local secrets.toml, exclude the file, or explicitly pass --allow-secrets")
 }

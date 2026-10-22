@@ -8,12 +8,12 @@ import (
 
 func TestJSONShapes(t *testing.T) {
 	env := newTestEnv(t, twoProfiles)
+	app, buf := env.App, env.Out
 	mustMkdir(t, filepath.Join(env.profilesBase(), "work"))
 	stubKeychain(t, true)
 	t.Setenv("CLAUDE_PROFILE", "work")
-	buf := captureOutput(t)
 
-	if err := PrintJSON(ListProfiles(env.load(t), env.profilesBase())); err != nil {
+	if err := app.PrintJSON(app.ListProfiles(env.load(t))); err != nil {
 		t.Fatal(err)
 	}
 	var list []map[string]any
@@ -28,7 +28,7 @@ func TestJSONShapes(t *testing.T) {
 	}
 
 	buf.Reset()
-	if err := PrintJSON(Which(t.TempDir())); err != nil {
+	if err := app.PrintJSON(Which(t.TempDir())); err != nil {
 		t.Fatal(err)
 	}
 	var which map[string]any
@@ -38,7 +38,7 @@ func TestJSONShapes(t *testing.T) {
 	}
 
 	buf.Reset()
-	if err := PrintJSON(CredentialReport(env.load(t), env.profilesBase())); err != nil {
+	if err := app.PrintJSON(app.CredentialReport(env.load(t))); err != nil {
 		t.Fatal(err)
 	}
 	var creds []map[string]any
@@ -56,7 +56,7 @@ func TestJSONShapes(t *testing.T) {
 	}
 
 	buf.Reset()
-	if err := PrintJSON(DoctorReportFor(env.load(t), env.profilesBase(), DoctorOptions{})); err != nil {
+	if err := app.PrintJSON(app.DoctorReportFor(env.load(t), DoctorOptions{})); err != nil {
 		t.Fatal(err)
 	}
 	var doctor map[string]any

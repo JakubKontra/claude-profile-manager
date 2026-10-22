@@ -22,7 +22,7 @@ type RemoveOptions struct {
 
 // RemoveProfile removes a profile's wrapper and config entry, and with Purge
 // its directory, .credentials.json and macOS Keychain entry.
-func RemoveProfile(cfg *Config, configPath, name string, opts RemoveOptions) error {
+func (a *App) RemoveProfile(cfg *Config, name string, opts RemoveOptions) error {
 	if err := ValidateProfileName(name); err != nil {
 		return err
 	}
@@ -34,7 +34,7 @@ func RemoveProfile(cfg *Config, configPath, name string, opts RemoveOptions) err
 		return unknownProfileError(cfg, name)
 	}
 
-	profilesBase := ProfilesBaseDir(configPath)
+	profilesBase := a.BaseDir
 	profileDir := filepath.Join(profilesBase, name)
 	if filepath.Dir(profileDir) != profilesBase || filepath.Base(profileDir) != name {
 		return fmt.Errorf("refusing to remove %s: outside the profiles directory", profileDir)
@@ -51,14 +51,14 @@ func RemoveProfile(cfg *Config, configPath, name string, opts RemoveOptions) err
 		if !opts.IsTerminal {
 			return fmt.Errorf("refusing to purge non-interactively without --yes")
 		}
-		outf("This will permanently delete:\n")
-		outf("  %s (profile directory, sessions, history)\n", profileDir)
-		outf("  %s (wrapper script)\n", wrapperPath)
-		outf("  Keychain entry %q / .credentials.json\n", KeychainServiceName(profileDir))
-		outf("  [profiles.%s] in %s\n\n", name, ExpandPath(configPath))
-		outf("Delete profile %q and all its data? [y/N] ", name)
+		a.outf("This will permanently delete:\n")
+		a.outf("  %s (profile directory, sessions, history)\n", profileDir)
+		a.outf("  %s (wrapper script)\n", wrapperPath)
+		a.outf("  Keychain entry %q / .credentials.json\n", KeychainServiceName(profileDir))
+		a.outf("  [profiles.%s] in %s\n\n", name, ExpandPath(a.ConfigPath))
+		a.outf("Delete profile %q and all its data? [y/N] ", name)
 		if !confirm(opts.Stdin) {
-			outln("Aborted.")
+			a.outln("Aborted.")
 			return nil
 		}
 	}
@@ -67,7 +67,7 @@ func RemoveProfile(cfg *Config, configPath, name string, opts RemoveOptions) err
 		if err := os.Remove(wrapperPath); err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("cannot remove wrapper: %w", err)
 		}
-		outf("  removed %s\n", wrapperPath)
+		a.outf("  removed %s\n", wrapperPath)
 	}
 
 	if opts.Purge {
@@ -88,14 +88,14 @@ func RemoveProfile(cfg *Config, configPath, name string, opts RemoveOptions) err
 		if err := DeleteProfileCredentials(profileDir); err != nil {
 			return fmt.Errorf("cannot remove credentials: %w", err)
 		}
-		outln("  removed credentials")
+		a.outln("  removed credentials")
 		if err := os.RemoveAll(profileDir); err != nil {
 			return fmt.Errorf("cannot remove profile directory: %w", err)
 		}
-		outf("  removed %s\n", profileDir)
+		a.outf("  removed %s\n", profileDir)
 	}
 
-	path := ExpandPath(configPath)
+	path := ExpandPath(a.ConfigPath)
 	data, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("cannot read config: %w", err)
@@ -108,17 +108,17 @@ func RemoveProfile(cfg *Config, configPath, name string, opts RemoveOptions) err
 		if err := writeConfigAtomic(path, updated); err != nil {
 			return err
 		}
-		outf("  removed [profiles.%s] from %s\n", name, path)
+		a.outf("  removed [profiles.%s] from %s\n", name, path)
 	}
 
 	if !opts.Purge {
-		outf("\nProfile %q removed from config. Its data is still in %s\n", name, profileDir)
-		outf("Use 'cpm remove %s --purge' to delete the directory and credentials too.\n", name)
+		a.outf("\nProfile %q removed from config. Its data is still in %s\n", name, profileDir)
+		a.outf("Use 'cpm remove %s --purge' to delete the directory and credentials too.\n", name)
 	} else {
-		outf("\nProfile %q removed.\n", name)
+		a.outf("\nProfile %q removed.\n", name)
 	}
 	if configured && len(cfg.Profiles) == 1 {
-		outln("Note: this was the last profile; add one with 'cpm add <name>'.")
+		a.outln("Note: this was the last profile; add one with 'cpm add <name>'.")
 	}
 	return nil
 }

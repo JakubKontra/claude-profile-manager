@@ -43,14 +43,14 @@ func snapshotTree(t *testing.T, root string) map[string]string {
 
 func TestInstallDryRunIsReadOnlyAndMatchesApply(t *testing.T) {
 	env := newTestEnv(t, "[profiles.work]\n[cloud]\nauto_push = true\nauto_pull_on_install = true\n")
+	app, buf := env.App, env.Out
 	t.Setenv("HOME", env.Root)
 	mustWrite(t, filepath.Join(env.SourceDir, "settings.json"), `{"env":{"API_TOKEN":"private-secret"},"theme":"dark"}`)
 	mustMkdir(t, filepath.Join(env.SourceDir, "skills"))
 	mustWrite(t, filepath.Join(env.Root, ".claude.json"), `{"hasCompletedOnboarding":true,"mcpServers":{"api":{"headers":{"Authorization":"Bearer hidden"}}}}`)
 	cfg := env.load(t)
-	buf := captureOutput(t)
 	before := snapshotTree(t, env.Root)
-	if err := InstallProfiles(cfg, env.ConfigPath, InstallOptions{DryRun: true}); err != nil {
+	if err := app.InstallProfiles(cfg, InstallOptions{DryRun: true}); err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(before, snapshotTree(t, env.Root)) {
@@ -64,11 +64,11 @@ func TestInstallDryRunIsReadOnlyAndMatchesApply(t *testing.T) {
 			t.Fatalf("preview missing %s", expected)
 		}
 	}
-	plan, err := PlanInstall(cfg, env.ConfigPath, InstallOptions{})
+	plan, err := app.PlanInstall(cfg, InstallOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := ApplyInstall(plan); err != nil {
+	if err := app.ApplyInstall(plan); err != nil {
 		t.Fatal(err)
 	}
 	for _, a := range plan {
@@ -79,7 +79,7 @@ func TestInstallDryRunIsReadOnlyAndMatchesApply(t *testing.T) {
 			}
 		}
 	}
-	again, err := PlanInstall(cfg, env.ConfigPath, InstallOptions{})
+	again, err := app.PlanInstall(cfg, InstallOptions{})
 	if err != nil || len(again) != 0 {
 		t.Fatalf("not idempotent: %v %v", again, err)
 	}
@@ -87,26 +87,26 @@ func TestInstallDryRunIsReadOnlyAndMatchesApply(t *testing.T) {
 
 func TestInstallPreviewSyncForceAndForeignWrapper(t *testing.T) {
 	env := newTestEnv(t, "[profiles.work]\n")
+	app := env.App
 	t.Setenv("HOME", env.Root)
-	captureOutput(t)
 	mustWrite(t, filepath.Join(env.SourceDir, "CLAUDE.md"), "base")
 	cfg := env.load(t)
-	if err := InstallProfiles(cfg, env.ConfigPath, InstallOptions{}); err != nil {
+	if err := app.InstallProfiles(cfg, InstallOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	mustWrite(t, filepath.Join(env.profilesBase(), "work", "CLAUDE.md"), "local")
 	before := snapshotTree(t, env.Root)
-	if err := InstallProfiles(cfg, env.ConfigPath, InstallOptions{DryRun: true, Sync: true}); err == nil {
+	if err := app.InstallProfiles(cfg, InstallOptions{DryRun: true, Sync: true}); err == nil {
 		t.Fatal("divergence accepted")
 	}
-	if err := InstallProfiles(cfg, env.ConfigPath, InstallOptions{DryRun: true, Sync: true, Force: true}); err != nil {
+	if err := app.InstallProfiles(cfg, InstallOptions{DryRun: true, Sync: true, Force: true}); err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(before, snapshotTree(t, env.Root)) {
 		t.Fatal("force preview mutated files")
 	}
 	mustWrite(t, filepath.Join(env.BinDir, "claude-work"), "foreign")
-	if _, err := PlanInstall(cfg, env.ConfigPath, InstallOptions{}); err == nil {
+	if _, err := app.PlanInstall(cfg, InstallOptions{}); err == nil {
 		t.Fatal("foreign wrapper accepted")
 	}
 }

@@ -54,7 +54,7 @@ func EffectiveShareDirs(cfg *Config, p *Profile) []string {
 // symlinks shareDirs from sourceDir. A directory that used to be shared but
 // is no longer listed becomes an empty real directory; a real directory is
 // never deleted.
-func SetupProfile(name string, profileDir, sourceDir string, shareDirs []string, forceSync bool) error {
+func (a *App) SetupProfile(name string, profileDir, sourceDir string, shareDirs []string, forceSync bool) error {
 	if err := os.MkdirAll(profileDir, 0o755); err != nil {
 		return fmt.Errorf("cannot create profile dir: %w", err)
 	}
@@ -85,7 +85,7 @@ func SetupProfile(name string, profileDir, sourceDir string, shareDirs []string,
 		if forceSync {
 			action = "synced"
 		}
-		outf("  %s %s\n", action, filename)
+		a.outf("  %s %s\n", action, filename)
 	}
 
 	shared := map[string]bool{}
@@ -115,7 +115,7 @@ func SetupProfile(name string, profileDir, sourceDir string, shareDirs []string,
 			if err := os.MkdirAll(link, 0o755); err != nil {
 				return fmt.Errorf("cannot create %s: %w", entry.Name(), err)
 			}
-			outf("  isolated %s/ (was shared)\n", entry.Name())
+			a.outf("  isolated %s/ (was shared)\n", entry.Name())
 		}
 	}
 
@@ -137,14 +137,14 @@ func SetupProfile(name string, profileDir, sourceDir string, shareDirs []string,
 			os.Remove(dst)
 		} else if _, err := os.Stat(dst); err == nil {
 			// Real directory exists, don't replace
-			outf("  skipped %s/ (real directory exists)\n", dirname)
+			a.outf("  skipped %s/ (real directory exists)\n", dirname)
 			continue
 		}
 
 		if err := os.Symlink(src, dst); err != nil {
 			return fmt.Errorf("cannot symlink %s: %w", dirname, err)
 		}
-		outf("  symlinked %s/ -> %s\n", dirname, src)
+		a.outf("  symlinked %s/ -> %s\n", dirname, src)
 	}
 
 	return nil

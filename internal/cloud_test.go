@@ -10,6 +10,7 @@ import (
 )
 
 func TestGatherSyncFiles(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sourceDir := filepath.Join(tmpDir, "source")
 	os.MkdirAll(sourceDir, 0o755)
@@ -47,6 +48,7 @@ func TestGatherSyncFiles(t *testing.T) {
 }
 
 func TestGatherSyncFilesWithExclude(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sourceDir := filepath.Join(tmpDir, "source")
 	os.MkdirAll(sourceDir, 0o755)
@@ -75,6 +77,7 @@ func TestGatherSyncFilesWithExclude(t *testing.T) {
 }
 
 func TestGatherSyncFilesDirExclude(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sourceDir := filepath.Join(tmpDir, "source")
 	cmdDir := filepath.Join(sourceDir, "commands")
@@ -99,6 +102,7 @@ func TestGatherSyncFilesDirExclude(t *testing.T) {
 }
 
 func TestDistributeSyncFilesRoundTrip(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sourceDir := filepath.Join(tmpDir, "source")
 	repoDir := filepath.Join(tmpDir, "repo")
@@ -128,7 +132,8 @@ func TestDistributeSyncFilesRoundTrip(t *testing.T) {
 
 	// Distribute from repo to restore dir
 	restoreCfg := &Config{SourceDir: restoreDir}
-	DistributeSyncFiles(repoDir, restoreCfg)
+	app, _ := testApp(t)
+	app.DistributeSyncFiles(repoDir, restoreCfg)
 
 	// Check files were restored
 	data, err := os.ReadFile(filepath.Join(restoreDir, "settings.json"))
@@ -149,6 +154,7 @@ func TestDistributeSyncFilesRoundTrip(t *testing.T) {
 }
 
 func TestFilesAreDifferent(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 
 	fileA := filepath.Join(tmpDir, "a.txt")
@@ -171,6 +177,7 @@ func TestFilesAreDifferent(t *testing.T) {
 }
 
 func TestIsExcluded(t *testing.T) {
+	t.Parallel()
 	cfg := &Config{
 		Cloud: &CloudConfig{
 			Exclude: []string{"CLAUDE.md", "commands/"},
@@ -195,6 +202,7 @@ func TestIsExcluded(t *testing.T) {
 }
 
 func TestCleanDeletedFiles(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	repoDir := filepath.Join(tmpDir, "repo", "commands")
 	srcDir := filepath.Join(tmpDir, "src", "commands")
@@ -220,6 +228,7 @@ func TestCleanDeletedFiles(t *testing.T) {
 }
 
 func TestSaveCloudRemoteWithCommentedHeader(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "config.toml")
 	os.WriteFile(path, []byte(userConfig), 0o644)
 
@@ -250,6 +259,7 @@ func TestSaveCloudRemoteWithCommentedHeader(t *testing.T) {
 }
 
 func TestSaveCloudRemoteCreatesConfig(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "config.toml")
 	if err := saveCloudRemote(path, "url"); err != nil {
 		t.Fatal(err)
@@ -261,6 +271,7 @@ func TestSaveCloudRemoteCreatesConfig(t *testing.T) {
 }
 
 func TestMergeConfigTOMLAddsNewProfiles(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	local := filepath.Join(dir, "config.toml")
 	pulled := filepath.Join(dir, "pulled.toml")
@@ -277,9 +288,9 @@ K = "v"
 [cloud]
 remote = "git@example:x.git"
 `), 0o644)
-	captureOutput(t)
+	app, _ := testApp(t)
 
-	if err := mergeConfigTOML(pulled, local); err != nil {
+	if err := app.mergeConfigTOML(pulled, local); err != nil {
 		t.Fatal(err)
 	}
 	cfg, err := LoadConfig(local)
@@ -302,7 +313,7 @@ remote = "git@example:x.git"
 
 	// Second merge is a no-op.
 	before, _ := os.ReadFile(local)
-	if err := mergeConfigTOML(pulled, local); err != nil {
+	if err := app.mergeConfigTOML(pulled, local); err != nil {
 		t.Fatal(err)
 	}
 	after, _ := os.ReadFile(local)
@@ -365,8 +376,8 @@ func TestPlanDistributeKindsExcludeAndDeletes(t *testing.T) {
 		t.Error("top-level files are never deleted")
 	}
 
-	captureOutput(t)
-	if err := ApplyDistribute(plan); err != nil {
+	app, _ := testApp(t)
+	if err := app.ApplyDistribute(plan); err != nil {
 		t.Fatal(err)
 	}
 	if data, _ := os.ReadFile(filepath.Join(live, "CLAUDE.md")); string(data) != "old" {
@@ -434,7 +445,6 @@ func requireGit(t *testing.T) {
 
 func TestCloudPushPullRoundTrip(t *testing.T) {
 	requireGit(t)
-	captureOutput(t)
 	bare := filepath.Join(t.TempDir(), "remote.git")
 	if out, err := exec.Command("git", "init", "--bare", bare).CombinedOutput(); err != nil {
 		t.Fatalf("git init --bare: %v\n%s", err, out)
@@ -446,20 +456,20 @@ func TestCloudPushPullRoundTrip(t *testing.T) {
 	mustWrite(t, filepath.Join(a.SourceDir, "settings.json"), `{"from": "A"}`)
 	mustWrite(t, filepath.Join(a.SourceDir, "commands", "one.md"), "one")
 	mustWrite(t, filepath.Join(a.SourceDir, "commands", "two.md"), "two")
-	if err := CloudInit(a.ConfigPath, bare); err != nil {
+	if err := a.App.CloudInit(bare); err != nil {
 		t.Fatalf("init A: %v", err)
 	}
 	if !hasOriginRemote(CloudRepoDir(a.ConfigPath)) {
 		t.Fatal("remote must be set on a fresh init")
 	}
-	if err := CloudPush(a.ConfigPath, PushOptions{Message: "first"}); err != nil {
+	if err := a.App.CloudPush(PushOptions{Message: "first"}); err != nil {
 		t.Fatalf("push A: %v", err)
 	}
 
 	// Machine B: clone, files are distributed and the profile merged.
 	b := newCloudEnv(t, "[profiles.personal]\n")
 	b.activate(t)
-	if err := CloudInit(b.ConfigPath, bare); err != nil {
+	if err := b.App.CloudInit(bare); err != nil {
 		t.Fatalf("init B: %v", err)
 	}
 	if data, _ := os.ReadFile(filepath.Join(b.SourceDir, "settings.json")); string(data) != `{"from": "A"}` {
@@ -480,21 +490,21 @@ func TestCloudPushPullRoundTrip(t *testing.T) {
 	a.activate(t)
 	mustWrite(t, filepath.Join(a.SourceDir, "settings.json"), `{"from": "A2"}`)
 	os.Remove(filepath.Join(a.SourceDir, "commands", "two.md"))
-	if err := CloudPush(a.ConfigPath, PushOptions{}); err != nil {
+	if err := a.App.CloudPush(PushOptions{}); err != nil {
 		t.Fatalf("push A2: %v", err)
 	}
-	if err := CloudPush(a.ConfigPath, PushOptions{}); err != nil {
+	if err := a.App.CloudPush(PushOptions{}); err != nil {
 		t.Fatalf("no-op push: %v", err)
 	}
 
 	b.activate(t)
-	if err := CloudPull(b.ConfigPath, true); err != nil {
+	if err := b.App.CloudPull(true); err != nil {
 		t.Fatalf("dry-run pull B: %v", err)
 	}
 	if data, _ := os.ReadFile(filepath.Join(b.SourceDir, "settings.json")); string(data) != `{"from": "A"}` {
 		t.Error("dry run must not change files")
 	}
-	if err := CloudPull(b.ConfigPath, false); err != nil {
+	if err := b.App.CloudPull(false); err != nil {
 		t.Fatalf("pull B: %v", err)
 	}
 	if data, _ := os.ReadFile(filepath.Join(b.SourceDir, "settings.json")); string(data) != `{"from": "A2"}` {
@@ -503,17 +513,16 @@ func TestCloudPushPullRoundTrip(t *testing.T) {
 	if fileExists(filepath.Join(b.SourceDir, "commands", "two.md")) {
 		t.Error("file deleted on A still present on B")
 	}
-	if err := CloudStatus(b.ConfigPath); err != nil {
+	if err := b.App.CloudStatus(); err != nil {
 		t.Errorf("status: %v", err)
 	}
 }
 
 func TestCloudInitRemoteUnreachableErrors(t *testing.T) {
 	requireGit(t)
-	captureOutput(t)
 	env := newCloudEnv(t, "[profiles.a]\n")
 	env.activate(t)
-	err := CloudInit(env.ConfigPath, filepath.Join(env.Root, "does-not-exist.git"))
+	err := env.App.CloudInit(filepath.Join(env.Root, "does-not-exist.git"))
 	if err == nil || !strings.Contains(err.Error(), "cannot reach remote") {
 		t.Fatalf("expected unreachable remote error, got %v", err)
 	}

@@ -47,7 +47,8 @@ Behavior stays the same. For every PR, `go test -race ./...`, `golangci-lint run
     3. Do the same for install, add, remove and clone.
     4. Do the same for doctor, credentials and list.
   - Remove `SetOutput` once no test uses it.
-- **Done when:** `internal/` has no package-level mutable state left, and the tests run with `t.Parallel()`.
+- **Done when:** command output and config paths go through `App`, `SetOutput` is gone, and tests that do not touch process-wide state run with `t.Parallel()`.
+- **Status:** done. `App` holds `ConfigPath`, `BaseDir`, `In`, `Out` and `Err`; `Run`, `Keychain` and `Now` arrive with 1.3. 143 of 189 unit tests run in parallel. The rest set environment variables (mostly `HOME`) or stub package variables, see 1.3 and 1.4.
 
 ### 1.3 `Runner` and `KeychainStore` interfaces
 
@@ -61,7 +62,17 @@ Behavior stays the same. For every PR, `go test -race ./...`, `golangci-lint run
   - Add in-memory fakes in `testutil_test.go`.
 - **Done when:** unit tests never call `git` or `security`, and fake executables are used only in `integration_test.go`.
 
-### 1.4 Split `internal/` into packages (optional, after 1.2)
+### 1.4 Inject home directory and environment
+
+- **Why:** `os.UserHomeDir` (in `cloud.go`, `config.go`, `doctor.go`, `sync.go`) and `os.Getenv` are read directly, so tests change them with `t.Setenv`, which cannot be combined with `t.Parallel()`.
+- **Scope:** the functions above, `cmd_which.go`, `shell.go`, `launch.go` and the tests that call `t.Setenv`.
+- **Steps:**
+  - Add `Home string` and `Getenv func(string) string` to `App`. `NewApp` fills them from the process.
+  - Read the home directory and environment through `App` instead of `os`.
+  - Replace `t.Setenv` in unit tests with fields on the test `App`.
+- **Done when:** unit tests no longer call `t.Setenv`, and every unit test that does not stub a package variable runs in parallel.
+
+### 1.5 Split `internal/` into packages (optional, after 1.2)
 
 - **Why:** `internal/` is one flat package of ~10k lines, and `cloud.go` alone is 916 lines.
 - **Target packages:**

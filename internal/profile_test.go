@@ -8,13 +8,15 @@ import (
 )
 
 func TestSetupProfileCreatesDir(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sourceDir := filepath.Join(tmpDir, "source")
 	profileDir := filepath.Join(tmpDir, "profiles", "test")
 
 	os.MkdirAll(sourceDir, 0o755)
 
-	if err := SetupProfile("test", profileDir, sourceDir, defaultShareDirs, false); err != nil {
+	app, _ := testApp(t)
+	if err := app.SetupProfile("test", profileDir, sourceDir, defaultShareDirs, false); err != nil {
 		t.Fatalf("SetupProfile failed: %v", err)
 	}
 
@@ -24,6 +26,7 @@ func TestSetupProfileCreatesDir(t *testing.T) {
 }
 
 func TestSetupProfileCopiesFiles(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sourceDir := filepath.Join(tmpDir, "source")
 	profileDir := filepath.Join(tmpDir, "profiles", "test")
@@ -32,7 +35,8 @@ func TestSetupProfileCopiesFiles(t *testing.T) {
 	os.WriteFile(filepath.Join(sourceDir, "settings.json"), []byte(`{"test": true}`), 0o644)
 	os.WriteFile(filepath.Join(sourceDir, "CLAUDE.md"), []byte("# Claude"), 0o644)
 
-	if err := SetupProfile("test", profileDir, sourceDir, defaultShareDirs, false); err != nil {
+	app, _ := testApp(t)
+	if err := app.SetupProfile("test", profileDir, sourceDir, defaultShareDirs, false); err != nil {
 		t.Fatalf("SetupProfile failed: %v", err)
 	}
 
@@ -54,6 +58,7 @@ func TestSetupProfileCopiesFiles(t *testing.T) {
 }
 
 func TestSetupProfileDoesNotOverwriteWithoutSync(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sourceDir := filepath.Join(tmpDir, "source")
 	profileDir := filepath.Join(tmpDir, "profiles", "test")
@@ -64,7 +69,8 @@ func TestSetupProfileDoesNotOverwriteWithoutSync(t *testing.T) {
 	os.WriteFile(filepath.Join(sourceDir, "settings.json"), []byte(`{"new": true}`), 0o644)
 	os.WriteFile(filepath.Join(profileDir, "settings.json"), []byte(`{"old": true}`), 0o644)
 
-	SetupProfile("test", profileDir, sourceDir, defaultShareDirs, false)
+	app, _ := testApp(t)
+	app.SetupProfile("test", profileDir, sourceDir, defaultShareDirs, false)
 
 	data, _ := os.ReadFile(filepath.Join(profileDir, "settings.json"))
 	if string(data) != `{"old": true}` {
@@ -73,6 +79,7 @@ func TestSetupProfileDoesNotOverwriteWithoutSync(t *testing.T) {
 }
 
 func TestSetupProfileOverwritesWithSync(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sourceDir := filepath.Join(tmpDir, "source")
 	profileDir := filepath.Join(tmpDir, "profiles", "test")
@@ -83,7 +90,8 @@ func TestSetupProfileOverwritesWithSync(t *testing.T) {
 	os.WriteFile(filepath.Join(sourceDir, "settings.json"), []byte(`{"new": true}`), 0o644)
 	os.WriteFile(filepath.Join(profileDir, "settings.json"), []byte(`{"old": true}`), 0o644)
 
-	SetupProfile("test", profileDir, sourceDir, defaultShareDirs, true)
+	app, _ := testApp(t)
+	app.SetupProfile("test", profileDir, sourceDir, defaultShareDirs, true)
 
 	data, _ := os.ReadFile(filepath.Join(profileDir, "settings.json"))
 	if string(data) != `{"new": true}` {
@@ -92,6 +100,7 @@ func TestSetupProfileOverwritesWithSync(t *testing.T) {
 }
 
 func TestSetupProfileCreatesSymlinks(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sourceDir := filepath.Join(tmpDir, "source")
 	profileDir := filepath.Join(tmpDir, "profiles", "test")
@@ -102,7 +111,8 @@ func TestSetupProfileCreatesSymlinks(t *testing.T) {
 		os.MkdirAll(filepath.Join(sourceDir, dir), 0o755)
 	}
 
-	SetupProfile("test", profileDir, sourceDir, defaultShareDirs, false)
+	app, _ := testApp(t)
+	app.SetupProfile("test", profileDir, sourceDir, defaultShareDirs, false)
 
 	for _, dir := range []string{"commands", "skills", "plugins"} {
 		link := filepath.Join(profileDir, dir)
@@ -119,6 +129,7 @@ func TestSetupProfileCreatesSymlinks(t *testing.T) {
 }
 
 func TestSetupProfileSkipsSymlinkForRealDir(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	sourceDir := filepath.Join(tmpDir, "source")
 	profileDir := filepath.Join(tmpDir, "profiles", "test")
@@ -129,7 +140,8 @@ func TestSetupProfileSkipsSymlinkForRealDir(t *testing.T) {
 	// Create a file inside the real directory
 	os.WriteFile(filepath.Join(profileDir, "commands", "custom.md"), []byte("custom"), 0o644)
 
-	SetupProfile("test", profileDir, sourceDir, defaultShareDirs, false)
+	app, _ := testApp(t)
+	app.SetupProfile("test", profileDir, sourceDir, defaultShareDirs, false)
 
 	// Should still be a real directory, not a symlink
 	_, err := os.Readlink(filepath.Join(profileDir, "commands"))
@@ -145,6 +157,7 @@ func TestSetupProfileSkipsSymlinkForRealDir(t *testing.T) {
 }
 
 func TestSetupProfileAcceptsRelativeSymlink(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	sourceDir := filepath.Join(root, "source")
 	profileDir := filepath.Join(root, "profiles", "test")
@@ -155,8 +168,8 @@ func TestSetupProfileAcceptsRelativeSymlink(t *testing.T) {
 	if err := os.Symlink("../../source/skills", filepath.Join(profileDir, "skills")); err != nil {
 		t.Fatal(err)
 	}
-	buf := captureOutput(t)
-	if err := SetupProfile("test", profileDir, sourceDir, defaultShareDirs, false); err != nil {
+	app, buf := testApp(t)
+	if err := app.SetupProfile("test", profileDir, sourceDir, defaultShareDirs, false); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(buf.String(), "symlinked skills/") {
@@ -169,6 +182,7 @@ func TestSetupProfileAcceptsRelativeSymlink(t *testing.T) {
 }
 
 func TestCopyFileCreatesParent(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	src := filepath.Join(root, "a.txt")
 	mustWrite(t, src, "hello")

@@ -19,10 +19,10 @@ type CredentialEntry struct {
 }
 
 // CredentialReport gathers the credential status of every profile.
-func CredentialReport(cfg *Config, profilesBase string) []CredentialEntry {
+func (a *App) CredentialReport(cfg *Config) []CredentialEntry {
 	var entries []CredentialEntry
 	for _, name := range SortedProfileNames(cfg) {
-		profileDir := filepath.Join(profilesBase, name)
+		profileDir := filepath.Join(a.BaseDir, name)
 		entry := CredentialEntry{Name: name}
 
 		status, err := GetCredentialStatus(profileDir)
@@ -46,10 +46,10 @@ func CredentialReport(cfg *Config, profilesBase string) []CredentialEntry {
 }
 
 // RenderCredentialReport prints the human-readable report.
-func RenderCredentialReport(entries []CredentialEntry) {
+func (a *App) RenderCredentialReport(entries []CredentialEntry) {
 	for _, e := range entries {
 		if e.Error != "" {
-			outf("  claude-%-20s %s\n", e.Name, e.Error)
+			a.outf("  claude-%-20s %s\n", e.Name, e.Error)
 			continue
 		}
 		account := e.Account
@@ -71,6 +71,6 @@ func RenderCredentialReport(entries []CredentialEntry) {
 		if e.Organization != "" {
 			detail += ", org " + e.Organization
 		}
-		outf("  claude-%-20s %s  [%s]\n", e.Name, account, detail)
+		a.outf("  claude-%-20s %s  [%s]\n", e.Name, account, detail)
 	}
 }
