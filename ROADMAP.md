@@ -283,6 +283,10 @@ Releases: 0.6 (contract), 0.7 (profile lifecycle), 0.8 (quality), then `v1.0.0-r
   - `--purge` also removes credentials and `~/.claude-profiles/`.
   - Support `--dry-run` and `--yes`.
 - **Done when:** after install, hook and uninstall, the rc file is byte-identical to the original minus the hook line.
+- **Status:** done.
+  - Only the documented hook lines are removed: `eval "$(cpm hook …)"` and `cpm hook … | source`. Other lines that mention `cpm hook` are listed but not changed.
+  - Every edited rc file gets a backup next to it (`.cpm-uninstall.bak`), so it survives `--purge`.
+  - `--purge` deletes only what cpm owns in the config directory (profiles, `secrets.toml`, `cloud/`, `.cpm/`, the config file), and the directory itself only when it is empty afterwards.
 
 #### 3.9 `cpm doctor --fix`
 - **Why:** Most findings have the same answer: `cpm install`.

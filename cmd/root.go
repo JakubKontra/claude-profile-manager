@@ -71,6 +71,7 @@ func NewRoot() *cobra.Command {
 		unlinkCmd(),
 		versionCmd(),
 		upgradeCmd(),
+		uninstallCmd(),
 		cloudCmd(),
 	)
 
