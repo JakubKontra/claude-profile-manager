@@ -181,7 +181,129 @@ Behavior stays the same. For every PR, `go test -race ./...`, `golangci-lint run
 
 ---
 
-## Not planned yet
+## Phase 3: Road to 1.0
+
+1.0 is a stability promise. After 1.0, these do not change incompatibly: the config format, commands and flags, `--json` output, exit codes, the wrapper and hook contract (including the hidden `cpm resolve`), the layout of `~/.claude-profiles/` and the layout of the cloud repository. The Keychain service names (they mirror Claude Code), human-readable text and the Go API in `internal/` are not part of the promise.
+
+Releases: 0.6 (contract), 0.7 (profile lifecycle), 0.8 (quality), then `v1.0.0-rc.1` with no new features, and `v1.0.0` after at least 14 days of use. Each item is its own PR against `main`.
+
+### 0.6: Stability contract
+
+#### 3.1 Prerelease-safe releases
+- **Why:** `.goreleaser.yaml` sets neither `release.prerelease` nor `brews.skip_upload`, so a `v1.0.0-rc.1` tag would become a normal release and the Homebrew formula. `cpm upgrade` compares tags by equality only (`internal/version.go`), so it would move an RC user back to the latest stable.
+- **Steps:**
+  - `.goreleaser.yaml`: `release.prerelease: auto`, `brews[0].skip_upload: auto`, `archives.formats`.
+  - `release.yml`: run the same lint and `-race` matrix as `test.yml` before releasing.
+  - `version.go`: a semver comparison that orders prereleases. `upgrade` and `version` act only when the latest release is newer. `--prerelease` also considers prereleases.
+- **Done when:** tests cover a stable user who never sees an RC, an RC user who is never downgraded and an RC user who is offered the final release.
+
+#### 3.2 Config version
+- **Why:** Without a version, cpm cannot tell the user that a config comes from a newer cpm, and the format cannot evolve after 1.0.
+- **Steps:**
+  - `version = 1` in `config.toml`. A missing version means 1. A higher version fails with "needs a newer cpm".
+  - Add a migration hook for future versions.
+  - New configs get `version = 1`. Existing files are not rewritten.
+  - `cloud pull` refuses a config with a higher version. `cpm doctor` reports the version.
+- **Done when:** a missing version, `version = 1` and `version = 2` load, fail and migrate as described.
+
+#### 3.3 Exit codes
+- **Why:** Every error exits 1, so a script cannot tell a typo from a failed check.
+- **Steps:**
+  - Split `cmd/root.go` into `NewRoot()` and `Execute()` so the command tree can be tested.
+  - Exit codes: 0 ok, 1 error, 2 wrong usage (flags or arguments), 3 failed check (`doctor`, local edits blocking `install --sync`, cloud conflicts), 4 failed login.
+- **Done when:** a test produces every documented code. This is a breaking change and needs an upgrade note.
+
+#### 3.4 `--json` everywhere
+- **Why:** `status`, `cloud status`, `cloud diff`, `login`, `rename --dry-run` and `version` have no machine-readable output.
+- **Steps:**
+  - Follow the `DoctorReport` pattern: a report struct with JSON tags and a separate text renderer.
+  - `cloud diff --json` lists files and their status, not patches.
+  - Golden files in `internal/testdata/json/`. JSON goes to stdout only on success, errors stay on stderr, fields are only ever added, and `detail` texts are free-form.
+- **Done when:** every `--json` output has a golden file.
+
+#### 3.5 CLI review and `docs/stability.md`
+- **Why:** Inconsistencies would be frozen for all of 1.x.
+- **Steps:**
+  - Rules: `--dry-run` on every command that deletes or overwrites data. A prompt with `--yes` only for irreversible deletion; without a terminal and without `--yes` the command refuses. Add `remove --dry-run`.
+  - `cmd/testdata/cli-surface.txt` lists every command and flag, checked by a test.
+  - `docs/stability.md` lists what the promise covers and what it does not.
+- **Done when:** the surface file is committed and the README links `docs/stability.md`.
+
+### 0.7: Profile lifecycle
+
+#### 3.6 `cpm adopt <name>`
+- **Why:** Most people already use `claude` with `~/.claude`. Turning that into a profile today means logging in again.
+- **Steps:**
+  - Copy the login (Keychain `Claude Code-credentials` or `.credentials.json`) and `oauthAccount` into the profile. Create the profile if it does not exist.
+  - Reuse the undo steps from `cmd_rename.go`.
+  - `--move` deletes the source last. `--dry-run` shows the plan.
+  - `cpm doctor` suggests `adopt` when only `~/.claude` has a login.
+- **Done when:** unit tests cover copy, move and rollback, and the command was checked once against the real Keychain.
+
+#### 3.7 Propagate remove and rename through cloud sync
+- **Why:** After a rename, other machines keep the old profile, because `cloud pull` only adds.
+- **Steps:**
+  - `remove` and `rename` append to `.cpm/tombstones.toml`. Sync it as `cpm/tombstones.toml`, merged by id.
+  - After a pull, apply only entries that match the pulled config, through `RenameProfile` and `RemoveProfile`. Never purge. Ask first, or apply with `--yes`.
+- **Done when:** an end-to-end test with two machines ends with the same profiles and the moved login, and a second pull changes nothing.
+
+#### 3.8 `cpm uninstall`
+- **Why:** There is no clean way to remove cpm; wrappers and hook lines stay behind.
+- **Steps:**
+  - Remove generated wrappers and the exact hook lines in rc files, with a backup.
+  - `--purge` also removes credentials and `~/.claude-profiles/`.
+  - Support `--dry-run` and `--yes`.
+- **Done when:** after install, hook and uninstall, the rc file is byte-identical to the original minus the hook line.
+
+#### 3.9 `cpm doctor --fix`
+- **Why:** Most findings have the same answer: `cpm install`.
+- **Steps:**
+  - Each check carries a fix hint (`fix` in JSON).
+  - `--fix` runs the install once and prints the report before and after. The exit code follows the report after the fix.
+- **Done when:** a deleted wrapper and a broken symlink are clean after `--fix`.
+
+### 0.8: Quality
+
+#### 3.10 Compatibility fixtures
+- **Steps:** add configs, secrets, wrappers and cloud state from 0.3 to 0.5 in `internal/testdata/compat/`.
+- **Done when:** the fixtures load, and `install --dry-run` on them plans only wrapper rewrites.
+
+#### 3.11 Fuzz tests
+- **Steps:** fuzz `tomledit`, `globMatch`, `NormalizeRemote`, `gitRemoteURLs` and `applyIndicator`. Check that the result parses again, that round trips return the input and that nothing panics. PRs run the seeds; a weekly workflow fuzzes.
+- **Done when:** every target runs in CI.
+
+#### 3.12 Supported platforms
+- **Steps:** state macOS and Linux in the README, and Windows only through WSL (native Windows does not build because of `syscall.Exec`). `cpm doctor` reports the platform.
+- **Done when:** the README and doctor show it.
+
+#### 3.13 Generated docs
+- **Steps:**
+  - A hidden `cpm docs --markdown|--man`. CI checks that `docs/cli/` is up to date.
+  - Ship man pages through Homebrew.
+  - Add `CONTRIBUTING.md` and `SECURITY.md`.
+- **Done when:** a help change without regenerated docs fails CI.
+
+### 1.0
+
+- **`v1.0.0-rc.1`:** changelog with an "Upgrading from 0.x" section and the version in `flake.nix`, nothing else. Then check:
+  - the release is marked prerelease,
+  - `releases/latest` and the Homebrew formula stay on 0.8,
+  - `cpm upgrade` offers the RC only with `--prerelease`.
+- **Soak:** at least 14 days, including:
+  - daily use on two machines with cloud sync,
+  - a real rename, remove and `adopt`,
+  - a fresh install on macOS and Linux,
+  - an upgrade from a 0.5 setup.
+
+  A change to the CLI surface, the JSON goldens or the docs means `rc.2` and another 7 days.
+- **`v1.0.0`:** only the changelog and `flake.nix` change since the last RC.
+
+---
+
+## After 1.0
 
 - **Profile inheritance** (`extends = "work"`) to avoid repeating `add_dirs`, `env` and `settings` across similar profiles.
 - **Fallback on rate limit** (`cpm run work --fallback personal`). First check whether Claude Code reliably reports a rate limit through its exit code.
+- **`cpm statusline`**, which wraps an existing `statusLine` and adds the profile, instead of leaving the indicator off.
+- **Usage statistics per profile.**
+- **1.5:** split `internal/` into packages. Deferred so a large move does not land right before the freeze.
