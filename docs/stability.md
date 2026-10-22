@@ -44,6 +44,7 @@ From 1.0, cpm follows [Semantic Versioning](https://semver.org). Within 1.x, the
 ### Cloud repository
 The layout of the sync repository is shared between machines that may run different cpm versions:
 - `cpm/config.toml`,
+- `cpm/tombstones.toml` (profile removals and renames, merged by `id`),
 - the synced files from `source_dir` (`settings.json`, `CLAUDE.md`, `commands/`, `skills/`, `agents/`, `plugins/` and so on),
 - any files added later.
 

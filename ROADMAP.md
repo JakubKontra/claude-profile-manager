@@ -269,6 +269,12 @@ Releases: 0.6 (contract), 0.7 (profile lifecycle), 0.8 (quality), then `v1.0.0-r
   - `remove` and `rename` append to `.cpm/tombstones.toml`. Sync it as `cpm/tombstones.toml`, merged by id.
   - After a pull, apply only entries that match the pulled config, through `RenameProfile` and `RemoveProfile`. Never purge. Ask first, or apply with `--yes`.
 - **Done when:** an end-to-end test with two machines ends with the same profiles and the moved login, and a second pull changes nothing.
+- **Status:** done.
+  - One list of changes in order (`[[change]]` with `kind = "removed"` or `"renamed"`), so a chain of renames replays in order.
+  - Each machine keeps the ids it has handled in `.cpm/tombstones-applied.json`, so a re-created profile is never removed by an old entry. Changes that cannot apply on a machine (for example a rename of a profile it never had) are marked as handled.
+  - Until a rename is confirmed, the config merge does not add the new name as a separate profile.
+  - Without a terminal and without `--yes`, `cloud pull` lists the changes and applies none. `auto_pull_on_install` never applies them.
+  - Old entries are not pruned yet; the journal holds one short entry per removal or rename.
 
 #### 3.8 `cpm uninstall`
 - **Why:** There is no clean way to remove cpm; wrappers and hook lines stay behind.

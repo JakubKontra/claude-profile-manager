@@ -76,17 +76,26 @@ func cloudDiffCmd() *cobra.Command {
 }
 
 func cloudPullCmd() *cobra.Command {
-	var dryRun bool
+	var opts internal.PullOptions
 
 	cmd := &cobra.Command{
 		Use:   "pull",
 		Short: "Pull settings from cloud repo and apply locally",
+		Long: `Pull the cloud repo and apply its files locally. Profiles added on other
+machines are added to config.toml.
+
+Profiles removed or renamed on other machines are listed and, after you
+confirm (or with --yes), removed or renamed here too. A removal keeps the
+profile's data, like 'cpm remove' without --purge.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return app.CloudPull(dryRun)
+			opts.Stdin = app.In
+			opts.IsTerminal = stdinIsTerminal()
+			return app.CloudPull(opts)
 		},
 	}
 
-	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "show what would change without applying")
+	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "show what would change without applying")
+	cmd.Flags().BoolVarP(&opts.Yes, "yes", "y", false, "apply profile removals and renames from other machines without asking")
 
 	return cmd
 }

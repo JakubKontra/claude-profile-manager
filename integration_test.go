@@ -312,6 +312,40 @@ printf '%s' '`+creds+`' > "$CLAUDE_CONFIG_DIR/.credentials.json"
 			t.Fatal("blocked secret committed")
 		}
 	})
+	t.Run("cloud_profile_changes", func(t *testing.T) {
+		a, b := newCLIMachine(t, binary, bash), newCLIMachine(t, binary, bash)
+		remote := filepath.Join(t.TempDir(), "remote.git")
+		a.command(t, true, "git", "init", "--bare", remote)
+		data, _ := os.ReadFile(a.config)
+		cliWrite(t, a.config, string(data)+"[profiles.home]\n", 0o600)
+		a.run(t, true, "install")
+		a.run(t, true, "cloud", "init", "--remote", remote)
+		a.run(t, true, "cloud", "push")
+		b.run(t, true, "cloud", "init", "--remote", remote)
+		b.run(t, true, "install")
+		creds := filepath.Join(filepath.Dir(b.config), "work", ".credentials.json")
+		cliWrite(t, creds, `{"claudeAiOauth":{"accessToken":"x","expiresAt":4102444800000}}`, 0o600)
+
+		a.run(t, true, "rename", "work", "job")
+		a.run(t, true, "remove", "home")
+		a.run(t, true, "cloud", "push")
+
+		out := b.run(t, true, "cloud", "pull", "--dry-run")
+		if !strings.Contains(out, "rename work -> job") {
+			t.Fatalf("dry run does not list the rename:\n%s", out)
+		}
+		b.run(t, true, "cloud", "pull", "--yes")
+		list := b.run(t, true, "list", "--json")
+		if !strings.Contains(list, `"name": "job"`) || strings.Contains(list, `"name": "work"`) || strings.Contains(list, `"name": "home"`) {
+			t.Fatalf("B profiles after pull:\n%s", list)
+		}
+		if !strings.Contains(list, `"authenticated": true`) {
+			t.Fatalf("login did not move with the rename:\n%s", list)
+		}
+		if out := b.run(t, true, "cloud", "pull", "--yes"); strings.Contains(out, "Profile changes") {
+			t.Fatalf("changes offered twice:\n%s", out)
+		}
+	})
 	t.Run("initial_secret_refusal", func(t *testing.T) {
 		m := newCLIMachine(t, binary, bash)
 		cliWrite(t, filepath.Join(m.source, "settings.json"), `{"mcpServers":{"test":{"headers":{"Authorization":"Bearer private"}}}}`, 0o600)

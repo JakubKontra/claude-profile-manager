@@ -48,7 +48,7 @@ func TestCloudPullFailureSuggestsReset(t *testing.T) {
 		"git rev-parse --abbrev-ref HEAD": {out: "trunk\n"},
 	})
 
-	err := env.App.CloudPull(false)
+	err := env.App.CloudPull(PullOptions{})
 	if err == nil || !strings.Contains(err.Error(), "git reset --hard origin/trunk") {
 		t.Fatalf("pull failure should suggest resetting to the current branch: %v", err)
 	}

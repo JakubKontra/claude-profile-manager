@@ -340,7 +340,7 @@ In patterns, `*` matches within one path segment and `**` matches any depth; `~/
 |---------|-------------|
 | `cpm cloud init [--remote <url>]` | Initialize cloud sync repo |
 | `cpm cloud push [-m "msg"] [--dry-run] [--allow-secrets]` | Push local settings to cloud |
-| `cpm cloud pull [--dry-run]` | Pull settings from cloud and re-sync profiles |
+| `cpm cloud pull [--dry-run] [--yes]` | Pull settings from cloud and re-sync profiles; repeats profile removals and renames from other machines after confirmation |
 | `cpm cloud diff [--json]` | Show local changes since the last sync (`--json` lists files only) |
 | `cpm cloud status [--json]` | Show cloud sync status |
 | `cpm cloud remote <url>` | Set/update git remote URL |
@@ -491,6 +491,7 @@ cpm cloud pull   # on the other machine
 | `plugins/known_marketplaces.json` | |
 | `~/.agents/.skill-lock.json` (as `skills/skill-lock.json`) | |
 | CPM `config.toml` (new profiles, `[[match]]` rules, `[cloud]` and `indicator` are added; nothing set locally is overwritten) | |
+| Profile removals and renames (`cpm/tombstones.toml`), repeated by `cloud pull` after confirmation; a removal keeps the profile's data | |
 
 ### Tune what gets synced
 
