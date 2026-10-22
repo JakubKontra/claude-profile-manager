@@ -865,6 +865,9 @@ func (a *App) mergeConfigTOML(pulledPath, localConfigPath string) error {
 	if err != nil {
 		return err
 	}
+	if pulled.Version > ConfigVersion {
+		return fmt.Errorf("the cloud config has version %d, which needs a newer cpm (this one supports %d); run cpm upgrade on this machine", pulled.Version, ConfigVersion)
+	}
 
 	localData, err := os.ReadFile(localPath)
 	if err != nil {

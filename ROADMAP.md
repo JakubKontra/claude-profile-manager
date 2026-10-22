@@ -196,6 +196,9 @@ Releases: 0.6 (contract), 0.7 (profile lifecycle), 0.8 (quality), then `v1.0.0-r
   - `release.yml`: run the same lint and `-race` matrix as `test.yml` before releasing.
   - `version.go`: a semver comparison that orders prereleases. `upgrade` and `version` act only when the latest release is newer. `--prerelease` also considers prereleases.
 - **Done when:** tests cover a stable user who never sees an RC, an RC user who is never downgraded and an RC user who is offered the final release.
+- **Status:** done.
+  - A build that is itself a prerelease checks prereleases without the flag, so RC testers get `rc.2` and then the final release.
+  - `goreleaser check` passes apart from the existing `brews` deprecation. Moving to `homebrew_casks` changes the tap layout and is left for later.
 
 #### 3.2 Config version
 - **Why:** Without a version, cpm cannot tell the user that a config comes from a newer cpm, and the format cannot evolve after 1.0.
@@ -205,6 +208,9 @@ Releases: 0.6 (contract), 0.7 (profile lifecycle), 0.8 (quality), then `v1.0.0-r
   - New configs get `version = 1`. Existing files are not rewritten.
   - `cloud pull` refuses a config with a higher version. `cpm doctor` reports the version.
 - **Done when:** a missing version, `version = 1` and `version = 2` load, fail and migrate as described.
+- **Status:** done.
+  - `writeConfigAtomic` adds `version = 1` when it creates a file (`add`, `clone`, `cloud remote` on a new config), and `init` writes it.
+  - Migrations change only the loaded config. They are keyed by the version they start from.
 
 #### 3.3 Exit codes
 - **Why:** Every error exits 1, so a script cannot tell a typo from a failed check.
