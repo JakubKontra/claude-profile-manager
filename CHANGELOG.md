@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-22
+
+This release covers the whole life of a profile: taking over an existing login, renaming and removing it across machines, and uninstalling cpm.
+
+### Added
+- `cpm adopt <profile>` copies an existing Claude Code login (by default the one in `~/.claude`, or `--from <dir>`) into a profile, so the profile needs no new login. It adds the profile if needed, `--move` removes the source login, and every step is reverted on failure. `cpm doctor` suggests it when only `~/.claude` is logged in ([#35](https://github.com/JakubKontra/claude-profile-manager/pull/35)).
+- Profile removals and renames reach other machines: they are synced as `cpm/tombstones.toml`, and `cpm cloud pull` repeats them after confirmation, or with the new `--yes`. A renamed profile keeps its login, and a removal never deletes profile data ([#36](https://github.com/JakubKontra/claude-profile-manager/pull/36)).
+- `cpm uninstall` removes the wrappers and the documented shell hook lines, keeping a backup of each rc file. `--purge` also deletes every profile, its login and the config ([#37](https://github.com/JakubKontra/claude-profile-manager/pull/37)).
+- `cpm doctor --fix` repairs what `cpm install` can. Every failed check names its fix in the new JSON field `fix` ([#38](https://github.com/JakubKontra/claude-profile-manager/pull/38)).
+
+### Fixed
+- Tagging a final release on the commit of a release candidate now releases the right tag ([#34](https://github.com/JakubKontra/claude-profile-manager/pull/34)).
+
+### Upgrade notes
+- Cloud sync: renames and removals are recorded from this version on. Machines on an older cpm ignore `cpm/tombstones.toml`.
+
 ## [0.6.0] - 2026-10-22
 
 This release fixes the interfaces that 1.0 will keep stable. [docs/stability.md](docs/stability.md) lists them.
@@ -134,7 +150,8 @@ Thanks [@JakubKontra](https://github.com/JakubKontra) for the improvements in th
 ### Added
 - Initial release: profiles, wrapper scripts, `.claude-profile` auto-switching, doctor, clone, upgrade.
 
-[Unreleased]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.3.1...v0.4.0
