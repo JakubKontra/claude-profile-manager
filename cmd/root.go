@@ -8,7 +8,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var configPath string
+var (
+	configPath string
+	// app is built from the parsed flags before any subcommand runs.
+	app *internal.App
+)
 
 // Execute runs the cpm root command and exits with status 1 on error.
 func Execute() {
@@ -20,6 +24,9 @@ func Execute() {
 		SilenceErrors: true,
 	}
 
+	root.PersistentPreRun = func(cmd *cobra.Command, args []string) {
+		app = internal.NewApp(configPath)
+	}
 	root.PersistentFlags().StringVar(&configPath, "config", internal.DefaultConfigPath(), "path to config file")
 
 	root.AddCommand(

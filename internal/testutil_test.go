@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -14,6 +15,20 @@ func captureOutput(t *testing.T) *bytes.Buffer {
 	prev := SetOutput(&buf)
 	t.Cleanup(func() { SetOutput(prev) })
 	return &buf
+}
+
+// newTestApp returns an App for env whose output goes to the returned buffer.
+// Errors and prompts go to a separate buffer so tests see only stdout.
+func newTestApp(t *testing.T, env testEnv) (*App, *bytes.Buffer) {
+	t.Helper()
+	var out bytes.Buffer
+	return &App{
+		ConfigPath: env.ConfigPath,
+		BaseDir:    ProfilesBaseDir(env.ConfigPath),
+		In:         strings.NewReader(""),
+		Out:        &out,
+		Err:        &bytes.Buffer{},
+	}, &out
 }
 
 // testEnv is a self-contained cpm layout inside a temp dir.
