@@ -75,11 +75,6 @@ func (a *App) AdoptLogin(cfg *Config, name string, opts AdoptOptions) (AdoptRepo
 		if err := a.AddProfile(name, AddOptions{}); err != nil {
 			return report, err
 		}
-		updated, err := a.LoadConfig()
-		if err != nil {
-			return report, err
-		}
-		cfg = updated
 	}
 	if !fileExistsAt(dir) {
 		return report, fmt.Errorf("profile %q is not installed (run cpm install)", name)
