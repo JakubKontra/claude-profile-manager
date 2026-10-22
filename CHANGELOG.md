@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-22
+
+### Added
+- `[[match]]` rules pick a profile by git remote or directory, so repositories no longer need a `.claude-profile`. `cpm use auto`, `cpm which` and the shell hook share one resolver, and `cpm which` shows the rule that applied. Remotes are read from `.git/config` (worktrees and submodules included) without running git ([#21](https://github.com/JakubKontra/claude-profile-manager/pull/21)).
+- `indicator = true` (global or per profile) shows `cpm: <profile>` in Claude Code's status line. An existing `statusLine` is never replaced ([#22](https://github.com/JakubKontra/claude-profile-manager/pull/22)).
+- `cpm login [profile...] [--all]` runs `claude auth login` in profiles one at a time and prints a summary. `--all` skips profiles that are logged in or that use an API key, token, Bedrock, Vertex or Foundry ([#24](https://github.com/JakubKontra/claude-profile-manager/pull/24)).
+- `cpm rename <old> <new> [--dry-run]` renames a profile and keeps it logged in by moving its macOS Keychain login. Config and `secrets.toml` tables, `[[match]]` rules, the directory and the wrapper are renamed too, and every step is reverted if one fails ([#25](https://github.com/JakubKontra/claude-profile-manager/pull/25)).
+- `cpm cloud pull` adds `[[match]]` rules and a global `indicator` missing from the local config ([#23](https://github.com/JakubKontra/claude-profile-manager/pull/23)).
+
+### Changed
+- `cpm doctor` suggests `cpm login <name>` for profiles without credentials, and reports profiles that authenticate through API keys or cloud providers as "no login needed" instead of warning ([#24](https://github.com/JakubKontra/claude-profile-manager/pull/24)).
+- `install --sync` compares a profile's `settings.json` by content, so formatting-only edits are no longer reported as local changes ([#22](https://github.com/JakubKontra/claude-profile-manager/pull/22)).
+- Internal refactor: commands moved to a `cmd` package, and an `App` context carries config paths, I/O, git, the Keychain, the home directory and the environment. Unit tests no longer touch the real Keychain or home directory ([#16](https://github.com/JakubKontra/claude-profile-manager/pull/16)), ([#17](https://github.com/JakubKontra/claude-profile-manager/pull/17)), ([#18](https://github.com/JakubKontra/claude-profile-manager/pull/18)), ([#19](https://github.com/JakubKontra/claude-profile-manager/pull/19)).
+
+### Fixed
+- The shell hook passes `--config` to cpm when a non-default config path is used ([#21](https://github.com/JakubKontra/claude-profile-manager/pull/21)).
+
+### Upgrade notes
+- With `[[match]]` rules, the shell hook runs `cpm resolve` on every directory change (about 5 ms). Open a new shell after adding the first rule. Without rules the hook is unchanged.
+- Close Claude Code sessions of a profile before `cpm rename`. Other machines keep the old name; `cloud pull` there adds the new profile alongside it.
+
 ## [0.4.0] - 2026-10-15
 
 Thanks [@JakubKontra](https://github.com/JakubKontra) for the improvements in this release.
@@ -92,7 +113,9 @@ Thanks [@JakubKontra](https://github.com/JakubKontra) for the improvements in th
 ### Added
 - Initial release: profiles, wrapper scripts, `.claude-profile` auto-switching, doctor, clone, upgrade.
 
-[Unreleased]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.2.0...v0.2.1

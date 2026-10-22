@@ -13,6 +13,10 @@ bin_dir = "~/.local/bin"
 # Default: ["commands", "skills", "agents", "plugins", "projects"]
 # share = ["commands", "skills", "agents", "plugins", "projects"]
 
+# Show "cpm: <profile>" in Claude Code's status line. Never replaces an
+# existing statusLine; set per profile to override.
+# indicator = true
+
 [profiles.personal]
 description = "Personal Anthropic account"
 
@@ -45,6 +49,16 @@ add_dirs = ["~/Work/company"]
 # description = "Company via Google Cloud Vertex AI"
 # add_dirs = ["~/Work/company"]
 # env = { CLAUDE_CODE_USE_VERTEX = "1", ANTHROPIC_VERTEX_PROJECT_ID = "your-project-id", CLOUD_ML_REGION = "europe-west1" }
+
+# Pick a profile by git remote or directory where no .claude-profile exists.
+# The first matching rule wins; * is one path segment, ** any depth.
+# [[match]]
+# remote = "github.com/company/*"
+# profile = "work"
+#
+# [[match]]
+# path = "~/Work/client/**"
+# profile = "work"
 
 # Cloud sync — sync settings across devices via git
 # [cloud]
