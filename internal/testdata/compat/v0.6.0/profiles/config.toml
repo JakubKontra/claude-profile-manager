@@ -1,0 +1,34 @@
+# compat fixture for v0.6.0
+indicator = true
+source_dir = "$ROOT/claude"
+bin_dir = "$ROOT/bin"
+
+[profiles.work]
+description = "Work"
+model = "sonnet"
+add_dirs = ["~/Work"]
+isolate = ["projects"]
+mcp_exclude = ["notes"]
+
+[profiles.work.env]
+TEAM = "core"
+
+[profiles.work.attribution]
+commit = "Co-Authored-By: Claude <noreply@anthropic.com>"
+
+[profiles.work.settings]
+effortLevel = "high"
+
+[profiles.work.mcp_servers.jira]
+command = "jira-mcp"
+
+[profiles.personal]
+inherit_mcp = false
+description = "Personal"
+
+# [cloud]
+# remote = "git@example.com:me/settings.git"
+
+[[match]]
+remote = "github.com/company/*"
+profile = "work"
