@@ -9,14 +9,9 @@ permissions:
   contents: write
 
 jobs:
+  # The same lint and race-enabled Linux/macOS matrix as pull requests.
   test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.26"
-      - run: go test ./... -v
+    uses: ./.github/workflows/test.yml
 
   release:
     needs: test
