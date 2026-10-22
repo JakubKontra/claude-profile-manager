@@ -46,5 +46,9 @@ brews:
     license: "MIT"
     install: |
       bin.install "cpm"
+      # cpm writes its own man pages; a failure must not break the install.
+      if quiet_system bin/"cpm", "docs", "--man", "man1"
+        man1.install Dir["man1/*.1"]
+      end
     test: |
       system "#{bin}/cpm", "version"

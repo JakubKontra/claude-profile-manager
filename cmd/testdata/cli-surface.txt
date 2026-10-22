@@ -42,6 +42,9 @@ cpm completion zsh [flags]
 cpm credentials [flags]
     --json bool
 cpm direnv <profile>
+cpm docs [flags]  (hidden)
+    --man string
+    --markdown string
 cpm doctor [flags]
     --fix bool
     --json bool

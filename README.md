@@ -626,6 +626,10 @@ To remove cpm, run `cpm uninstall`. It deletes the wrappers and the hook lines i
 
 Release candidates (`v1.0.0-rc.1`) are published as GitHub prereleases. `cpm upgrade` and Homebrew skip them. To try one, run `cpm upgrade --prerelease`. A release candidate keeps updating to newer release candidates and then to the final release, and never back to an older version.
 
+## Contributing and security
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how the code is organized and what every change must keep working, and [SECURITY.md](SECURITY.md) for how cpm handles credentials and how to report a vulnerability. The full command reference is in [docs/cli](docs/cli/cpm.md), and with Homebrew in `man cpm`.
+
 ## License
 
 [MIT](LICENSE)

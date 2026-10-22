@@ -318,6 +318,10 @@ Releases: 0.6 (contract), 0.7 (profile lifecycle), 0.8 (quality), then `v1.0.0-r
   - Ship man pages through Homebrew.
   - Add `CONTRIBUTING.md` and `SECURITY.md`.
 - **Done when:** a help change without regenerated docs fails CI.
+- **Status:** done.
+  - The Markdown and man pages come from a small generator in `cmd/docs.go` instead of `cobra/doc`. That package would have added a dependency (`go-md2man`) and with it a new Nix `vendorHash`.
+  - The Homebrew formula runs `cpm docs --man` and installs the pages. If that command fails, the install still succeeds without man pages.
+  - `TestDocsUpToDate` checks `docs/cli` in every test run instead of a separate CI step.
 
 ### 1.0
 
