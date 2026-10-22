@@ -1,0 +1,7 @@
+{
+  "statusLine": {
+    "command": "echo 'cpm: personal'",
+    "type": "command"
+  },
+  "theme": "dark"
+}

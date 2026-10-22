@@ -1,0 +1,8 @@
+{
+  "hasCompletedOnboarding": true,
+  "mcpServers": {
+    "jira": {
+      "command": "jira-mcp"
+    }
+  }
+}

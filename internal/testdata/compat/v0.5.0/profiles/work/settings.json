@@ -1,0 +1,11 @@
+{
+  "attribution": {
+    "commit": "Co-Authored-By: Claude \u003cnoreply@anthropic.com\u003e"
+  },
+  "effortLevel": "high",
+  "statusLine": {
+    "command": "echo 'cpm: work'",
+    "type": "command"
+  },
+  "theme": "dark"
+}
