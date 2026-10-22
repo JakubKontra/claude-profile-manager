@@ -445,7 +445,8 @@ func (a *App) cloudPullFiles() error {
 }
 
 // CloudPull pulls from remote and distributes files to their live locations.
-func (a *App) CloudPull(dryRun bool) error {
+func (a *App) CloudPull(opts PullOptions) error {
+	dryRun := opts.DryRun
 	repoDir := CloudRepoDir(a.ConfigPath)
 	if err := ensureCloudRepo(repoDir); err != nil {
 		return err
@@ -463,6 +464,11 @@ func (a *App) CloudPull(dryRun bool) error {
 	after, _ := a.git(repoDir, "rev-parse", "HEAD")
 	if strings.TrimSpace(before) == strings.TrimSpace(after) {
 		a.outln("Repo already up to date.")
+	}
+
+	// Removals and renames first, so the config merge sees the result.
+	if err := a.applyCloudChanges(repoDir, opts); err != nil {
+		return err
 	}
 
 	cfg, err := a.LoadCloudConfig()
@@ -657,6 +663,9 @@ func (a *App) GatherSyncFiles(cfg *Config, configPath string) (map[string]string
 			files["cpm/config.toml"] = cfgPath
 		}
 	}
+	if !isExcluded(tombstonesRepoPath, cfg) && fileExistsAt(a.tombstonesPath()) {
+		files[tombstonesRepoPath] = a.tombstonesPath()
+	}
 
 	for path, src := range files {
 		if privateSyncFile(src, configPath) {
@@ -750,6 +759,9 @@ func (a *App) PlanDistribute(repoDir string, cfg *Config, configPath string) []D
 		if _, err := os.Stat(src); err == nil {
 			plan = append(plan, DistributeAction{RepoPath: "cpm/config.toml", Source: src, Dest: a.expand(configPath), Kind: "merge"})
 		}
+		if src := filepath.Join(repoDir, filepath.FromSlash(tombstonesRepoPath)); fileExistsAt(src) && !isExcluded(tombstonesRepoPath, cfg) {
+			plan = append(plan, DistributeAction{RepoPath: tombstonesRepoPath, Source: src, Dest: a.tombstonesPath(), Kind: "merge"})
+		}
 	}
 
 	sort.SliceStable(plan, func(i, j int) bool { return plan[i].RepoPath < plan[j].RepoPath })
@@ -773,7 +785,11 @@ func (a *App) ApplyDistribute(plan []DistributeAction) error {
 				err = nil
 			}
 		case "merge":
-			err = a.mergeConfigTOML(act.Source, act.Dest)
+			if act.RepoPath == tombstonesRepoPath {
+				err = mergeTombstones(act.Source, act.Dest)
+			} else {
+				err = a.mergeConfigTOML(act.Source, act.Dest)
+			}
 		default:
 			continue
 		}
@@ -949,10 +965,12 @@ func (a *App) mergeConfigTOML(pulledPath, localConfigPath string) error {
 		return err
 	}
 
-	// Decide what is missing before touching anything.
+	// Decide what is missing before touching anything. The new name of a
+	// pending rename is left out: the rename creates it.
+	renameTargets := a.pendingRenameTargets(filepath.Dir(filepath.Dir(pulledPath)), local.Profiles)
 	var missing []string
 	for _, name := range SortedProfileNames(&pulled) {
-		if _, exists := local.Profiles[name]; !exists {
+		if _, exists := local.Profiles[name]; !exists && !renameTargets[name] {
 			missing = append(missing, name)
 		}
 	}

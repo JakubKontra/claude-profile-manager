@@ -132,6 +132,9 @@ func (a *App) RemoveProfile(cfg *Config, name string, opts RemoveOptions) error 
 			return err
 		}
 		a.outf("  removed [profiles.%s] from %s\n", name, path)
+		if err := a.recordChange(cfg, ProfileChange{Kind: "removed", Name: name}); err != nil {
+			fmt.Fprintf(a.Err, "Warning: cannot record the removal for cloud sync: %v\n", err)
+		}
 	}
 
 	if !opts.Purge {

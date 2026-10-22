@@ -515,13 +515,13 @@ func TestCloudPushPullRoundTrip(t *testing.T) {
 		t.Fatalf("no-op push: %v", err)
 	}
 
-	if err := b.App.CloudPull(true); err != nil {
+	if err := b.App.CloudPull(PullOptions{DryRun: true}); err != nil {
 		t.Fatalf("dry-run pull B: %v", err)
 	}
 	if data, _ := os.ReadFile(filepath.Join(b.SourceDir, "settings.json")); string(data) != `{"from": "A"}` {
 		t.Error("dry run must not change files")
 	}
-	if err := b.App.CloudPull(false); err != nil {
+	if err := b.App.CloudPull(PullOptions{}); err != nil {
 		t.Fatalf("pull B: %v", err)
 	}
 	if data, _ := os.ReadFile(filepath.Join(b.SourceDir, "settings.json")); string(data) != `{"from": "A2"}` {

@@ -41,6 +41,9 @@ func (a *App) RenameProfile(cfg *Config, old, new string, dryRun bool) (RenameRe
 	if dryRun {
 		return report, nil
 	}
+	if err := a.recordChange(cfg, ProfileChange{Kind: "renamed", From: old, To: new}); err != nil {
+		fmt.Fprintf(a.Err, "Warning: cannot record the rename for cloud sync: %v\n", err)
+	}
 	a.progressf("\nProfile %q is now %q.\n", old, new)
 	if a.Getenv("CLAUDE_PROFILE") == old {
 		a.progressf("This shell still uses %q; run: eval \"$(cpm use %s)\"\n", old, new)

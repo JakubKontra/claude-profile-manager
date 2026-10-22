@@ -181,7 +181,7 @@ func TestCloudPullResyncsProfiles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := b.App.CloudPull(false); err != nil {
+	if err := b.App.CloudPull(PullOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	if data, _ := os.ReadFile(profileSettings); string(data) != `{"v": 2}` {
@@ -228,7 +228,7 @@ func TestInstallProfilesAutoPullAndPush(t *testing.T) {
 		t.Errorf("auto push did not run: %q", buf.String())
 	}
 
-	if err := a.App.CloudPull(false); err != nil {
+	if err := a.App.CloudPull(PullOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	if !fileExists(filepath.Join(a.SourceDir, "commands", "b.md")) {

@@ -39,6 +39,10 @@ type App struct {
 	// JSON keeps Out for a single JSON document: progress messages and the
 	// output of programs cpm runs go to Err instead.
 	JSON bool
+
+	// replaying is set while profile changes from the cloud are repeated,
+	// so they are not recorded again.
+	replaying bool
 }
 
 // NewApp returns an App for configPath wired to the process's stdio.

@@ -22,6 +22,7 @@ cpm cloud init [flags]
     --remote string
 cpm cloud pull [flags]
     --dry-run bool
+    -y, --yes bool
 cpm cloud push [flags]
     --allow-secrets bool
     --dry-run bool
