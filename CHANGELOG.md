@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-22
+
+This release fixes the interfaces that 1.0 will keep stable. [docs/stability.md](docs/stability.md) lists them.
+
+### Added
+- `--json` for `status`, `cloud status`, `cloud diff` (file list), `login`, `rename` and `version`. Every `--json` shape is pinned by golden files. In JSON mode, progress messages and the output of `claude auth login` go to stderr ([#31](https://github.com/JakubKontra/claude-profile-manager/pull/31)).
+- `version = 1` in `config.toml`. A config from a newer cpm is refused with a hint to upgrade, both locally and on `cloud pull`. New configs get the key; existing files are left as they are ([#29](https://github.com/JakubKontra/claude-profile-manager/pull/29)).
+- `cpm upgrade --prerelease` and `cpm version --prerelease`. A release candidate is published as a GitHub prerelease, skipped by Homebrew and by `cpm upgrade` unless asked for. `cpm upgrade` never installs an older version ([#28](https://github.com/JakubKontra/claude-profile-manager/pull/28)).
+- `cpm remove --dry-run` ([#32](https://github.com/JakubKontra/claude-profile-manager/pull/32)).
+- `docs/stability.md` and a test that pins every command and flag ([#32](https://github.com/JakubKontra/claude-profile-manager/pull/32)).
+
+### Changed
+- **Exit codes:** 2 for wrong usage (unknown command or flag, wrong arguments), 3 for a failed check (`doctor`, local edits blocking `install --sync`, a cloud sync conflict), 4 for a failed `cpm login`. All of these used to exit 1 ([#30](https://github.com/JakubKontra/claude-profile-manager/pull/30)).
+- Tag builds run the full lint and race-enabled Linux/macOS test matrix before releasing ([#28](https://github.com/JakubKontra/claude-profile-manager/pull/28)).
+
+### Fixed
+- `cloud status` lists modified files in a stable order ([#31](https://github.com/JakubKontra/claude-profile-manager/pull/31)).
+
+### Upgrade notes
+- Scripts that check for exit code `1` after `cpm doctor` or `cpm install --sync` must now check for `3`, or for any non-zero code.
+
 ## [0.5.0] - 2026-10-22
 
 ### Added
@@ -113,7 +134,8 @@ Thanks [@JakubKontra](https://github.com/JakubKontra) for the improvements in th
 ### Added
 - Initial release: profiles, wrapper scripts, `.claude-profile` auto-switching, doctor, clone, upgrade.
 
-[Unreleased]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.3.0...v0.3.1
