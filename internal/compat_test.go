@@ -32,7 +32,11 @@ func materializeCompat(t *testing.T, version string) (*App, string) {
 		if err != nil {
 			return err
 		}
-		return writeFileAtomic(filepath.Join(root, rel), []byte(strings.ReplaceAll(string(data), "$ROOT", root)), info.Mode().Perm())
+		mode := info.Mode().Perm()
+		if d.Name() == "secrets.toml" {
+			mode = 0o600 // git keeps only the executable bit
+		}
+		return writeFileAtomic(filepath.Join(root, rel), []byte(strings.ReplaceAll(string(data), "$ROOT", root)), mode)
 	})
 	if err != nil {
 		t.Fatal(err)
