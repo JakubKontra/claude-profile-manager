@@ -11,6 +11,8 @@ type KeychainStore interface {
 	Exists(service, account string) bool
 	// Read returns the stored secret. It may trigger a macOS access prompt.
 	Read(service, account string) ([]byte, error)
+	// Write creates or replaces the entry's secret.
+	Write(service, account string, secret []byte) error
 	// Delete removes the entry; a missing entry is not an error.
 	Delete(service, account string) error
 }
@@ -22,6 +24,10 @@ func (noKeychain) Exists(string, string) bool { return false }
 
 func (noKeychain) Read(string, string) ([]byte, error) {
 	return nil, fmt.Errorf("keychain is only available on macOS")
+}
+
+func (noKeychain) Write(string, string, []byte) error {
+	return fmt.Errorf("keychain is only available on macOS")
 }
 
 func (noKeychain) Delete(string, string) error { return nil }

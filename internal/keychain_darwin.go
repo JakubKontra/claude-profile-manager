@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os/exec"
@@ -24,6 +25,23 @@ func (securityKeychain) Read(service, account string) ([]byte, error) {
 		return nil, err
 	}
 	return []byte(strings.TrimSpace(string(out))), nil
+}
+
+// Write sends the command to `security -i` on stdin with the secret
+// hex-encoded (-X), so the secret never appears on a command line where ps
+// would show it.
+func (securityKeychain) Write(service, account string, secret []byte) error {
+	for _, s := range []string{service, account} {
+		if strings.ContainsAny(s, "\"\\\n") {
+			return fmt.Errorf("unsupported keychain name %q", s)
+		}
+	}
+	cmd := exec.Command("security", "-i")
+	cmd.Stdin = strings.NewReader(fmt.Sprintf("add-generic-password -U -a \"%s\" -s \"%s\" -X %s\n", account, service, hex.EncodeToString(secret)))
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("security add-generic-password: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
 }
 
 func (securityKeychain) Delete(service, account string) error {

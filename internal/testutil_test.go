@@ -71,8 +71,9 @@ type fakeKeychain struct {
 	mu      sync.Mutex
 	entries map[string][]byte
 	deleted []string
-	// readErr, when set, is returned by Read.
-	readErr error
+	// readErr and writeErr, when set, are returned by Read and Write.
+	readErr  error
+	writeErr error
 }
 
 func newFakeKeychain() *fakeKeychain {
@@ -104,6 +105,16 @@ func (k *fakeKeychain) Read(service, _ string) ([]byte, error) {
 		return nil, fmt.Errorf("no keychain entry for %s", service)
 	}
 	return data, nil
+}
+
+func (k *fakeKeychain) Write(service, _ string, secret []byte) error {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if k.writeErr != nil {
+		return k.writeErr
+	}
+	k.entries[service] = append([]byte(nil), secret...)
+	return nil
 }
 
 func (k *fakeKeychain) Delete(service, _ string) error {

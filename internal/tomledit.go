@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -428,4 +429,60 @@ func writeConfigAtomic(path string, data []byte) error {
 		return err
 	}
 	return nil
+}
+
+// RenameProfileTable renames [profiles.<old>] and its subtables to <new>,
+// keeping everything else as written. It reports whether anything was
+// renamed and fails when the profile is still present under the old name
+// afterwards (inline tables or dotted keys, which this editor does not
+// rewrite).
+func RenameProfileTable(data []byte, old, new string) ([]byte, bool, error) {
+	header := regexp.MustCompile(`^(\s*\[\s*profiles\s*\.\s*)("` + old + `"|'` + old + `'|` + old + `)(\s*[.\]])`)
+	lines := splitLines(data)
+	renamed := false
+	for i, line := range lines {
+		if header.MatchString(line) {
+			lines[i] = header.ReplaceAllString(line, "${1}"+new+"${3}")
+			renamed = true
+		}
+	}
+	out := joinLines(lines)
+	var cfg Config
+	if _, err := toml.Decode(string(out), &cfg); err != nil {
+		return nil, false, fmt.Errorf("config would be invalid after renaming: %w", err)
+	}
+	if _, still := cfg.Profiles[old]; still {
+		return nil, false, fmt.Errorf("profile %q is defined in a form this command cannot edit (inline table or dotted keys); edit the config manually", old)
+	}
+	return out, renamed, nil
+}
+
+// RenameMatchProfile points [[match]] rules for profile old at new and
+// returns how many it changed. It fails when a rule for old is left, for
+// example one written as an inline table.
+func RenameMatchProfile(data []byte, old, new string) ([]byte, int, error) {
+	value := regexp.MustCompile(`^(\s*profile\s*=\s*)("` + old + `"|'` + old + `')(\s*(#.*)?)$`)
+	lines := splitLines(data)
+	inMatch, count := false, 0
+	for i, line := range lines {
+		if trimmed := strings.TrimSpace(line); strings.HasPrefix(trimmed, "[") {
+			inMatch = strings.HasPrefix(trimmed, "[[match]]")
+			continue
+		}
+		if inMatch && value.MatchString(line) {
+			lines[i] = value.ReplaceAllString(line, "${1}"+quoteTOMLString(new)+"${3}")
+			count++
+		}
+	}
+	out := joinLines(lines)
+	var cfg Config
+	if _, err := toml.Decode(string(out), &cfg); err != nil {
+		return nil, 0, fmt.Errorf("config would be invalid after renaming: %w", err)
+	}
+	for _, r := range cfg.Match {
+		if r.Profile == old {
+			return nil, 0, fmt.Errorf("a [[match]] rule for %q is in a form this command cannot edit; edit the config manually", old)
+		}
+	}
+	return out, count, nil
 }

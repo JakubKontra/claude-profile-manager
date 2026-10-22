@@ -148,7 +148,8 @@ That's it. New profiles skip Claude's onboarding wizard and get your MCP servers
 
 ```bash
 cpm add client -d "Client X" -m opus --add-dir ~/Work/client -e CLAUDE_CODE_USE_VERTEX=1
-cpm remove client --purge     # also deletes its directory, credentials and Keychain entry
+cpm rename client acme        # rename a profile; it stays logged in
+cpm remove acme --purge       # also deletes its directory, credentials and Keychain entry
 cpm edit                      # open config.toml in $EDITOR
 ```
 
@@ -296,6 +297,7 @@ In patterns, `*` matches within one path segment and `**` matches any depth; `~/
 | `cpm init` | Interactive config wizard |
 | `cpm install` | Create profile directories and wrapper scripts |
 | `cpm add <name> [-d desc] [-m model] [--add-dir dir] [-e K=V] [--no-install]` | Add a profile to `config.toml` and install it |
+| `cpm rename <old> <new> [--dry-run]` | Rename a profile: config, `secrets.toml`, `[[match]]` rules, directory, wrapper and Keychain login; reverts on failure |
 | `cpm remove <name> [--purge] [--yes]` | Remove a profile; `--purge` deletes its directory, credentials and Keychain entry |
 | `cpm clone <src> <dst>` | Clone profile (without credentials) and register it in config |
 | `cpm edit` | Open `config.toml` in `$VISUAL` / `$EDITOR` |
