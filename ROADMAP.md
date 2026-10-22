@@ -127,7 +127,7 @@ Behavior stays the same. For every PR, `go test -race ./...`, `golangci-lint run
   - Without `[[match]]` rules the hook is the same pure-shell script as before. With rules, it calls the hidden `cpm resolve` on every directory change, which takes about 5 ms.
   - A rule matches if any of the repository's remotes matches, not only `origin`.
   - The hook now passes `--config` to cpm when it is not the default path.
-  - Follow-up: `cpm cloud pull` merges only new profiles, so `[[match]]` rules do not reach other machines yet.
+  - `cpm cloud pull` adds `[[match]]` rules missing locally, after the local ones, so local rules keep priority. It also adds a global `indicator` (2.2) when the local config does not set one.
 
 ### 2.2 Profile indicator inside Claude Code
 

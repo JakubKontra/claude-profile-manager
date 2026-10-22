@@ -474,7 +474,7 @@ cpm cloud pull   # on the other machine
 | `plugins/installed_plugins.json` | Telemetry |
 | `plugins/known_marketplaces.json` | |
 | `~/.agents/.skill-lock.json` (as `skills/skill-lock.json`) | |
-| CPM `config.toml` (profiles are merged, never overwritten) | |
+| CPM `config.toml` (new profiles, `[[match]]` rules, `[cloud]` and `indicator` are added; nothing set locally is overwritten) | |
 
 ### Tune what gets synced
 
