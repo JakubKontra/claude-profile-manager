@@ -9,11 +9,10 @@ import (
 )
 
 func TestAddProfileAppendsAndInstalls(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, twoProfiles)
 	app, buf := env.App, env.Out
 	mustWrite(t, filepath.Join(env.SourceDir, "settings.json"), `{}`)
-	stubKeychain(t, false)
-
 	err := app.AddProfile("client", AddOptions{
 		Description: "Client",
 		Model:       "opus",
@@ -87,18 +86,6 @@ func TestParseEnvFlag(t *testing.T) {
 	}
 }
 
-func stubKeychainDelete(t *testing.T) *[]string {
-	t.Helper()
-	var deleted []string
-	prev := keychainDelete
-	keychainDelete = func(service, account string) error {
-		deleted = append(deleted, service)
-		return nil
-	}
-	t.Cleanup(func() { keychainDelete = prev })
-	return &deleted
-}
-
 func installedEnv(t *testing.T) testEnv {
 	t.Helper()
 	env := newTestEnv(t, twoProfiles)
@@ -112,9 +99,9 @@ func installedEnv(t *testing.T) testEnv {
 }
 
 func TestRemoveProfileKeepsDirWithoutPurge(t *testing.T) {
+	t.Parallel()
 	env := installedEnv(t)
 	app := env.App
-	deleted := stubKeychainDelete(t)
 
 	err := app.RemoveProfile(env.load(t), "work", RemoveOptions{})
 	if err != nil {
@@ -126,7 +113,7 @@ func TestRemoveProfileKeepsDirWithoutPurge(t *testing.T) {
 	if !fileExists(filepath.Join(env.profilesBase(), "work", ".credentials.json")) {
 		t.Error("profile data must be kept without --purge")
 	}
-	if len(*deleted) != 0 {
+	if len(env.Keychain.deleted) != 0 {
 		t.Error("keychain must not be touched without --purge")
 	}
 	cfg := env.load(t)
@@ -139,9 +126,9 @@ func TestRemoveProfileKeepsDirWithoutPurge(t *testing.T) {
 }
 
 func TestRemoveProfilePurgeDeletesEverything(t *testing.T) {
+	t.Parallel()
 	env := installedEnv(t)
 	app := env.App
-	deleted := stubKeychainDelete(t)
 	profileDir := filepath.Join(env.profilesBase(), "work")
 
 	err := app.RemoveProfile(env.load(t), "work", RemoveOptions{Purge: true, Yes: true})
@@ -151,8 +138,8 @@ func TestRemoveProfilePurgeDeletesEverything(t *testing.T) {
 	if fileExists(profileDir) {
 		t.Error("profile dir should be deleted")
 	}
-	if len(*deleted) != 1 || (*deleted)[0] != KeychainServiceName(profileDir) {
-		t.Errorf("keychain entry not deleted with the right service: %v", *deleted)
+	if len(env.Keychain.deleted) != 1 || env.Keychain.deleted[0] != KeychainServiceName(profileDir) {
+		t.Errorf("keychain entry not deleted with the right service: %v", env.Keychain.deleted)
 	}
 	if fileExists(filepath.Join(env.BinDir, "claude-work")) {
 		t.Error("wrapper should be removed")
@@ -160,9 +147,9 @@ func TestRemoveProfilePurgeDeletesEverything(t *testing.T) {
 }
 
 func TestRemoveProfilePromptAndNonInteractive(t *testing.T) {
+	t.Parallel()
 	env := installedEnv(t)
 	app := env.App
-	stubKeychainDelete(t)
 	profileDir := filepath.Join(env.profilesBase(), "work")
 
 	err := app.RemoveProfile(env.load(t), "work", RemoveOptions{Purge: true, IsTerminal: false})

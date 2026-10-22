@@ -23,6 +23,9 @@ type DoctorOptions struct {
 	Verify bool
 	// LookPath is injected in tests; nil means exec.LookPath.
 	LookPath func(string) (string, error)
+	// Keychain is where logins are looked up; nil means no Keychain.
+	// App.DoctorReportFor passes the App's store.
+	Keychain KeychainStore
 }
 
 // rcFiles are the shell startup files scanned for the cpm hook.
@@ -37,6 +40,10 @@ func RunDoctorWithOptions(cfg *Config, profilesBase string, opts DoctorOptions) 
 	lookPath := opts.LookPath
 	if lookPath == nil {
 		lookPath = exec.LookPath
+	}
+	kc := opts.Keychain
+	if kc == nil {
+		kc = noKeychain{}
 	}
 	home := opts.HomeDir
 	if home == "" {
@@ -125,9 +132,9 @@ func RunDoctorWithOptions(cfg *Config, profilesBase string, opts DoctorOptions) 
 
 		// Check credentials (Keychain on macOS, .credentials.json elsewhere)
 		checkName := fmt.Sprintf("profile/%s/credentials", name)
-		status, err := GetCredentialStatus(profileDir)
+		status, err := GetCredentialStatus(kc, profileDir)
 		if err == nil && opts.Verify && status.Source == "keychain" {
-			status = verifyKeychainToken(profileDir, status)
+			status = verifyKeychainToken(kc, profileDir, status)
 		}
 		switch {
 		case err != nil:
@@ -178,8 +185,8 @@ func hookInstalledIn(home string) string {
 
 // verifyKeychainToken reads the token blob from the Keychain and fills in
 // expiry and subscription. Failures leave the status as it was.
-func verifyKeychainToken(profileDir string, status CredentialStatus) CredentialStatus {
-	data, err := keychainRead(KeychainServiceName(profileDir), keychainAccount())
+func verifyKeychainToken(kc KeychainStore, profileDir string, status CredentialStatus) CredentialStatus {
+	data, err := kc.Read(KeychainServiceName(profileDir), keychainAccount())
 	if err != nil {
 		return status
 	}

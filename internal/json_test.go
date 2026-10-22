@@ -10,7 +10,8 @@ func TestJSONShapes(t *testing.T) {
 	env := newTestEnv(t, twoProfiles)
 	app, buf := env.App, env.Out
 	mustMkdir(t, filepath.Join(env.profilesBase(), "work"))
-	stubKeychain(t, true)
+	env.Keychain.login(filepath.Join(env.profilesBase(), "work"), "token")
+	env.Keychain.login(filepath.Join(env.profilesBase(), "personal"), "token")
 	t.Setenv("CLAUDE_PROFILE", "work")
 
 	if err := app.PrintJSON(app.ListProfiles(env.load(t))); err != nil {
@@ -52,7 +53,7 @@ func TestJSONShapes(t *testing.T) {
 		t.Error("zero expiry must be omitted")
 	}
 	if creds[0]["authenticated"] != true {
-		t.Errorf("stubbed keychain should authenticate every profile: %v", creds[0])
+		t.Errorf("keychain login should authenticate personal: %v", creds[0])
 	}
 
 	buf.Reset()

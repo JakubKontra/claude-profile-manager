@@ -99,13 +99,13 @@ func (a *App) CloudInitWithSecrets(remote string, allowSecrets bool) error {
 
 	// If remote is provided, try cloning first
 	if remote != "" {
-		hasRefs, err := checkRemoteHasRefs(remote)
+		hasRefs, err := a.checkRemoteHasRefs(remote)
 		if err != nil {
 			return fmt.Errorf("cannot reach remote %s: %w", remote, err)
 		}
 		if hasRefs {
 			a.outf("Cloning from %s...\n", remote)
-			if _, err := gitExecDir("", "clone", remote, repoDir); err != nil {
+			if _, err := a.git("", "clone", remote, repoDir); err != nil {
 				return fmt.Errorf("cannot clone remote: %w", err)
 			}
 			plan := PlanDistribute(repoDir, cfg, a.ConfigPath)
@@ -133,7 +133,7 @@ func (a *App) CloudInitWithSecrets(remote string, allowSecrets bool) error {
 		return fmt.Errorf("cannot create cloud dir: %w", err)
 	}
 
-	if _, err := gitExec(repoDir, "init"); err != nil {
+	if _, err := a.git(repoDir, "init"); err != nil {
 		return fmt.Errorf("git init: %w", err)
 	}
 
@@ -154,10 +154,10 @@ func (a *App) CloudInitWithSecrets(remote string, allowSecrets bool) error {
 	}
 
 	if copied > 0 {
-		if _, err := gitExec(repoDir, "add", "-A"); err != nil {
+		if _, err := a.git(repoDir, "add", "-A"); err != nil {
 			return err
 		}
-		if _, err := gitExec(repoDir, "commit", "-m", "Initial cloud sync"); err != nil {
+		if _, err := a.git(repoDir, "commit", "-m", "Initial cloud sync"); err != nil {
 			return err
 		}
 	} else {
@@ -166,7 +166,7 @@ func (a *App) CloudInitWithSecrets(remote string, allowSecrets bool) error {
 
 	// Add remote if provided
 	if remote != "" {
-		if _, err := gitExec(repoDir, "remote", "add", "origin", remote); err != nil {
+		if _, err := a.git(repoDir, "remote", "add", "origin", remote); err != nil {
 			return fmt.Errorf("cannot add remote: %w", err)
 		}
 		if err := saveCloudRemote(a.ConfigPath, remote); err != nil {
@@ -216,12 +216,12 @@ func (a *App) CloudPush(opts PushOptions) error {
 		return err
 	}
 
-	if err := stageSyncFiles(repoDir, cfg, files); err != nil {
+	if err := a.stageSyncFiles(repoDir, cfg, files); err != nil {
 		return err
 	}
 
 	// Check if there are changes
-	status, err := gitExec(repoDir, "status", "--porcelain")
+	status, err := a.git(repoDir, "status", "--porcelain")
 	if err != nil {
 		return err
 	}
@@ -230,8 +230,8 @@ func (a *App) CloudPush(opts PushOptions) error {
 		if opts.DryRun {
 			return nil
 		}
-		if hasOriginRemote(repoDir) {
-			if _, err := gitExec(repoDir, "push", "-u", "origin", "HEAD"); err != nil {
+		if a.hasOriginRemote(repoDir) {
+			if _, err := a.git(repoDir, "push", "-u", "origin", "HEAD"); err != nil {
 				return err
 			}
 		}
@@ -251,19 +251,19 @@ func (a *App) CloudPush(opts PushOptions) error {
 		hostname, _ := os.Hostname()
 		message = fmt.Sprintf("cpm sync: %s at %s", hostname, time.Now().Format(time.RFC3339))
 	}
-	if _, err := gitExec(repoDir, "commit", "-m", message); err != nil {
+	if _, err := a.git(repoDir, "commit", "-m", message); err != nil {
 		return err
 	}
 
 	// Show what changed
-	diff, _ := gitExec(repoDir, "show", "--stat", "--format=", "HEAD")
+	diff, _ := a.git(repoDir, "show", "--stat", "--format=", "HEAD")
 	if diff != "" {
 		a.outln(strings.TrimSpace(diff))
 	}
 
 	// Push if remote configured
-	if hasOriginRemote(repoDir) {
-		if _, err := gitExec(repoDir, "push", "-u", "origin", "HEAD"); err != nil {
+	if a.hasOriginRemote(repoDir) {
+		if _, err := a.git(repoDir, "push", "-u", "origin", "HEAD"); err != nil {
 			return fmt.Errorf("push failed: %w\nResolve manually in %s", err, repoDir)
 		}
 		a.outln("\nPushed to remote.")
@@ -289,11 +289,11 @@ func (a *App) CloudDiff() error {
 	if err != nil {
 		return err
 	}
-	if err := stageSyncFiles(repoDir, cfg, files); err != nil {
+	if err := a.stageSyncFiles(repoDir, cfg, files); err != nil {
 		return err
 	}
-	diff, _ := gitExec(repoDir, "diff", "--cached", "--stat")
-	full, _ := gitExec(repoDir, "diff", "--cached")
+	diff, _ := a.git(repoDir, "diff", "--cached", "--stat")
+	full, _ := a.git(repoDir, "diff", "--cached")
 	if strings.TrimSpace(full) == "" {
 		a.outln("No local changes since the last sync.")
 		return nil
@@ -306,7 +306,7 @@ func (a *App) CloudDiff() error {
 
 // stageSyncFiles copies the live files into the repo working tree, removes
 // files deleted locally from the synced directories, and runs git add -A.
-func stageSyncFiles(repoDir string, cfg *Config, files map[string]string) error {
+func (a *App) stageSyncFiles(repoDir string, cfg *Config, files map[string]string) error {
 	for repoPath, srcPath := range files {
 		if err := copyFile(srcPath, filepath.Join(repoDir, repoPath)); err != nil {
 			return fmt.Errorf("stage %s: %w", repoPath, err)
@@ -323,7 +323,7 @@ func stageSyncFiles(repoDir string, cfg *Config, files map[string]string) error 
 			}
 		}
 	}
-	_, err := gitExec(repoDir, "add", "-A")
+	_, err := a.git(repoDir, "add", "-A")
 	return err
 }
 
@@ -388,10 +388,10 @@ func (a *App) cloudPullFiles() error {
 	if err := ensureCloudRepo(repoDir); err != nil {
 		return err
 	}
-	if !hasOriginRemote(repoDir) {
+	if !a.hasOriginRemote(repoDir) {
 		return fmt.Errorf("no remote configured — add one with: cpm cloud remote <url>")
 	}
-	if _, err := gitExec(repoDir, "pull", "--ff-only", "origin", "HEAD"); err != nil {
+	if _, err := a.git(repoDir, "pull", "--ff-only", "origin", "HEAD"); err != nil {
 		return fmt.Errorf("pull failed (possible divergence): %w", err)
 	}
 	cfg, err := LoadCloudConfig(a.ConfigPath)
@@ -408,16 +408,16 @@ func (a *App) CloudPull(dryRun bool) error {
 		return err
 	}
 
-	if !hasOriginRemote(repoDir) {
+	if !a.hasOriginRemote(repoDir) {
 		return fmt.Errorf("no remote configured — add one with: cpm cloud remote <url>")
 	}
 
-	before, _ := gitExec(repoDir, "rev-parse", "HEAD")
-	if _, err := gitExec(repoDir, "pull", "--ff-only", "origin", "HEAD"); err != nil {
-		branch := currentBranch(repoDir)
+	before, _ := a.git(repoDir, "rev-parse", "HEAD")
+	if _, err := a.git(repoDir, "pull", "--ff-only", "origin", "HEAD"); err != nil {
+		branch := a.currentBranch(repoDir)
 		return fmt.Errorf("pull failed (possible divergence): %w\nResolve manually in %s\nor force overwrite with: cd %s && git reset --hard origin/%s", err, repoDir, repoDir, branch)
 	}
-	after, _ := gitExec(repoDir, "rev-parse", "HEAD")
+	after, _ := a.git(repoDir, "rev-parse", "HEAD")
 	if strings.TrimSpace(before) == strings.TrimSpace(after) {
 		a.outln("Repo already up to date.")
 	}
@@ -471,15 +471,15 @@ func (a *App) CloudStatus() error {
 	a.outf("Cloud repo: %s\n", repoDir)
 
 	// Remote
-	if hasOriginRemote(repoDir) {
-		remote, _ := gitExec(repoDir, "remote", "get-url", "origin")
+	if a.hasOriginRemote(repoDir) {
+		remote, _ := a.git(repoDir, "remote", "get-url", "origin")
 		a.outf("Remote:     %s", remote)
 	} else {
 		a.outln("Remote:     (none)")
 	}
 
 	// Last commit
-	log, _ := gitExec(repoDir, "log", "--oneline", "-5")
+	log, _ := a.git(repoDir, "log", "--oneline", "-5")
 	if log != "" {
 		a.outf("\nRecent syncs:\n")
 		for _, line := range strings.Split(strings.TrimSpace(log), "\n") {
@@ -517,12 +517,12 @@ func (a *App) CloudRemote(url string) error {
 		return err
 	}
 
-	if hasOriginRemote(repoDir) {
-		if _, err := gitExec(repoDir, "remote", "set-url", "origin", url); err != nil {
+	if a.hasOriginRemote(repoDir) {
+		if _, err := a.git(repoDir, "remote", "set-url", "origin", url); err != nil {
 			return err
 		}
 	} else {
-		if _, err := gitExec(repoDir, "remote", "add", "origin", url); err != nil {
+		if _, err := a.git(repoDir, "remote", "add", "origin", url); err != nil {
 			return err
 		}
 	}
@@ -729,16 +729,10 @@ func (a *App) DistributeSyncFiles(repoDir string, cfg *Config) error {
 
 // --- helpers ---
 
-func gitExec(repoDir string, args ...string) (string, error) {
-	return gitExecDir(repoDir, args...)
-}
-
-func gitExecDir(dir string, args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
-	if dir != "" {
-		cmd.Dir = dir
-	}
-	out, err := cmd.CombinedOutput()
+// git runs git in dir ("" means the current directory) and returns its
+// combined output.
+func (a *App) git(dir string, args ...string) (string, error) {
+	out, err := a.Run.Run(dir, "git", args...)
 	if err != nil {
 		return string(out), fmt.Errorf("%s: %w", strings.Join(args, " "), err)
 	}
@@ -752,23 +746,23 @@ func ensureCloudRepo(repoDir string) error {
 	return nil
 }
 
-func hasOriginRemote(repoDir string) bool {
-	_, err := gitExec(repoDir, "remote", "get-url", "origin")
+func (a *App) hasOriginRemote(repoDir string) bool {
+	_, err := a.git(repoDir, "remote", "get-url", "origin")
 	return err == nil
 }
 
 // checkRemoteHasRefs reports whether the remote already has branches. A
 // remote that cannot be reached is an error, not "empty".
-func checkRemoteHasRefs(remote string) (bool, error) {
-	out, err := gitExecDir("", "ls-remote", "--heads", remote)
+func (a *App) checkRemoteHasRefs(remote string) (bool, error) {
+	out, err := a.git("", "ls-remote", "--heads", remote)
 	if err != nil {
 		return false, fmt.Errorf("%s", strings.TrimSpace(out))
 	}
 	return strings.TrimSpace(out) != "", nil
 }
 
-func currentBranch(repoDir string) string {
-	out, err := gitExec(repoDir, "rev-parse", "--abbrev-ref", "HEAD")
+func (a *App) currentBranch(repoDir string) string {
+	out, err := a.git(repoDir, "rev-parse", "--abbrev-ref", "HEAD")
 	if err != nil {
 		return "main"
 	}

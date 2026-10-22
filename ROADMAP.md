@@ -61,6 +61,12 @@ Behavior stays the same. For every PR, `go test -race ./...`, `golangci-lint run
     - The Linux implementation is a no-op.
   - Add in-memory fakes in `testutil_test.go`.
 - **Done when:** unit tests never call `git` or `security`, and fake executables are used only in `integration_test.go`.
+- **Status:** done, with three deviations from the plan:
+  - `Runner.Run` takes no `context.Context`, because nothing cancels a git call yet.
+  - `KeychainStore` has `Exists`, `Read` and `Delete`. `Write` comes with 2.3, the first feature that needs it.
+  - The cloud round-trip tests still run real git against a bare repo, because they test git behavior itself. The fake runner covers failure paths (failed push, failed pull, unreachable remote).
+
+  No unit test touches the real Keychain any more. 161 of 192 unit tests run in parallel. The rest set environment variables (see 1.4) or stub the HTTP and executable globals in `version.go`.
 
 ### 1.4 Inject home directory and environment
 
@@ -130,7 +136,7 @@ Behavior stays the same. For every PR, `go test -race ./...`, `golangci-lint run
   1. Validate the new name with the same rules as `add`.
   2. Rename the TOML table in `config.toml` (`tomledit.go`) and in `secrets.toml`.
   3. Move the profile directory.
-  4. On macOS, read the token from the old service, write it under the new one, then delete the old entry (`KeychainStore` from 1.3).
+  4. On macOS, read the token from the old service, write it under the new one, then delete the old entry. This adds `Write` to `KeychainStore` (1.3). Keep the secret off the `security` command line, where `ps` would show it.
   5. Write the new `claude-<new>` wrapper and remove the old one.
   6. Warn about `.claude-profile` files and `[[match]]` entries that still use the old name.
   7. Support `--dry-run`.

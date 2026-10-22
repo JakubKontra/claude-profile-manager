@@ -37,7 +37,7 @@ func (a *App) ListProfiles(cfg *Config) []ProfileListEntry {
 		}
 		if _, err := os.Stat(profileDir); err == nil {
 			entry.Installed = true
-			if status, err := GetCredentialStatus(profileDir); err == nil {
+			if status, err := GetCredentialStatus(a.Keychain, profileDir); err == nil {
 				entry.Authenticated = status.Authenticated
 				entry.Account = status.Account
 				entry.CredentialSource = status.Source

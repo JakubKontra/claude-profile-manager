@@ -6,12 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/user"
 	"path/filepath"
 	"regexp"
-	"runtime"
-	"strings"
 	"time"
 )
 
@@ -24,16 +21,6 @@ const keychainServiceBase = "Claude Code-credentials"
 // keychainAccountPattern mirrors Claude Code's own validation of $USER before
 // it is used as the Keychain account name.
 var keychainAccountPattern = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
-
-// keychainLookup reports whether a Keychain entry exists. Replaced in tests.
-var keychainLookup = defaultKeychainLookup
-
-// keychainDelete removes a Keychain entry. Replaced in tests.
-var keychainDelete = defaultKeychainDelete
-
-// keychainRead returns the token blob. Only used with 'doctor --verify',
-// because reading the secret may trigger a macOS access prompt.
-var keychainRead = defaultKeychainRead
 
 // CredentialStatus describes where a profile's login lives and which account
 // it belongs to.
@@ -147,51 +134,10 @@ func keychainAccount() string {
 	return name
 }
 
-// defaultKeychainLookup checks for the entry's existence only. It deliberately
-// omits `-w`, so the token is never read and macOS shows no access prompt.
-func defaultKeychainLookup(service, account string) bool {
-	if runtime.GOOS != "darwin" {
-		return false
-	}
-	cmd := exec.Command("security", "find-generic-password", "-a", account, "-s", service)
-	cmd.Stdout = nil
-	cmd.Stderr = nil
-	return cmd.Run() == nil
-}
-
-// defaultKeychainRead reads the password field (-w) of the entry.
-func defaultKeychainRead(service, account string) ([]byte, error) {
-	if runtime.GOOS != "darwin" {
-		return nil, fmt.Errorf("keychain is only available on macOS")
-	}
-	out, err := exec.Command("security", "find-generic-password", "-a", account, "-s", service, "-w").Output()
-	if err != nil {
-		return nil, err
-	}
-	return []byte(strings.TrimSpace(string(out))), nil
-}
-
-// defaultKeychainDelete removes the entry; a missing entry is not an error.
-func defaultKeychainDelete(service, account string) error {
-	if runtime.GOOS != "darwin" {
-		return nil
-	}
-	cmd := exec.Command("security", "delete-generic-password", "-a", account, "-s", service)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		// security exits 44 (errSecItemNotFound) when there is nothing to delete.
-		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 44 {
-			return nil
-		}
-		return fmt.Errorf("security delete-generic-password: %w: %s", err, strings.TrimSpace(string(out)))
-	}
-	return nil
-}
-
 // DeleteProfileCredentials removes the Keychain entry (macOS) and the
 // .credentials.json file for a profile directory.
-func DeleteProfileCredentials(profileDir string) error {
-	if err := keychainDelete(KeychainServiceName(profileDir), keychainAccount()); err != nil {
+func DeleteProfileCredentials(kc KeychainStore, profileDir string) error {
+	if err := kc.Delete(KeychainServiceName(profileDir), keychainAccount()); err != nil {
 		return err
 	}
 	credPath := filepath.Join(profileDir, ".credentials.json")
@@ -205,10 +151,10 @@ func DeleteProfileCredentials(profileDir string) error {
 // macOS Keychain first and falling back to .credentials.json (Linux, CI, or
 // Keychain-less setups). On macOS the file never exists, which is why a
 // file-only check reports a false "not authenticated".
-func GetCredentialStatus(profileDir string) (CredentialStatus, error) {
+func GetCredentialStatus(kc KeychainStore, profileDir string) (CredentialStatus, error) {
 	account, org, updated := readAccountInfo(profileDir)
 
-	if keychainLookup(KeychainServiceName(profileDir), keychainAccount()) {
+	if kc.Exists(KeychainServiceName(profileDir), keychainAccount()) {
 		return CredentialStatus{
 			Authenticated: true,
 			Source:        "keychain",

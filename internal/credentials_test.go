@@ -10,14 +10,6 @@ import (
 	"time"
 )
 
-// stubKeychain replaces the Keychain lookup for the duration of a test.
-func stubKeychain(t *testing.T, found bool) {
-	t.Helper()
-	original := keychainLookup
-	keychainLookup = func(service, account string) bool { return found }
-	t.Cleanup(func() { keychainLookup = original })
-}
-
 func TestKeychainServiceName(t *testing.T) {
 	t.Parallel()
 	// Vector matches what Claude Code derives: base service plus the first 8
@@ -34,12 +26,13 @@ func TestKeychainServiceName(t *testing.T) {
 }
 
 func TestGetCredentialStatusFromKeychain(t *testing.T) {
-	stubKeychain(t, true)
-
+	t.Parallel()
 	dir := t.TempDir()
 	writeClaudeJSON(t, dir, "work@example.com", "org-uuid")
+	kc := newFakeKeychain()
+	kc.login(dir, "token")
 
-	status, err := GetCredentialStatus(dir)
+	status, err := GetCredentialStatus(kc, dir)
 	if err != nil {
 		t.Fatalf("GetCredentialStatus failed: %v", err)
 	}
@@ -58,8 +51,7 @@ func TestGetCredentialStatusFromKeychain(t *testing.T) {
 }
 
 func TestGetCredentialStatusFileFallback(t *testing.T) {
-	stubKeychain(t, false)
-
+	t.Parallel()
 	dir := t.TempDir()
 	creds := map[string]any{
 		"email":      "file@example.com",
@@ -68,7 +60,7 @@ func TestGetCredentialStatusFileFallback(t *testing.T) {
 	data, _ := json.Marshal(creds)
 	os.WriteFile(filepath.Join(dir, ".credentials.json"), data, 0o644)
 
-	status, err := GetCredentialStatus(dir)
+	status, err := GetCredentialStatus(newFakeKeychain(), dir)
 	if err != nil {
 		t.Fatalf("GetCredentialStatus failed: %v", err)
 	}
@@ -84,12 +76,11 @@ func TestGetCredentialStatusFileFallback(t *testing.T) {
 }
 
 func TestGetCredentialStatusNotAuthenticated(t *testing.T) {
-	stubKeychain(t, false)
-
+	t.Parallel()
 	dir := t.TempDir()
 	writeClaudeJSON(t, dir, "stale@example.com", "org-uuid")
 
-	if _, err := GetCredentialStatus(dir); err == nil {
+	if _, err := GetCredentialStatus(newFakeKeychain(), dir); err == nil {
 		t.Error("expected error when neither Keychain nor credentials file has a login")
 	}
 }
@@ -168,13 +159,13 @@ func TestParseCredentialsJSONLegacyShapes(t *testing.T) {
 }
 
 func TestGetCredentialStatusFromFileReportsSubscription(t *testing.T) {
-	stubKeychain(t, false)
+	t.Parallel()
 	dir := t.TempDir()
 	future := time.Now().Add(time.Hour)
 	data := fmt.Sprintf(`{"claudeAiOauth":{"expiresAt":%d,"subscriptionType":"pro"}}`, future.UnixMilli())
 	os.WriteFile(filepath.Join(dir, ".credentials.json"), []byte(data), 0o600)
 
-	status, err := GetCredentialStatus(dir)
+	status, err := GetCredentialStatus(newFakeKeychain(), dir)
 	if err != nil {
 		t.Fatal(err)
 	}
