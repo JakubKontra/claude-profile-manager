@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-rc.1] - 2026-10-22
+
+Release candidate for 1.0. It has the same features as 0.8.0. From 1.0, the interfaces listed in [docs/stability.md](docs/stability.md) stay compatible for all of 1.x: config, commands and flags, `--json` output, exit codes, the wrapper and hook contract, and the files on disk and in the cloud repository.
+
+The candidate is published as a GitHub prerelease. Homebrew and `cpm upgrade` skip it. To try it, run `cpm upgrade --prerelease`, or download a binary from the release. From a candidate, `cpm upgrade` moves on to later candidates and to 1.0.0.
+
+### Upgrading from 0.x
+- **Exit codes (0.6):** 2 means wrong usage, 3 a failed check (`doctor`, `install --sync`, a cloud conflict), 4 a failed `cpm login`. Before 0.6 all of these were 1.
+- **Config version (0.6):** new configs get `version = 1`. Existing configs work without it.
+- **Exit status of `doctor` (0.6):** scripts that test for `1` after `cpm doctor` should test for non-zero instead.
+- **Cloud sync (0.7):** renames and removals reach other machines through `cpm/tombstones.toml` and are applied after confirmation. Older cpm versions ignore the file.
+- **Secrets (0.4):** credentials belong in `secrets.toml` with mode `0600`, not in `config.toml`.
+- Files written by every release since 0.3 are tested to load without changes beyond rewriting wrappers.
+
 ## [0.8.0] - 2026-10-22
 
 This is the last release before 1.0. It adds no commands; it makes the existing ones easier to trust.
@@ -165,7 +179,8 @@ Thanks [@JakubKontra](https://github.com/JakubKontra) for the improvements in th
 ### Added
 - Initial release: profiles, wrapper scripts, `.claude-profile` auto-switching, doctor, clone, upgrade.
 
-[Unreleased]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/jakubkontra/claude-profile-manager/compare/v1.0.0-rc.1...HEAD
+[1.0.0-rc.1]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.8.0...v1.0.0-rc.1
 [0.8.0]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.5.0...v0.6.0
