@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -216,6 +217,52 @@ printf '%s' '`+creds+`' > "$CLAUDE_CONFIG_DIR/.credentials.json"
 		output = m.run(t, true, "login", "--all")
 		if got, _ := os.ReadFile(log); string(got) != "alpha\nwork\n" || !strings.Contains(output, "alpha                already logged in") {
 			t.Fatalf("second run logged in again: %q\n%s", got, output)
+		}
+	})
+	t.Run("exit_codes", func(t *testing.T) {
+		m := newCLIMachine(t, binary, bash)
+		m.run(t, true, "install")
+		code := func(args ...string) int {
+			cmd := exec.Command(m.cpm, append([]string{"--config", m.config}, args...)...)
+			cmd.Env, cmd.Dir = m.env, m.root
+			err := cmd.Run()
+			var exitErr *exec.ExitError
+			if errors.As(err, &exitErr) {
+				return exitErr.ExitCode()
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			return 0
+		}
+		cases := []struct {
+			args []string
+			want int
+		}{
+			{[]string{"list"}, 0},
+			{[]string{"bogus"}, 2},
+			{[]string{"rename", "work"}, 2},
+			{[]string{"list", "--nope"}, 2},
+			{[]string{"remove", "work", "--purge"}, 1}, // no terminal, no --yes
+			{[]string{"use", "nope"}, 1},
+		}
+		for _, c := range cases {
+			if got := code(c.args...); got != c.want {
+				t.Errorf("cpm %v: exit %d, want %d", c.args, got, c.want)
+			}
+		}
+		// A broken shared symlink fails doctor.
+		link := filepath.Join(filepath.Dir(m.config), "work", "broken")
+		if err := os.Symlink(filepath.Join(m.root, "missing"), link); err != nil {
+			t.Fatal(err)
+		}
+		cliWrite(t, m.config, fmt.Sprintf("source_dir = %q\nbin_dir = %q\nshare = [\"broken\"]\n[profiles.work]\n", m.source, m.bin), 0o600)
+		if got := code("doctor"); got != 3 {
+			t.Errorf("doctor with a broken symlink: exit %d, want 3", got)
+		}
+		cliWrite(t, filepath.Join(m.bin, "claude"), "#!"+bash+"\nexit 1\n", 0o755)
+		if got := code("login", "work"); got != 4 {
+			t.Errorf("failed login: exit %d, want 4", got)
 		}
 	})
 	t.Run("foreign_wrapper", func(t *testing.T) {

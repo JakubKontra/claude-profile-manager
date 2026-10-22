@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 	"os"
+	"strings"
 
 	"github.com/jakubkontra/cpm/internal"
 	"github.com/spf13/cobra"
@@ -14,8 +15,23 @@ var (
 	app *internal.App
 )
 
-// Execute runs the cpm root command and exits with status 1 on error.
+// Execute runs the cpm root command and exits with internal.ExitCode.
 func Execute() {
+	root := NewRoot()
+	err := run(root)
+	if err != nil {
+		// Sentinel errors have already printed their own report.
+		if !errors.Is(err, internal.ErrDoctorFailed) && !errors.Is(err, internal.ErrDiverged) {
+			root.PrintErrln("Error:", err)
+		} else {
+			root.PrintErrln(err)
+		}
+	}
+	os.Exit(internal.ExitCode(err))
+}
+
+// NewRoot builds the cpm command tree.
+func NewRoot() *cobra.Command {
 	root := &cobra.Command{
 		Use:           "cpm",
 		Short:         "Claude Profile Manager — manage multiple Claude Code accounts",
@@ -57,14 +73,32 @@ func Execute() {
 		cloudCmd(),
 	)
 
-	if err := root.Execute(); err != nil {
-		// Sentinel errors have already printed their own report.
-		if !errors.Is(err, internal.ErrDoctorFailed) && !errors.Is(err, internal.ErrDiverged) {
-			root.PrintErrln("Error:", err)
-		} else {
-			root.PrintErrln(err)
+	// Bad flags and arguments are usage errors (exit code 2).
+	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error { return internal.UsageError(err) })
+	markUsageErrors(root)
+	return root
+}
+
+// run executes root. Cobra reports an unknown command as a plain error, so
+// it is recognized by its message and marked as a usage error.
+func run(root *cobra.Command) error {
+	err := root.Execute()
+	if err != nil && strings.HasPrefix(err.Error(), "unknown command ") {
+		return internal.UsageError(err)
+	}
+	return err
+}
+
+// markUsageErrors wraps every command's argument validator so its errors
+// are usage errors.
+func markUsageErrors(cmd *cobra.Command) {
+	if validate := cmd.Args; validate != nil {
+		cmd.Args = func(c *cobra.Command, args []string) error {
+			return internal.UsageError(validate(c, args))
 		}
-		os.Exit(1)
+	}
+	for _, sub := range cmd.Commands() {
+		markUsageErrors(sub)
 	}
 }
 

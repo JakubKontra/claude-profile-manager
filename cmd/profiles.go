@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bufio"
+	"fmt"
 	"os/exec"
 
 	"github.com/jakubkontra/cpm/internal"
@@ -148,6 +149,12 @@ With --all every profile without usable credentials is logged in. Profiles
 that are already logged in, or that authenticate through ANTHROPIC_API_KEY,
 ANTHROPIC_AUTH_TOKEN, CLAUDE_CODE_OAUTH_TOKEN, Bedrock, Vertex or Foundry,
 are skipped.`,
+		Args: func(cmd *cobra.Command, args []string) error {
+			if all == (len(args) > 0) {
+				return fmt.Errorf("name the profiles to log in, or pass --all")
+			}
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := app.LoadConfig()
 			if err != nil {
