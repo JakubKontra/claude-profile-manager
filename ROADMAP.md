@@ -258,6 +258,10 @@ Releases: 0.6 (contract), 0.7 (profile lifecycle), 0.8 (quality), then `v1.0.0-r
   - `--move` deletes the source last. `--dry-run` shows the plan.
   - `cpm doctor` suggests `adopt` when only `~/.claude` has a login.
 - **Done when:** unit tests cover copy, move and rollback, and the command was checked once against the real Keychain.
+- **Status:** done.
+  - `~/.claude` uses the bare `Claude Code-credentials` service and `~/.claude.json`. Any other `--from` directory uses the hashed service and its own `.claude.json`.
+  - The step and undo runner moved from `cmd_rename.go` to `step.go`, and rename and adopt share it.
+  - Checked against the real Keychain with a throwaway entry through `--from`. The real default login was not read, to avoid an access prompt.
 
 #### 3.7 Propagate remove and rename through cloud sync
 - **Why:** After a rename, other machines keep the old profile, because `cloud pull` only adds.

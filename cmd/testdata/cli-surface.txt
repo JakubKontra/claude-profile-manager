@@ -8,6 +8,11 @@ cpm add <profile> [flags]
     -d, --description string
     -e, --env stringArray
     -m, --model string
+cpm adopt <profile> [flags]
+    --dry-run bool
+    --from string
+    --json bool
+    --move bool
 cpm clone <source-profile> <new-profile>
 cpm cloud
 cpm cloud diff [flags]
