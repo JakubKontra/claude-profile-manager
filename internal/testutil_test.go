@@ -20,7 +20,7 @@ func captureOutput(t *testing.T) *bytes.Buffer {
 // newTestApp returns an App for env whose output goes to the returned buffer.
 func newTestApp(t *testing.T, env testEnv) (*App, *bytes.Buffer) {
 	t.Helper()
-	return testAppAt(t, env.ConfigPath)
+	return env.App, env.Out
 }
 
 // testAppAt returns an App for configPath whose output goes to the returned
@@ -43,6 +43,9 @@ type testEnv struct {
 	SourceDir  string
 	BinDir     string
 	ConfigPath string
+	// App runs commands against this layout; its output lands in Out.
+	App *App
+	Out *bytes.Buffer
 }
 
 // newTestEnv creates source/bin dirs and writes config.toml with the given
@@ -60,6 +63,7 @@ func newTestEnv(t *testing.T, profilesTOML string) testEnv {
 	mustMkdir(t, env.BinDir)
 	mustMkdir(t, filepath.Dir(env.ConfigPath))
 	writeTestConfig(t, env, profilesTOML)
+	env.App, env.Out = testAppAt(t, env.ConfigPath)
 	return env
 }
 

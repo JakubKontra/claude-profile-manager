@@ -12,7 +12,8 @@ func TestApplyDistributeReportsPartialFailure(t *testing.T) {
 	src := filepath.Join(dir, "source")
 	mustWrite(t, src, "valid")
 	good := filepath.Join(dir, "good")
-	err := ApplyDistribute([]DistributeAction{
+	app, _ := testAppAt(t, "")
+	err := app.ApplyDistribute([]DistributeAction{
 		{Kind: "create", RepoPath: "missing", Source: filepath.Join(dir, "absent"), Dest: filepath.Join(dir, "bad")},
 		{Kind: "create", RepoPath: "good", Source: src, Dest: good},
 		{Kind: "merge", RepoPath: "config", Source: src, Dest: filepath.Join(dir, "config")},

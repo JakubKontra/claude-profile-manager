@@ -96,19 +96,19 @@ func TestGatherSyncFilesHonoursInclude(t *testing.T) {
 
 func TestCloudPushBlocksOnSecretsAndDryRun(t *testing.T) {
 	requireGit(t)
-	buf := captureOutput(t)
 	env := newCloudEnv(t, "[profiles.a]\n")
 	env.activate(t)
+	buf := env.Out
 	mustWrite(t, filepath.Join(env.SourceDir, "settings.json"), `{}`)
 
 	// Start with a clean initial commit; adding a token must block push.
-	if err := CloudInit(env.ConfigPath, ""); err != nil {
+	if err := env.App.CloudInit(""); err != nil {
 		t.Fatal(err)
 	}
 	mustWrite(t, filepath.Join(env.SourceDir, "settings.json"), `{"env": {"ANTHROPIC_API_KEY": "sk-ant-x"}}`)
 	mustWrite(t, filepath.Join(env.SourceDir, "CLAUDE.md"), "changed")
 
-	err := CloudPush(env.ConfigPath, PushOptions{})
+	err := env.App.CloudPush(PushOptions{})
 	if err == nil || !strings.Contains(buf.String(), "ANTHROPIC_API_KEY") {
 		t.Fatalf("push should refuse on secrets: err=%v out=%q", err, buf.String())
 	}
@@ -117,7 +117,7 @@ func TestCloudPushBlocksOnSecretsAndDryRun(t *testing.T) {
 	}
 
 	buf.Reset()
-	if err := CloudPush(env.ConfigPath, PushOptions{DryRun: true, AllowSecrets: true}); err != nil {
+	if err := env.App.CloudPush(PushOptions{DryRun: true, AllowSecrets: true}); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(buf.String(), "Dry run") || !strings.Contains(buf.String(), "CLAUDE.md") {
@@ -128,40 +128,38 @@ func TestCloudPushBlocksOnSecretsAndDryRun(t *testing.T) {
 	}
 
 	buf.Reset()
-	if err := CloudDiff(env.ConfigPath); err != nil || !strings.Contains(buf.String(), "CLAUDE.md") {
+	if err := env.App.CloudDiff(); err != nil || !strings.Contains(buf.String(), "CLAUDE.md") {
 		t.Errorf("diff: %v %q", err, buf.String())
 	}
 
 	// allow_secrets in config also unblocks.
 	mustWrite(t, env.ConfigPath, "source_dir = \""+env.SourceDir+"\"\n[profiles.a]\n[cloud]\nallow_secrets = true\n")
-	if err := CloudPush(env.ConfigPath, PushOptions{}); err != nil {
+	if err := env.App.CloudPush(PushOptions{}); err != nil {
 		t.Fatalf("push with allow_secrets: %v", err)
 	}
 }
 
 func TestCloudPullResyncsProfiles(t *testing.T) {
 	requireGit(t)
-	captureOutput(t)
 	bare := filepath.Join(t.TempDir(), "remote.git")
 	exec.Command("git", "init", "--bare", bare).Run()
 
 	a := newCloudEnv(t, "[profiles.work]\n")
 	a.activate(t)
 	mustWrite(t, filepath.Join(a.SourceDir, "settings.json"), `{"v": 1}`)
-	if err := CloudInit(a.ConfigPath, bare); err != nil {
+	if err := a.App.CloudInit(bare); err != nil {
 		t.Fatal(err)
 	}
-	if err := CloudPush(a.ConfigPath, PushOptions{}); err != nil {
+	if err := a.App.CloudPush(PushOptions{}); err != nil {
 		t.Fatal(err)
 	}
 
 	b := newCloudEnv(t, "[profiles.work]\n")
 	b.activate(t)
-	app, _ := testAppAt(t, b.ConfigPath)
-	if err := CloudInit(b.ConfigPath, bare); err != nil {
+	if err := b.App.CloudInit(bare); err != nil {
 		t.Fatal(err)
 	}
-	if err := app.InstallProfiles(b.load(t), InstallOptions{}); err != nil {
+	if err := b.App.InstallProfiles(b.load(t), InstallOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	profileSettings := filepath.Join(b.profilesBase(), "work", "settings.json")
@@ -171,12 +169,12 @@ func TestCloudPullResyncsProfiles(t *testing.T) {
 
 	a.activate(t)
 	mustWrite(t, filepath.Join(a.SourceDir, "settings.json"), `{"v": 2}`)
-	if err := CloudPush(a.ConfigPath, PushOptions{}); err != nil {
+	if err := a.App.CloudPush(PushOptions{}); err != nil {
 		t.Fatal(err)
 	}
 
 	b.activate(t)
-	if err := CloudPull(b.ConfigPath, false); err != nil {
+	if err := b.App.CloudPull(false); err != nil {
 		t.Fatal(err)
 	}
 	if data, _ := os.ReadFile(profileSettings); string(data) != `{"v": 2}` {
@@ -186,39 +184,37 @@ func TestCloudPullResyncsProfiles(t *testing.T) {
 
 func TestInstallProfilesAutoPullAndPush(t *testing.T) {
 	requireGit(t)
-	buf := captureOutput(t)
 	bare := filepath.Join(t.TempDir(), "remote.git")
 	exec.Command("git", "init", "--bare", bare).Run()
 
 	a := newCloudEnv(t, "[profiles.work]\n")
 	a.activate(t)
 	mustWrite(t, filepath.Join(a.SourceDir, "CLAUDE.md"), "from A")
-	if err := CloudInit(a.ConfigPath, bare); err != nil {
+	if err := a.App.CloudInit(bare); err != nil {
 		t.Fatal(err)
 	}
-	if err := CloudPush(a.ConfigPath, PushOptions{}); err != nil {
+	if err := a.App.CloudPush(PushOptions{}); err != nil {
 		t.Fatal(err)
 	}
 
 	b := newCloudEnv(t, "[profiles.work]\n")
 	b.activate(t)
-	app, _ := testAppAt(t, b.ConfigPath)
-	app.Out = buf
-	if err := CloudInit(b.ConfigPath, bare); err != nil {
+	buf := b.Out
+	if err := b.App.CloudInit(bare); err != nil {
 		t.Fatal(err)
 	}
 	mustWrite(t, b.ConfigPath, "source_dir = \""+b.SourceDir+"\"\nbin_dir = \""+b.BinDir+"\"\n[profiles.work]\n[cloud]\nremote = \""+bare+"\"\nauto_pull_on_install = true\nauto_push = true\n")
 
 	a.activate(t)
 	mustWrite(t, filepath.Join(a.SourceDir, "CLAUDE.md"), "from A v2")
-	if err := CloudPush(a.ConfigPath, PushOptions{}); err != nil {
+	if err := a.App.CloudPush(PushOptions{}); err != nil {
 		t.Fatal(err)
 	}
 
 	b.activate(t)
 	mustWrite(t, filepath.Join(b.SourceDir, "commands", "b.md"), "made on B")
 	buf.Reset()
-	if err := app.InstallProfiles(b.load(t), InstallOptions{}); err != nil {
+	if err := b.App.InstallProfiles(b.load(t), InstallOptions{}); err != nil {
 		t.Fatalf("install with auto pull/push: %v\n%s", err, buf.String())
 	}
 	if data, _ := os.ReadFile(filepath.Join(b.SourceDir, "CLAUDE.md")); string(data) != "from A v2" {
@@ -229,7 +225,7 @@ func TestInstallProfilesAutoPullAndPush(t *testing.T) {
 	}
 
 	a.activate(t)
-	if err := CloudPull(a.ConfigPath, false); err != nil {
+	if err := a.App.CloudPull(false); err != nil {
 		t.Fatal(err)
 	}
 	if !fileExists(filepath.Join(a.SourceDir, "commands", "b.md")) {

@@ -38,7 +38,7 @@ func (a *App) InstallProfiles(cfg *Config, opts InstallOptions) error {
 	cloudEnabled := !opts.skipCloud && cfg.Cloud != nil && fileExistsAt(filepath.Join(CloudRepoDir(a.ConfigPath), ".git"))
 	if cloudEnabled && cfg.Cloud.AutoPullOnInstall {
 		a.outln("Cloud: pulling (auto_pull_on_install)")
-		if err := cloudPullFiles(a.ConfigPath); err != nil {
+		if err := a.cloudPullFiles(); err != nil {
 			return fmt.Errorf("auto pull: %w", err)
 		}
 		// Pulled files may include settings; re-read the config too.
@@ -58,7 +58,7 @@ func (a *App) InstallProfiles(cfg *Config, opts InstallOptions) error {
 
 	if cloudEnabled && cfg.Cloud.AutoPush {
 		a.outln("\nCloud: pushing (auto_push)")
-		if err := CloudPush(a.ConfigPath, PushOptions{}); err != nil {
+		if err := a.CloudPush(PushOptions{}); err != nil {
 			return fmt.Errorf("auto push: %w", err)
 		}
 	}

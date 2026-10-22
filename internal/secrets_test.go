@@ -48,7 +48,7 @@ func TestInitialCloudCommitBlocksConfigAndMCPSecrets(t *testing.T) {
 	captureOutput(t)
 	env := newCloudEnv(t, "[profiles.work.env]\nAPI_TOKEN = 'private'\n")
 	env.activate(t)
-	if err := CloudInit(env.ConfigPath, ""); err == nil {
+	if err := env.App.CloudInit(""); err == nil {
 		t.Fatal("initial secret commit accepted")
 	}
 	if fileExistsAt(CloudRepoDir(env.ConfigPath)) {
@@ -60,7 +60,7 @@ func TestInitialCloudCommitBlocksConfigAndMCPSecrets(t *testing.T) {
 	if len(findings) != 1 {
 		t.Fatalf("MCP secret missed: %v", findings)
 	}
-	if err := CloudInitWithSecrets(env.ConfigPath, "", true); err != nil {
+	if err := env.App.CloudInitWithSecrets("", true); err != nil {
 		t.Fatal(err)
 	}
 }

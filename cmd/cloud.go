@@ -26,7 +26,7 @@ func cloudInitCmd() *cobra.Command {
 		Short: "Initialize cloud sync repo",
 		Long:  "Initialize a local git repo for syncing settings.\nIf --remote points to an existing repo, it will be cloned instead.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return internal.CloudInitWithSecrets(configPath, remote, allowSecrets)
+			return app.CloudInitWithSecrets(remote, allowSecrets)
 		},
 	}
 
@@ -43,7 +43,7 @@ func cloudPushCmd() *cobra.Command {
 		Use:   "push",
 		Short: "Push local settings to cloud repo",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return internal.CloudPush(configPath, opts)
+			return app.CloudPush(opts)
 		},
 	}
 
@@ -59,7 +59,7 @@ func cloudDiffCmd() *cobra.Command {
 		Use:   "diff",
 		Short: "Show local changes since the last sync",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return internal.CloudDiff(configPath)
+			return app.CloudDiff()
 		},
 	}
 }
@@ -71,7 +71,7 @@ func cloudPullCmd() *cobra.Command {
 		Use:   "pull",
 		Short: "Pull settings from cloud repo and apply locally",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return internal.CloudPull(configPath, dryRun)
+			return app.CloudPull(dryRun)
 		},
 	}
 
@@ -85,7 +85,7 @@ func cloudStatusCmd() *cobra.Command {
 		Use:   "status",
 		Short: "Show cloud sync status",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return internal.CloudStatus(configPath)
+			return app.CloudStatus()
 		},
 	}
 }
@@ -96,7 +96,7 @@ func cloudRemoteCmd() *cobra.Command {
 		Short: "Set or update the git remote URL",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return internal.CloudRemote(configPath, args[0])
+			return app.CloudRemote(args[0])
 		},
 	}
 }

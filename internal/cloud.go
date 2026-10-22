@@ -75,12 +75,12 @@ func CloudRepoDir(configPath string) string {
 }
 
 // CloudInit initializes or clones the cloud sync repo.
-func CloudInit(configPath string, remote string) error {
-	return CloudInitWithSecrets(configPath, remote, false)
+func (a *App) CloudInit(remote string) error {
+	return a.CloudInitWithSecrets(remote, false)
 }
 
-func CloudInitWithSecrets(configPath string, remote string, allowSecrets bool) error {
-	repoDir := CloudRepoDir(configPath)
+func (a *App) CloudInitWithSecrets(remote string, allowSecrets bool) error {
+	repoDir := CloudRepoDir(a.ConfigPath)
 
 	// Check if already initialized
 	if _, err := os.Stat(filepath.Join(repoDir, ".git")); err == nil {
@@ -92,7 +92,7 @@ func CloudInitWithSecrets(configPath string, remote string, allowSecrets bool) e
 		return fmt.Errorf("git not found on PATH — install git first")
 	}
 
-	cfg, err := LoadCloudConfig(configPath)
+	cfg, err := LoadCloudConfig(a.ConfigPath)
 	if err != nil {
 		return err
 	}
@@ -104,28 +104,28 @@ func CloudInitWithSecrets(configPath string, remote string, allowSecrets bool) e
 			return fmt.Errorf("cannot reach remote %s: %w", remote, err)
 		}
 		if hasRefs {
-			outf("Cloning from %s...\n", remote)
+			a.outf("Cloning from %s...\n", remote)
 			if _, err := gitExecDir("", "clone", remote, repoDir); err != nil {
 				return fmt.Errorf("cannot clone remote: %w", err)
 			}
-			plan := PlanDistribute(repoDir, cfg, configPath)
-			if err := ApplyDistribute(plan); err != nil {
+			plan := PlanDistribute(repoDir, cfg, a.ConfigPath)
+			if err := a.ApplyDistribute(plan); err != nil {
 				return fmt.Errorf("distributing files: %w", err)
 			}
-			if err := saveCloudRemote(configPath, remote); err != nil {
+			if err := saveCloudRemote(a.ConfigPath, remote); err != nil {
 				return fmt.Errorf("saving remote to config: %w", err)
 			}
-			outln("\nCloud repo cloned and files distributed.")
-			outln("Run 'cpm cloud status' to verify.")
+			a.outln("\nCloud repo cloned and files distributed.")
+			a.outln("Run 'cpm cloud status' to verify.")
 			return nil
 		}
 	}
 
-	files, err := GatherSyncFiles(cfg, configPath)
+	files, err := GatherSyncFiles(cfg, a.ConfigPath)
 	if err != nil {
 		return err
 	}
-	if err := checkSyncSecrets(files, allowSecrets || (cfg.Cloud != nil && cfg.Cloud.AllowSecrets)); err != nil {
+	if err := a.checkSyncSecrets(files, allowSecrets || (cfg.Cloud != nil && cfg.Cloud.AllowSecrets)); err != nil {
 		return err
 	}
 	// Fresh init
@@ -149,7 +149,7 @@ func CloudInitWithSecrets(configPath string, remote string, allowSecrets bool) e
 		if err := copyFile(srcPath, dst); err != nil {
 			return fmt.Errorf("copy %s: %w", repoPath, err)
 		}
-		outf("  added %s\n", repoPath)
+		a.outf("  added %s\n", repoPath)
 		copied++
 	}
 
@@ -161,7 +161,7 @@ func CloudInitWithSecrets(configPath string, remote string, allowSecrets bool) e
 			return err
 		}
 	} else {
-		outln("\nNo syncable files found. The repo is empty.")
+		a.outln("\nNo syncable files found. The repo is empty.")
 	}
 
 	// Add remote if provided
@@ -169,20 +169,20 @@ func CloudInitWithSecrets(configPath string, remote string, allowSecrets bool) e
 		if _, err := gitExec(repoDir, "remote", "add", "origin", remote); err != nil {
 			return fmt.Errorf("cannot add remote: %w", err)
 		}
-		if err := saveCloudRemote(configPath, remote); err != nil {
+		if err := saveCloudRemote(a.ConfigPath, remote); err != nil {
 			return fmt.Errorf("saving remote to config: %w", err)
 		}
-		outf("\nRemote set to: %s\n", remote)
+		a.outf("\nRemote set to: %s\n", remote)
 	}
 
-	outf("\nCloud repo initialized at %s (%d files)\n", repoDir, copied)
+	a.outf("\nCloud repo initialized at %s (%d files)\n", repoDir, copied)
 	if remote == "" {
-		outln("\nTo add a remote: cpm cloud remote <url>")
+		a.outln("\nTo add a remote: cpm cloud remote <url>")
 	} else {
-		outln("Push with: cpm cloud push")
+		a.outln("Push with: cpm cloud push")
 	}
 
-	return recordCloudState(repoDir, cfg, configPath)
+	return recordCloudState(repoDir, cfg, a.ConfigPath)
 }
 
 // PushOptions controls CloudPush.
@@ -196,23 +196,23 @@ type PushOptions struct {
 }
 
 // CloudPush gathers syncable files, commits, and pushes to remote.
-func CloudPush(configPath string, opts PushOptions) error {
-	repoDir := CloudRepoDir(configPath)
+func (a *App) CloudPush(opts PushOptions) error {
+	repoDir := CloudRepoDir(a.ConfigPath)
 	if err := ensureCloudRepo(repoDir); err != nil {
 		return err
 	}
 
-	cfg, err := LoadCloudConfig(configPath)
+	cfg, err := LoadCloudConfig(a.ConfigPath)
 	if err != nil {
 		return err
 	}
 
-	files, err := GatherSyncFiles(cfg, configPath)
+	files, err := GatherSyncFiles(cfg, a.ConfigPath)
 	if err != nil {
 		return err
 	}
 
-	if err := checkSyncSecrets(files, opts.AllowSecrets || (cfg.Cloud != nil && cfg.Cloud.AllowSecrets)); err != nil {
+	if err := a.checkSyncSecrets(files, opts.AllowSecrets || (cfg.Cloud != nil && cfg.Cloud.AllowSecrets)); err != nil {
 		return err
 	}
 
@@ -226,7 +226,7 @@ func CloudPush(configPath string, opts PushOptions) error {
 		return err
 	}
 	if strings.TrimSpace(status) == "" {
-		outln("No new local changes.")
+		a.outln("No new local changes.")
 		if opts.DryRun {
 			return nil
 		}
@@ -235,13 +235,13 @@ func CloudPush(configPath string, opts PushOptions) error {
 				return err
 			}
 		}
-		return recordCloudState(repoDir, cfg, configPath)
+		return recordCloudState(repoDir, cfg, a.ConfigPath)
 	}
 
 	if opts.DryRun {
-		outln("Dry run — changes that would be committed:")
+		a.outln("Dry run — changes that would be committed:")
 		for _, line := range strings.Split(strings.TrimSpace(status), "\n") {
-			outf("  %s\n", line)
+			a.outf("  %s\n", line)
 		}
 		return nil
 	}
@@ -258,7 +258,7 @@ func CloudPush(configPath string, opts PushOptions) error {
 	// Show what changed
 	diff, _ := gitExec(repoDir, "show", "--stat", "--format=", "HEAD")
 	if diff != "" {
-		outln(strings.TrimSpace(diff))
+		a.outln(strings.TrimSpace(diff))
 	}
 
 	// Push if remote configured
@@ -266,26 +266,26 @@ func CloudPush(configPath string, opts PushOptions) error {
 		if _, err := gitExec(repoDir, "push", "-u", "origin", "HEAD"); err != nil {
 			return fmt.Errorf("push failed: %w\nResolve manually in %s", err, repoDir)
 		}
-		outln("\nPushed to remote.")
+		a.outln("\nPushed to remote.")
 	} else {
-		outln("\nCommitted locally. Add a remote with: cpm cloud remote <url>")
+		a.outln("\nCommitted locally. Add a remote with: cpm cloud remote <url>")
 	}
 
-	return recordCloudState(repoDir, cfg, configPath)
+	return recordCloudState(repoDir, cfg, a.ConfigPath)
 }
 
 // CloudDiff stages the live files into the repo and shows the diff against
 // the last sync.
-func CloudDiff(configPath string) error {
-	repoDir := CloudRepoDir(configPath)
+func (a *App) CloudDiff() error {
+	repoDir := CloudRepoDir(a.ConfigPath)
 	if err := ensureCloudRepo(repoDir); err != nil {
 		return err
 	}
-	cfg, err := LoadCloudConfig(configPath)
+	cfg, err := LoadCloudConfig(a.ConfigPath)
 	if err != nil {
 		return err
 	}
-	files, err := GatherSyncFiles(cfg, configPath)
+	files, err := GatherSyncFiles(cfg, a.ConfigPath)
 	if err != nil {
 		return err
 	}
@@ -295,12 +295,12 @@ func CloudDiff(configPath string) error {
 	diff, _ := gitExec(repoDir, "diff", "--cached", "--stat")
 	full, _ := gitExec(repoDir, "diff", "--cached")
 	if strings.TrimSpace(full) == "" {
-		outln("No local changes since the last sync.")
+		a.outln("No local changes since the last sync.")
 		return nil
 	}
-	outln(strings.TrimSpace(diff))
-	outln()
-	out(full)
+	a.outln(strings.TrimSpace(diff))
+	a.outln()
+	a.out(full)
 	return nil
 }
 
@@ -383,8 +383,8 @@ func sortedAnyKeys(m map[string]any) []string {
 
 // cloudPullFiles is CloudPull without the profile re-sync, for callers that
 // run the install pipeline themselves.
-func cloudPullFiles(configPath string) error {
-	repoDir := CloudRepoDir(configPath)
+func (a *App) cloudPullFiles() error {
+	repoDir := CloudRepoDir(a.ConfigPath)
 	if err := ensureCloudRepo(repoDir); err != nil {
 		return err
 	}
@@ -394,16 +394,16 @@ func cloudPullFiles(configPath string) error {
 	if _, err := gitExec(repoDir, "pull", "--ff-only", "origin", "HEAD"); err != nil {
 		return fmt.Errorf("pull failed (possible divergence): %w", err)
 	}
-	cfg, err := LoadCloudConfig(configPath)
+	cfg, err := LoadCloudConfig(a.ConfigPath)
 	if err != nil {
 		return err
 	}
-	return ApplyDistribute(PlanDistribute(repoDir, cfg, configPath))
+	return a.ApplyDistribute(PlanDistribute(repoDir, cfg, a.ConfigPath))
 }
 
 // CloudPull pulls from remote and distributes files to their live locations.
-func CloudPull(configPath string, dryRun bool) error {
-	repoDir := CloudRepoDir(configPath)
+func (a *App) CloudPull(dryRun bool) error {
+	repoDir := CloudRepoDir(a.ConfigPath)
 	if err := ensureCloudRepo(repoDir); err != nil {
 		return err
 	}
@@ -419,36 +419,36 @@ func CloudPull(configPath string, dryRun bool) error {
 	}
 	after, _ := gitExec(repoDir, "rev-parse", "HEAD")
 	if strings.TrimSpace(before) == strings.TrimSpace(after) {
-		outln("Repo already up to date.")
+		a.outln("Repo already up to date.")
 	}
 
-	cfg, err := LoadCloudConfig(configPath)
+	cfg, err := LoadCloudConfig(a.ConfigPath)
 	if err != nil {
 		return err
 	}
 
-	plan := PlanDistribute(repoDir, cfg, configPath)
+	plan := PlanDistribute(repoDir, cfg, a.ConfigPath)
 	if dryRun {
-		outln("\nDry run — files that would change:")
-		if !printPlan(plan) {
-			outln("  (no changes)")
+		a.outln("\nDry run — files that would change:")
+		if !a.printPlan(plan) {
+			a.outln("  (no changes)")
 		}
 		return nil
 	}
 
-	if err := ApplyDistribute(plan); err != nil {
+	if err := a.ApplyDistribute(plan); err != nil {
 		return err
 	}
 
-	outln("\nFiles distributed from cloud repo.")
+	a.outln("\nFiles distributed from cloud repo.")
 
 	// Profiles hold copies of settings.json / CLAUDE.md; refresh them so the
 	// pulled changes actually take effect.
-	if full, err := LoadConfig(configPath); err == nil {
-		outln("\nRe-syncing profiles:")
-		if err := legacyApp(configPath).InstallProfiles(full, InstallOptions{Sync: true, skipCloud: true}); err != nil {
+	if full, err := LoadConfig(a.ConfigPath); err == nil {
+		a.outln("\nRe-syncing profiles:")
+		if err := a.InstallProfiles(full, InstallOptions{Sync: true, skipCloud: true}); err != nil {
 			if errors.Is(err, ErrDiverged) {
-				outln("Profiles with local changes were left alone; run 'cpm install --sync --force' to overwrite them.")
+				a.outln("Profiles with local changes were left alone; run 'cpm install --sync --force' to overwrite them.")
 				return err
 			}
 			return err
@@ -458,61 +458,61 @@ func CloudPull(configPath string, dryRun bool) error {
 }
 
 // CloudStatus shows the state of the cloud sync repo.
-func CloudStatus(configPath string) error {
-	repoDir := CloudRepoDir(configPath)
+func (a *App) CloudStatus() error {
+	repoDir := CloudRepoDir(a.ConfigPath)
 
 	// Check if initialized
 	if _, err := os.Stat(filepath.Join(repoDir, ".git")); os.IsNotExist(err) {
-		outln("Cloud sync not initialized.")
-		outln("Run 'cpm cloud init' to get started.")
+		a.outln("Cloud sync not initialized.")
+		a.outln("Run 'cpm cloud init' to get started.")
 		return nil
 	}
 
-	outf("Cloud repo: %s\n", repoDir)
+	a.outf("Cloud repo: %s\n", repoDir)
 
 	// Remote
 	if hasOriginRemote(repoDir) {
 		remote, _ := gitExec(repoDir, "remote", "get-url", "origin")
-		outf("Remote:     %s", remote)
+		a.outf("Remote:     %s", remote)
 	} else {
-		outln("Remote:     (none)")
+		a.outln("Remote:     (none)")
 	}
 
 	// Last commit
 	log, _ := gitExec(repoDir, "log", "--oneline", "-5")
 	if log != "" {
-		outf("\nRecent syncs:\n")
+		a.outf("\nRecent syncs:\n")
 		for _, line := range strings.Split(strings.TrimSpace(log), "\n") {
-			outf("  %s\n", line)
+			a.outf("  %s\n", line)
 		}
 	}
 
 	// Local changes
-	cfg, err := LoadCloudConfig(configPath)
+	cfg, err := LoadCloudConfig(a.ConfigPath)
 	if err != nil {
 		return err
 	}
 
-	outln("\nLocal changes (not yet pushed):")
+	a.outln("\nLocal changes (not yet pushed):")
 	hasChanges := false
-	files, _ := GatherSyncFiles(cfg, configPath)
+	files, _ := GatherSyncFiles(cfg, a.ConfigPath)
 	for repoPath, srcPath := range files {
 		dstPath := filepath.Join(repoDir, repoPath)
 		if filesAreDifferent(srcPath, dstPath) {
-			outf("  modified: %s\n", repoPath)
+			a.outf("  modified: %s\n", repoPath)
 			hasChanges = true
 		}
 	}
 	if !hasChanges {
-		outln("  (no changes)")
+		a.outln("  (no changes)")
 	}
 
 	return nil
 }
 
 // CloudRemote sets or updates the remote URL.
-func CloudRemote(configPath string, url string) error {
-	repoDir := CloudRepoDir(configPath)
+func (a *App) CloudRemote(url string) error {
+	repoDir := CloudRepoDir(a.ConfigPath)
 	if err := ensureCloudRepo(repoDir); err != nil {
 		return err
 	}
@@ -527,11 +527,11 @@ func CloudRemote(configPath string, url string) error {
 		}
 	}
 
-	if err := saveCloudRemote(configPath, url); err != nil {
+	if err := saveCloudRemote(a.ConfigPath, url); err != nil {
 		return fmt.Errorf("saving remote to config: %w", err)
 	}
 
-	outf("Remote set to: %s\n", url)
+	a.outf("Remote set to: %s\n", url)
 	return nil
 }
 
@@ -688,32 +688,32 @@ func PlanDistribute(repoDir string, cfg *Config, configPath string) []Distribute
 }
 
 // ApplyDistribute executes a plan.
-func ApplyDistribute(plan []DistributeAction) error {
-	if err := prepareDistribute(plan); err != nil {
+func (a *App) ApplyDistribute(plan []DistributeAction) error {
+	if err := a.prepareDistribute(plan); err != nil {
 		return err
 	}
 	var failures []error
-	for _, a := range plan {
+	for _, act := range plan {
 		var err error
-		switch a.Kind {
+		switch act.Kind {
 		case "create", "update":
-			err = copyFile(a.Source, a.Dest)
+			err = copyFile(act.Source, act.Dest)
 		case "delete":
-			err = os.Remove(a.Dest)
+			err = os.Remove(act.Dest)
 			if os.IsNotExist(err) {
 				err = nil
 			}
 		case "merge":
-			err = mergeConfigTOML(a.Source, a.Dest)
+			err = a.mergeConfigTOML(act.Source, act.Dest)
 		default:
 			continue
 		}
 		if err != nil {
-			failure := fmt.Errorf("%s %s: %w", a.Kind, a.RepoPath, err)
+			failure := fmt.Errorf("%s %s: %w", act.Kind, act.RepoPath, err)
 			failures = append(failures, failure)
-			outf("  failed: %v\n", failure)
+			a.outf("  failed: %v\n", failure)
 		} else {
-			outf("  completed %s: %s\n", a.Kind, a.RepoPath)
+			a.outf("  completed %s: %s\n", act.Kind, act.RepoPath)
 		}
 	}
 	if err := errors.Join(failures...); err != nil {
@@ -723,8 +723,8 @@ func ApplyDistribute(plan []DistributeAction) error {
 }
 
 // DistributeSyncFiles applies the repo to the live locations (no config merge).
-func DistributeSyncFiles(repoDir string, cfg *Config) error {
-	return ApplyDistribute(PlanDistribute(repoDir, cfg, ""))
+func (a *App) DistributeSyncFiles(repoDir string, cfg *Config) error {
+	return a.ApplyDistribute(PlanDistribute(repoDir, cfg, ""))
 }
 
 // --- helpers ---
@@ -777,12 +777,12 @@ func currentBranch(repoDir string) string {
 
 // printPlan prints the actions that change something and reports whether
 // there were any.
-func printPlan(plan []DistributeAction) bool {
+func (a *App) printPlan(plan []DistributeAction) bool {
 	any := false
-	for _, a := range plan {
-		switch a.Kind {
+	for _, act := range plan {
+		switch act.Kind {
 		case "create", "update", "delete", "merge", "conflict":
-			outf("  would %s: %s\n", a.Kind, a.RepoPath)
+			a.outf("  would %s: %s\n", act.Kind, act.RepoPath)
 			any = true
 		}
 	}
@@ -856,7 +856,7 @@ func saveCloudRemote(configPath string, remote string) error {
 
 // mergeConfigTOML adds profiles that exist in the pulled config but not
 // locally. source_dir, bin_dir and existing profiles are left untouched.
-func mergeConfigTOML(pulledPath, localConfigPath string) error {
+func (a *App) mergeConfigTOML(pulledPath, localConfigPath string) error {
 	localPath := ExpandPath(localConfigPath)
 
 	pulledData, err := os.ReadFile(pulledPath)
@@ -898,7 +898,7 @@ func mergeConfigTOML(pulledPath, localConfigPath string) error {
 		if err != nil {
 			return err
 		}
-		outf("  added profile from cloud: %s\n", name)
+		a.outf("  added profile from cloud: %s\n", name)
 	}
 	if addCloud {
 		if pulled.Cloud.Remote != "" {
