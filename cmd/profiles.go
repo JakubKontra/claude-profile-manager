@@ -135,3 +135,27 @@ func editCmd() *cobra.Command {
 		},
 	}
 }
+
+func loginCmd() *cobra.Command {
+	var all bool
+	cmd := &cobra.Command{
+		Use:   "login [profile...]",
+		Short: "Run claude auth login for profiles, one at a time",
+		Long: `Run 'claude auth login' inside each named profile, one after another, and
+print a summary at the end.
+
+With --all every profile without usable credentials is logged in. Profiles
+that are already logged in, or that authenticate through ANTHROPIC_API_KEY,
+ANTHROPIC_AUTH_TOKEN, CLAUDE_CODE_OAUTH_TOKEN, Bedrock, Vertex or Foundry,
+are skipped.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := app.LoadConfig()
+			if err != nil {
+				return err
+			}
+			return app.Login(cfg, args, all)
+		},
+	}
+	cmd.Flags().BoolVar(&all, "all", false, "log in every profile without usable credentials")
+	return cmd
+}

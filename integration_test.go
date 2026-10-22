@@ -190,6 +190,34 @@ cd /; _cpm_prompt_hook; printf 'NONE:%s\n' "${CLAUDE_PROFILE:-}"
 			t.Fatalf("which in repo: %v\n%s", err, out)
 		}
 	})
+	t.Run("login_all", func(t *testing.T) {
+		m := newCLIMachine(t, binary, bash)
+		data, _ := os.ReadFile(m.config)
+		cliWrite(t, m.config, string(data)+"[profiles.alpha]\n[profiles.done]\n[profiles.vertex.env]\nCLAUDE_CODE_USE_VERTEX = '1'\n", 0o600)
+		log := filepath.Join(m.root, "logins")
+		creds := `{"claudeAiOauth":{"accessToken":"x","expiresAt":4102444800000}}`
+		cliWrite(t, filepath.Join(m.bin, "claude"), "#!"+bash+`
+[ "$1 $2" = "auth login" ] || exit 3
+printf '%s\n' "$CLAUDE_PROFILE" >> "$LOGINS"
+printf '%s' '`+creds+`' > "$CLAUDE_CONFIG_DIR/.credentials.json"
+`, 0o755)
+		m.env = append(m.env, "LOGINS="+log)
+		m.run(t, true, "install")
+		cliWrite(t, filepath.Join(filepath.Dir(m.config), "done", ".credentials.json"), creds, 0o600)
+		output := m.run(t, true, "login", "--all")
+		if got, _ := os.ReadFile(log); string(got) != "alpha\nwork\n" {
+			t.Fatalf("login order: %q\n%s", got, output)
+		}
+		for _, want := range []string{"done                 already logged in", "vertex               skipped (uses CLAUDE_CODE_USE_VERTEX)", "work                 logged in"} {
+			if !strings.Contains(output, want) {
+				t.Fatalf("summary missing %q:\n%s", want, output)
+			}
+		}
+		output = m.run(t, true, "login", "--all")
+		if got, _ := os.ReadFile(log); string(got) != "alpha\nwork\n" || !strings.Contains(output, "alpha                already logged in") {
+			t.Fatalf("second run logged in again: %q\n%s", got, output)
+		}
+	})
 	t.Run("foreign_wrapper", func(t *testing.T) {
 		m := newCLIMachine(t, binary, bash)
 		cliWrite(t, filepath.Join(m.bin, "claude-work"), "foreign", 0o755)

@@ -47,6 +47,7 @@ func Execute() {
 		editCmd(),
 		promptCmd(),
 		credentialsCmd(),
+		loginCmd(),
 		hookCmd(),
 		linkCmd(),
 		unlinkCmd(),
