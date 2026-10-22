@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -290,5 +291,35 @@ func TestSortedProfileNames(t *testing.T) {
 	got := strings.Join(SortedProfileNames(cfg), ",")
 	if got != "a,m,z" {
 		t.Errorf("got %s", got)
+	}
+}
+
+func TestRemoveDryRun(t *testing.T) {
+	t.Parallel()
+	env := newTestEnv(t, twoProfiles)
+	if err := env.App.InstallProfiles(env.load(t), InstallOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	env.Out.Reset()
+	before := snapshotTree(t, env.Root)
+	if err := env.App.RemoveProfile(env.load(t), "work", RemoveOptions{Purge: true, DryRun: true}); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(before, snapshotTree(t, env.Root)) {
+		t.Error("dry run changed files")
+	}
+	out := env.Out.String()
+	for _, want := range []string{"would delete", "claude-work (wrapper script)", "profiles/work (profile directory", "Keychain entry", "secrets.toml", "config.toml"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("dry run missing %q:\n%s", want, out)
+		}
+	}
+	// Without --purge only the wrapper and the config entry go.
+	env.Out.Reset()
+	if err := env.App.RemoveProfile(env.load(t), "work", RemoveOptions{DryRun: true}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(env.Out.String(), "Keychain") {
+		t.Errorf("remove without --purge keeps credentials:\n%s", env.Out.String())
 	}
 }

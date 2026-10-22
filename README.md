@@ -298,7 +298,7 @@ In patterns, `*` matches within one path segment and `**` matches any depth; `~/
 | `cpm install` | Create profile directories and wrapper scripts |
 | `cpm add <name> [-d desc] [-m model] [--add-dir dir] [-e K=V] [--no-install]` | Add a profile to `config.toml` and install it |
 | `cpm rename <old> <new> [--dry-run] [--json]` | Rename a profile: config, `secrets.toml`, `[[match]]` rules, directory, wrapper and Keychain login; reverts on failure |
-| `cpm remove <name> [--purge] [--yes]` | Remove a profile; `--purge` deletes its directory, credentials and Keychain entry |
+| `cpm remove <name> [--purge] [--yes] [--dry-run]` | Remove a profile; `--purge` deletes its directory, credentials and Keychain entry |
 | `cpm clone <src> <dst>` | Clone profile (without credentials) and register it in config |
 | `cpm edit` | Open `config.toml` in `$VISUAL` / `$EDITOR` |
 
@@ -600,7 +600,7 @@ cpm list --json | jq -r '.[] | select(.current) .name'
 cpm doctor --json && echo healthy       # exit code 3 when a check fails
 ```
 
-`--json` writes one JSON document to stdout, and only on success. Errors go to stderr, and the exit code tells what happened. Progress messages and the output of `claude auth login` go to stderr, so stdout stays parseable. New fields may be added; existing ones keep their name and type. `detail` texts are free-form.
+See [docs/stability.md](docs/stability.md) for what stays compatible across releases. `--json` writes one JSON document to stdout, and only on success. Errors go to stderr, and the exit code tells what happened. Progress messages and the output of `claude auth login` go to stderr, so stdout stays parseable. New fields may be added; existing ones keep their name and type. `detail` texts are free-form.
 
 | Exit code | Meaning |
 |-----------|---------|

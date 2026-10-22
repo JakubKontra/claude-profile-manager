@@ -244,6 +244,9 @@ Releases: 0.6 (contract), 0.7 (profile lifecycle), 0.8 (quality), then `v1.0.0-r
   - `cmd/testdata/cli-surface.txt` lists every command and flag, checked by a test.
   - `docs/stability.md` lists what the promise covers and what it does not.
 - **Done when:** the surface file is committed and the README links `docs/stability.md`.
+- **Status:** done.
+  - `remove --dry-run` prints the same list the `--purge` prompt shows. That list now names only what exists: the wrapper only if cpm generated it, and the config entry only if the profile is configured.
+  - `cmd/testdata/cli-surface.txt` is generated from `NewRoot()`; `go test ./cmd -update` rewrites it.
 
 ### 0.7: Profile lifecycle
 

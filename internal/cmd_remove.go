@@ -15,6 +15,8 @@ type RemoveOptions struct {
 	Purge bool
 	// Yes skips the confirmation prompt.
 	Yes bool
+	// DryRun prints what would be removed and changes nothing.
+	DryRun bool
 	// Stdin answers the prompt; IsTerminal says whether prompting is possible.
 	Stdin      io.Reader
 	IsTerminal bool
@@ -47,16 +49,37 @@ func (a *App) RemoveProfile(cfg *Config, name string, opts RemoveOptions) error 
 	}
 	wrapperPath := filepath.Join(cfg.BinDir, wrapperPrefix+name)
 
+	// What goes away; with Purge the same list is shown before asking.
+	var items []string
+	if isGeneratedWrapper(wrapperPath) {
+		items = append(items, wrapperPath+" (wrapper script)")
+	}
+	if opts.Purge {
+		items = append(items,
+			profileDir+" (profile directory, sessions, history)",
+			fmt.Sprintf("Keychain entry %q / .credentials.json", KeychainServiceName(profileDir)),
+			fmt.Sprintf("[profiles.%s] in %s", name, filepath.Join(profilesBase, "secrets.toml")))
+	}
+	if configured {
+		items = append(items, fmt.Sprintf("[profiles.%s] in %s", name, a.expand(a.ConfigPath)))
+	}
+	if opts.DryRun {
+		a.outf("Dry run — remove profile %q would delete:\n", name)
+		for _, item := range items {
+			a.outf("  %s\n", item)
+		}
+		return nil
+	}
+
 	if opts.Purge && !opts.Yes {
 		if !opts.IsTerminal {
 			return fmt.Errorf("refusing to purge non-interactively without --yes")
 		}
 		a.outf("This will permanently delete:\n")
-		a.outf("  %s (profile directory, sessions, history)\n", profileDir)
-		a.outf("  %s (wrapper script)\n", wrapperPath)
-		a.outf("  Keychain entry %q / .credentials.json\n", KeychainServiceName(profileDir))
-		a.outf("  [profiles.%s] in %s\n\n", name, a.expand(a.ConfigPath))
-		a.outf("Delete profile %q and all its data? [y/N] ", name)
+		for _, item := range items {
+			a.outf("  %s\n", item)
+		}
+		a.outf("\nDelete profile %q and all its data? [y/N] ", name)
 		if !confirm(opts.Stdin) {
 			a.outln("Aborted.")
 			return nil
