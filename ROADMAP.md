@@ -138,6 +138,11 @@ Behavior stays the same. For every PR, `go test -race ./...`, `golangci-lint run
   - It does this only if neither `settings.json` nor `profiles.<name>.settings` already defines a `statusLine`.
   - The injected value is part of the baseline in `.cpm/baseline/`, so `install --sync` does not report it as a local edit.
 - **Done when:** `install --dry-run` shows the change, and an existing `statusLine` is never overwritten.
+- **Status:** done.
+  - It is off by default. `indicator = true` turns it on globally, and `profiles.<name>.indicator` overrides it.
+  - The status line runs `echo 'cpm: <profile>'`. A profile without any `settings.json` gets one with only the `statusLine`.
+  - Instead of storing it in the baseline, the divergence check compares `settings.json` as JSON and ignores the line cpm injected, so turning the indicator on or off is never reported as a local edit. A side effect: formatting-only edits to a profile's `settings.json` no longer count as local changes.
+  - Turning it off removes the line only if it is still exactly the one cpm added.
 
 ### 2.3 `cpm rename <old> <new>`
 
