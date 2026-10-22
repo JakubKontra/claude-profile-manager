@@ -209,6 +209,49 @@ func AppendProfileTable(data []byte, name string, p *Profile) ([]byte, error) {
 	return append(out, rendered...), nil
 }
 
+// AppendMatchRules adds [[match]] tables to the end of the config text.
+func AppendMatchRules(data []byte, rules []MatchRule) ([]byte, error) {
+	var buf bytes.Buffer
+	if err := toml.NewEncoder(&buf).Encode(struct {
+		Match []MatchRule `toml:"match"`
+	}{rules}); err != nil {
+		return nil, fmt.Errorf("cannot render match rules: %w", err)
+	}
+	out := ensureTrailingNewline(data)
+	if len(out) > 0 {
+		out = append(out, '\n')
+	}
+	return append(out, buf.Bytes()...), nil
+}
+
+// SetRootKey inserts `key = rawValue` among the top-level keys, before the
+// first table. The key must not be set yet; rawValue must be valid TOML.
+func SetRootKey(data []byte, key, rawValue string) []byte {
+	lines := splitLines(data)
+	at := len(lines)
+	for i, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "[") {
+			at = i
+			break
+		}
+	}
+	// Stay above the blank lines and comments that lead into the table.
+	for at > 0 && at < len(lines) {
+		prev := strings.TrimSpace(lines[at-1])
+		if prev != "" && !strings.HasPrefix(prev, "#") {
+			break
+		}
+		at--
+	}
+	assignment := fmt.Sprintf("%s = %s", key, rawValue)
+	if at == len(lines) {
+		return append(ensureTrailingNewline(data), assignment+"\n"...)
+	}
+	inserted := append([]string{}, lines[:at]...)
+	inserted = append(inserted, assignment)
+	return joinLines(append(inserted, lines[at:]...))
+}
+
 // RemoveProfileTable deletes [profiles.<name>] and every [profiles.<name>.*]
 // table, including comment lines inside those blocks. It reports whether
 // anything was removed and fails when the profile is still present

@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -544,5 +545,96 @@ func TestCloudInitRemoteUnreachableErrors(t *testing.T) {
 	}
 	if fileExists(filepath.Join(CloudRepoDir(env.ConfigPath), ".git")) {
 		t.Error("no repo should be created when the remote is unreachable")
+	}
+}
+
+func TestMergeConfigAddsMatchRulesAndIndicator(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	local := filepath.Join(dir, "config.toml")
+	pulled := filepath.Join(dir, "pulled.toml")
+	mustWrite(t, local, `# my config
+source_dir = "~/.claude"
+
+# profiles
+[profiles.work]
+
+[[match]]
+path = "~/Work/**"
+profile = "work"
+`)
+	mustWrite(t, pulled, `indicator = true
+[profiles.work]
+[profiles.client]
+
+[[match]]
+remote = "github.com/client/*"
+profile = "client"
+
+[[match]]
+path = "~/Work/**"
+profile = "work"
+`)
+	app, buf := testApp(t)
+	if err := app.mergeConfigTOML(pulled, local); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadConfig(local)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []MatchRule{{Path: "~/Work/**", Profile: "work"}, {Remote: "github.com/client/*", Profile: "client"}}
+	if !reflect.DeepEqual(cfg.Match, want) {
+		t.Errorf("match rules: got %+v, want %+v", cfg.Match, want)
+	}
+	if !cfg.Indicator {
+		t.Error("indicator not merged")
+	}
+	data, _ := os.ReadFile(local)
+	if !strings.HasPrefix(string(data), "# my config\nsource_dir = \"~/.claude\"\nindicator = true\n\n# profiles\n") {
+		t.Errorf("indicator not placed among the root keys:\n%s", data)
+	}
+	if !strings.Contains(buf.String(), "added match rule from cloud: remote github.com/client/* -> client") {
+		t.Errorf("output: %q", buf.String())
+	}
+
+	before, _ := os.ReadFile(local)
+	if err := app.mergeConfigTOML(pulled, local); err != nil {
+		t.Fatal(err)
+	}
+	if after, _ := os.ReadFile(local); string(before) != string(after) {
+		t.Error("merge must be idempotent")
+	}
+}
+
+func TestMergeConfigKeepsLocalIndicator(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	local := filepath.Join(dir, "config.toml")
+	pulled := filepath.Join(dir, "pulled.toml")
+	mustWrite(t, local, "indicator = false\n[profiles.work]\n")
+	mustWrite(t, pulled, "indicator = true\n[profiles.work]\n")
+	app, _ := testApp(t)
+	if err := app.mergeConfigTOML(pulled, local); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := os.ReadFile(local); string(data) != "indicator = false\n[profiles.work]\n" {
+		t.Errorf("local indicator changed:\n%s", data)
+	}
+}
+
+func TestSetRootKey(t *testing.T) {
+	t.Parallel()
+	cases := []struct{ in, want string }{
+		{"", "k = 1\n"},
+		{"a = 1\n", "a = 1\nk = 1\n"},
+		{"[t]\nx = 1\n", "k = 1\n[t]\nx = 1\n"},
+		{"a = 1\n\n# tables\n[t]\n", "a = 1\nk = 1\n\n# tables\n[t]\n"},
+		{"a = 1\n[[match]]\nprofile = \"w\"\n", "a = 1\nk = 1\n[[match]]\nprofile = \"w\"\n"},
+	}
+	for _, c := range cases {
+		if got := string(SetRootKey([]byte(c.in), "k", "1")); got != c.want {
+			t.Errorf("SetRootKey(%q) = %q, want %q", c.in, got, c.want)
+		}
 	}
 }

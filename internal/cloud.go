@@ -8,7 +8,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -848,8 +850,9 @@ func saveCloudRemote(configPath string, remote string) error {
 	return writeConfigAtomic(cfgPath, out)
 }
 
-// mergeConfigTOML adds profiles that exist in the pulled config but not
-// locally. source_dir, bin_dir and existing profiles are left untouched.
+// mergeConfigTOML adds what the pulled config has and the local one lacks:
+// profiles, the [cloud] table, the indicator setting and [[match]] rules.
+// source_dir, bin_dir and everything already set locally are left untouched.
 func (a *App) mergeConfigTOML(pulledPath, localConfigPath string) error {
 	localPath := a.expand(localConfigPath)
 
@@ -858,7 +861,8 @@ func (a *App) mergeConfigTOML(pulledPath, localConfigPath string) error {
 		return err
 	}
 	var pulled Config
-	if _, err := toml.Decode(string(pulledData), &pulled); err != nil {
+	pulledMeta, err := toml.Decode(string(pulledData), &pulled)
+	if err != nil {
 		return err
 	}
 
@@ -870,7 +874,8 @@ func (a *App) mergeConfigTOML(pulledPath, localConfigPath string) error {
 		return err
 	}
 	var local Config
-	if _, err := toml.Decode(string(localData), &local); err != nil {
+	localMeta, err := toml.Decode(string(localData), &local)
+	if err != nil {
 		return err
 	}
 
@@ -882,11 +887,22 @@ func (a *App) mergeConfigTOML(pulledPath, localConfigPath string) error {
 		}
 	}
 	addCloud := pulled.Cloud != nil && local.Cloud == nil
-	if len(missing) == 0 && !addCloud {
+	addIndicator := pulledMeta.IsDefined("indicator") && !localMeta.IsDefined("indicator")
+	// Rules go after the local ones, so local rules keep priority.
+	var rules []MatchRule
+	for _, r := range pulled.Match {
+		if !slices.Contains(local.Match, r) && !slices.Contains(rules, r) {
+			rules = append(rules, r)
+		}
+	}
+	if len(missing) == 0 && !addCloud && !addIndicator && len(rules) == 0 {
 		return nil
 	}
 
 	out := localData
+	if addIndicator {
+		out = SetRootKey(out, "indicator", strconv.FormatBool(pulled.Indicator))
+	}
 	for _, name := range missing {
 		out, err = AppendProfileTable(out, name, pulled.Profiles[name])
 		if err != nil {
@@ -904,6 +920,14 @@ func (a *App) mergeConfigTOML(pulledPath, localConfigPath string) error {
 			if out, err = SetTableKey(out, "cloud", "auto_push", "true"); err != nil {
 				return err
 			}
+		}
+	}
+	if len(rules) > 0 {
+		if out, err = AppendMatchRules(out, rules); err != nil {
+			return err
+		}
+		for _, r := range rules {
+			a.outf("  added match rule from cloud: %s -> %s\n", r.describe(), r.Profile)
 		}
 	}
 	return writeConfigAtomic(localPath, out)
