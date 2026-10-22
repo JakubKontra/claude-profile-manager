@@ -10,7 +10,7 @@ import (
 )
 
 // Use resolves `cpm use <profile|auto>` and returns the shell snippet to eval.
-func Use(cfg *Config, profilesBase, name, cwd string, opts UseOptions) (string, error) {
+func (a *App) Use(cfg *Config, name, cwd string, opts UseOptions) (string, error) {
 	if name == "auto" {
 		if _, isProfile := cfg.Profiles[name]; !isProfile {
 			detected, err := DetectProfileFile(cwd)
@@ -28,7 +28,7 @@ func Use(cfg *Config, profilesBase, name, cwd string, opts UseOptions) (string, 
 	if err != nil {
 		return "", err
 	}
-	profileDir := filepath.Join(profilesBase, name)
+	profileDir := filepath.Join(a.BaseDir, name)
 	return GenerateUseOutput(name, profileDir, profile, opts), nil
 }
 
@@ -75,10 +75,10 @@ func SelectProfileInteractive(cfg *Config, in io.Reader, prompt io.Writer) (stri
 }
 
 // Direnv returns the .envrc snippet for a profile.
-func Direnv(cfg *Config, profilesBase, name string) (string, error) {
+func (a *App) Direnv(cfg *Config, name string) (string, error) {
 	profile, err := lookupProfile(cfg, name)
 	if err != nil {
 		return "", err
 	}
-	return GenerateDirenvSnippet(name, filepath.Join(profilesBase, name), profile), nil
+	return GenerateDirenvSnippet(name, filepath.Join(a.BaseDir, name), profile), nil
 }

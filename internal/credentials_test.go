@@ -179,9 +179,8 @@ func TestGetCredentialStatusFromFileReportsSubscription(t *testing.T) {
 		t.Errorf("unexpected status: %+v", status)
 	}
 
-	buf := captureOutput(t)
-	base := filepath.Dir(dir)
-	RenderCredentialReport(CredentialReport(&Config{Profiles: map[string]*Profile{filepath.Base(dir): {}}}, base))
+	app, buf := testAppAt(t, filepath.Join(filepath.Dir(dir), "config.toml"))
+	app.RenderCredentialReport(app.CredentialReport(&Config{Profiles: map[string]*Profile{filepath.Base(dir): {}}}))
 	if !strings.Contains(buf.String(), "valid until") || !strings.Contains(buf.String(), "pro, file") {
 		t.Errorf("unexpected render: %q", buf.String())
 	}

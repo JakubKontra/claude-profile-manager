@@ -32,23 +32,23 @@ func Which(cwd string) WhichResult {
 }
 
 // RenderWhich prints the human-readable form of a WhichResult.
-func RenderWhich(r WhichResult) {
+func (a *App) RenderWhich(r WhichResult) {
 	switch {
 	case r.Active:
-		outf("Profile:    %s\n", r.Profile)
-		outf("Config dir: %s\n", r.ConfigDir)
-		outln("Source:     environment (CLAUDE_PROFILE)")
-		outf("Command:    %s\n", r.Command)
+		a.outf("Profile:    %s\n", r.Profile)
+		a.outf("Config dir: %s\n", r.ConfigDir)
+		a.outln("Source:     environment (CLAUDE_PROFILE)")
+		a.outf("Command:    %s\n", r.Command)
 	case r.Profile != "":
-		outf("Profile:    %s\n", r.Profile)
-		outln("Source:     .claude-profile")
-		outf("Command:    %s\n", r.Command)
-		outln("\nNote: profile detected from .claude-profile but not active in this shell.")
-		outf("Run: eval \"$(cpm use %s)\"\n", r.Profile)
-		outln("Or add to .zshrc: eval \"$(cpm hook)\"")
+		a.outf("Profile:    %s\n", r.Profile)
+		a.outln("Source:     .claude-profile")
+		a.outf("Command:    %s\n", r.Command)
+		a.outln("\nNote: profile detected from .claude-profile but not active in this shell.")
+		a.outf("Run: eval \"$(cpm use %s)\"\n", r.Profile)
+		a.outln("Or add to .zshrc: eval \"$(cpm hook)\"")
 	default:
-		outln("No active profile.")
-		outln("  - No CLAUDE_PROFILE env var set")
-		outln("  - No .claude-profile file found in current or parent directories")
+		a.outln("No active profile.")
+		a.outln("  - No CLAUDE_PROFILE env var set")
+		a.outln("  - No .claude-profile file found in current or parent directories")
 	}
 }

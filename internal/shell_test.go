@@ -84,7 +84,8 @@ func TestDetectProfileFileEmpty(t *testing.T) {
 func TestLinkProfile(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	if err := LinkProfile(tmpDir, "work"); err != nil {
+	app, _ := testAppAt(t, "")
+	if err := app.LinkProfile(tmpDir, "work"); err != nil {
 		t.Fatalf("LinkProfile failed: %v", err)
 	}
 
@@ -101,7 +102,8 @@ func TestLinkProfileUpdatesGitignore(t *testing.T) {
 	tmpDir := t.TempDir()
 	os.WriteFile(filepath.Join(tmpDir, ".gitignore"), []byte("node_modules\n"), 0o644)
 
-	LinkProfile(tmpDir, "work")
+	app, _ := testAppAt(t, "")
+	app.LinkProfile(tmpDir, "work")
 
 	data, _ := os.ReadFile(filepath.Join(tmpDir, ".gitignore"))
 	if !strings.Contains(string(data), ".claude-profile") {
@@ -116,7 +118,8 @@ func TestLinkProfileGitignoreIdempotent(t *testing.T) {
 	tmpDir := t.TempDir()
 	os.WriteFile(filepath.Join(tmpDir, ".gitignore"), []byte(".claude-profile\n"), 0o644)
 
-	LinkProfile(tmpDir, "work")
+	app, _ := testAppAt(t, "")
+	app.LinkProfile(tmpDir, "work")
 
 	data, _ := os.ReadFile(filepath.Join(tmpDir, ".gitignore"))
 	count := strings.Count(string(data), ".claude-profile")
@@ -129,7 +132,8 @@ func TestLinkProfileNoGitignore(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Should not fail if .gitignore doesn't exist
-	if err := LinkProfile(tmpDir, "work"); err != nil {
+	app, _ := testAppAt(t, "")
+	if err := app.LinkProfile(tmpDir, "work"); err != nil {
 		t.Fatalf("LinkProfile failed without .gitignore: %v", err)
 	}
 

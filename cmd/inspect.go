@@ -11,15 +11,15 @@ func listCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List all configured profiles",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, base, err := loadCfg()
+			cfg, err := app.LoadConfig()
 			if err != nil {
 				return err
 			}
-			entries := internal.ListProfiles(cfg, base)
+			entries := app.ListProfiles(cfg)
 			if asJSON {
-				return internal.PrintJSON(entries)
+				return app.PrintJSON(entries)
 			}
-			internal.RenderProfileList(entries)
+			app.RenderProfileList(entries)
 			return nil
 		},
 	}
@@ -32,11 +32,11 @@ func statusCmd() *cobra.Command {
 		Use:   "status",
 		Short: "Show sync status of all profiles",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, base, err := loadCfg()
+			cfg, err := app.LoadConfig()
 			if err != nil {
 				return err
 			}
-			internal.ShowStatus(cfg, base)
+			app.ShowStatus(cfg)
 			return nil
 		},
 	}
@@ -50,17 +50,16 @@ func doctorCmd() *cobra.Command {
 		Short: "Diagnose issues with profiles and configuration",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := app.LoadCloudConfig()
-			base := internal.ProfilesBaseDir(configPath)
 			if err != nil {
 				return err
 			}
-			report := internal.DoctorReportFor(cfg, base, opts)
+			report := app.DoctorReportFor(cfg, opts)
 			if asJSON {
-				if err := internal.PrintJSON(report); err != nil {
+				if err := app.PrintJSON(report); err != nil {
 					return err
 				}
 			} else {
-				internal.RenderDoctorReport(report)
+				app.RenderDoctorReport(report)
 			}
 			if !report.OK {
 				return internal.ErrDoctorFailed
@@ -79,15 +78,15 @@ func credentialsCmd() *cobra.Command {
 		Use:   "credentials",
 		Short: "Show credential status for all profiles",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, base, err := loadCfg()
+			cfg, err := app.LoadConfig()
 			if err != nil {
 				return err
 			}
-			entries := internal.CredentialReport(cfg, base)
+			entries := app.CredentialReport(cfg)
 			if asJSON {
-				return internal.PrintJSON(entries)
+				return app.PrintJSON(entries)
 			}
-			internal.RenderCredentialReport(entries)
+			app.RenderCredentialReport(entries)
 			return nil
 		},
 	}

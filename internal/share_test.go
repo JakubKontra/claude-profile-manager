@@ -113,10 +113,10 @@ func TestInstallProfilesHonoursShareConfig(t *testing.T) {
 [profiles.b]
 share = ["plans"]
 `)
+	app, _ := testAppAt(t, env.ConfigPath)
 	for _, d := range []string{"skills", "plans", "projects"} {
 		mustMkdir(t, filepath.Join(env.SourceDir, d))
 	}
-	app, _ := testAppAt(t, env.ConfigPath)
 	if err := app.InstallProfiles(env.load(t), InstallOptions{}); err != nil {
 		t.Fatal(err)
 	}

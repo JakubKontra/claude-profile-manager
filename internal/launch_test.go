@@ -173,7 +173,8 @@ func TestBuildExecExec(t *testing.T) {
 	env := newTestEnv(t, `[profiles.work]
 env = { FOO = "bar" }
 `)
-	spec, err := BuildExecExec(env.load(t), env.profilesBase(), "work", []string{"env"})
+	app, _ := testAppAt(t, env.ConfigPath)
+	spec, err := app.BuildExecExec(env.load(t), "work", []string{"env"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,10 +185,10 @@ env = { FOO = "bar" }
 	if !strings.Contains(joined, "FOO=bar") || !strings.Contains(joined, "CLAUDE_PROFILE=work") {
 		t.Errorf("env missing profile vars: %s", joined)
 	}
-	if _, err := BuildExecExec(env.load(t), env.profilesBase(), "work", nil); err == nil {
+	if _, err := app.BuildExecExec(env.load(t), "work", nil); err == nil {
 		t.Error("empty command should error")
 	}
-	if _, err := BuildExecExec(env.load(t), env.profilesBase(), "work", []string{"definitely-not-a-binary-xyz"}); err == nil {
+	if _, err := app.BuildExecExec(env.load(t), "work", []string{"definitely-not-a-binary-xyz"}); err == nil {
 		t.Error("missing binary should error")
 	}
 }

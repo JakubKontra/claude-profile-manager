@@ -43,12 +43,12 @@ func snapshotTree(t *testing.T, root string) map[string]string {
 
 func TestInstallDryRunIsReadOnlyAndMatchesApply(t *testing.T) {
 	env := newTestEnv(t, "[profiles.work]\n[cloud]\nauto_push = true\nauto_pull_on_install = true\n")
+	app, buf := testAppAt(t, env.ConfigPath)
 	t.Setenv("HOME", env.Root)
 	mustWrite(t, filepath.Join(env.SourceDir, "settings.json"), `{"env":{"API_TOKEN":"private-secret"},"theme":"dark"}`)
 	mustMkdir(t, filepath.Join(env.SourceDir, "skills"))
 	mustWrite(t, filepath.Join(env.Root, ".claude.json"), `{"hasCompletedOnboarding":true,"mcpServers":{"api":{"headers":{"Authorization":"Bearer hidden"}}}}`)
 	cfg := env.load(t)
-	app, buf := testAppAt(t, env.ConfigPath)
 	before := snapshotTree(t, env.Root)
 	if err := app.InstallProfiles(cfg, InstallOptions{DryRun: true}); err != nil {
 		t.Fatal(err)
@@ -87,8 +87,8 @@ func TestInstallDryRunIsReadOnlyAndMatchesApply(t *testing.T) {
 
 func TestInstallPreviewSyncForceAndForeignWrapper(t *testing.T) {
 	env := newTestEnv(t, "[profiles.work]\n")
-	t.Setenv("HOME", env.Root)
 	app, _ := testAppAt(t, env.ConfigPath)
+	t.Setenv("HOME", env.Root)
 	mustWrite(t, filepath.Join(env.SourceDir, "CLAUDE.md"), "base")
 	cfg := env.load(t)
 	if err := app.InstallProfiles(cfg, InstallOptions{}); err != nil {

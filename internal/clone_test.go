@@ -9,13 +9,13 @@ import (
 
 func TestCloneProfile(t *testing.T) {
 	env := newTestEnv(t, "[profiles.original]\ndescription = \"Original\"\nmodel = \"sonnet\"\n")
+	app, _ := testAppAt(t, env.ConfigPath)
 	srcProfile := filepath.Join(env.profilesBase(), "original")
 	mustWrite(t, filepath.Join(srcProfile, "settings.json"), `{"test": true}`)
 	mustWrite(t, filepath.Join(srcProfile, "CLAUDE.md"), "# Claude")
 	for _, dir := range []string{"skills", "plugins"} {
 		mustMkdir(t, filepath.Join(env.SourceDir, dir))
 	}
-	app, _ := testAppAt(t, env.ConfigPath)
 
 	if err := app.CloneProfile("original", "cloned", env.load(t)); err != nil {
 		t.Fatalf("CloneProfile failed: %v", err)
@@ -43,8 +43,8 @@ func TestCloneProfile(t *testing.T) {
 
 func TestCloneProfileErrors(t *testing.T) {
 	env := newTestEnv(t, "[profiles.source]\n[profiles.taken]\n")
-	cfg := env.load(t)
 	app, _ := testAppAt(t, env.ConfigPath)
+	cfg := env.load(t)
 
 	if err := app.CloneProfile("missing", "new", cfg); err == nil {
 		t.Error("expected error for unknown source profile")
@@ -67,10 +67,10 @@ func TestCloneProfileErrors(t *testing.T) {
 
 func TestCloneProfileDoesNotCopyCredentials(t *testing.T) {
 	env := newTestEnv(t, "[profiles.original]\n")
+	app, _ := testAppAt(t, env.ConfigPath)
 	srcProfile := filepath.Join(env.profilesBase(), "original")
 	mustWrite(t, filepath.Join(srcProfile, ".credentials.json"), `{"token": "secret"}`)
 	mustWrite(t, filepath.Join(srcProfile, "settings.json"), `{}`)
-	app, _ := testAppAt(t, env.ConfigPath)
 
 	if err := app.CloneProfile("original", "cloned", env.load(t)); err != nil {
 		t.Fatal(err)

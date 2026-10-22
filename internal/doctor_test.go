@@ -165,7 +165,8 @@ func TestPrintChecks(t *testing.T) {
 		{"test warn", "warn", "details"},
 		{"test error", "error", "details"},
 	}
-	PrintChecks(checks)
+	app, _ := testAppAt(t, "")
+	app.PrintChecks(checks)
 }
 
 func TestRunDoctorRelativeSymlinkNotBroken(t *testing.T) {

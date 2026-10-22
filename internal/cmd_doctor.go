@@ -15,8 +15,8 @@ type DoctorReport struct {
 }
 
 // DoctorReportFor runs all checks and summarizes them.
-func DoctorReportFor(cfg *Config, profilesBase string, opts DoctorOptions) DoctorReport {
-	checks := RunDoctorWithOptions(cfg, profilesBase, opts)
+func (a *App) DoctorReportFor(cfg *Config, opts DoctorOptions) DoctorReport {
+	checks := RunDoctorWithOptions(cfg, a.BaseDir, opts)
 	report := DoctorReport{Checks: checks}
 	for _, c := range checks {
 		switch c.Status {
@@ -31,12 +31,12 @@ func DoctorReportFor(cfg *Config, profilesBase string, opts DoctorOptions) Docto
 }
 
 // RenderDoctorReport prints the human-readable report.
-func RenderDoctorReport(r DoctorReport) {
-	out("cpm doctor\n\n")
-	PrintChecks(r.Checks)
+func (a *App) RenderDoctorReport(r DoctorReport) {
+	a.out("cpm doctor\n\n")
+	a.PrintChecks(r.Checks)
 	if r.OK {
-		outln("\nAll checks passed.")
+		a.outln("\nAll checks passed.")
 	} else {
-		outln("\nSome checks failed. Fix the issues above.")
+		a.outln("\nSome checks failed. Fix the issues above.")
 	}
 }

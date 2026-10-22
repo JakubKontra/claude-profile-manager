@@ -15,13 +15,13 @@ type ExecSpec struct {
 }
 
 // BuildRunExec resolves `cpm run <profile> [claude args...]` into a command.
-func BuildRunExec(cfg *Config, profilesBase, name string, userArgs []string) (ExecSpec, error) {
+func (a *App) BuildRunExec(cfg *Config, name string, userArgs []string) (ExecSpec, error) {
 	userArgs = trimCommandSeparator(userArgs)
 	profile, err := lookupProfile(cfg, name)
 	if err != nil {
 		return ExecSpec{}, err
 	}
-	spec := BuildLaunchSpec(name, filepath.Join(profilesBase, name), profile)
+	spec := BuildLaunchSpec(name, filepath.Join(a.BaseDir, name), profile)
 
 	argv := append([]string{"claude"}, spec.ClaudeArgs(userArgs)...)
 	argv = append(argv, userArgs...)
@@ -36,7 +36,7 @@ func BuildRunExec(cfg *Config, profilesBase, name string, userArgs []string) (Ex
 
 // BuildExecExec resolves `cpm exec <profile> -- <command...>`: any command
 // run with the profile's environment.
-func BuildExecExec(cfg *Config, profilesBase, name string, argv []string) (ExecSpec, error) {
+func (a *App) BuildExecExec(cfg *Config, name string, argv []string) (ExecSpec, error) {
 	argv = trimCommandSeparator(argv)
 	if len(argv) == 0 {
 		return ExecSpec{}, fmt.Errorf("no command given (usage: cpm exec <profile> -- <command...>)")
@@ -45,7 +45,7 @@ func BuildExecExec(cfg *Config, profilesBase, name string, argv []string) (ExecS
 	if err != nil {
 		return ExecSpec{}, err
 	}
-	spec := BuildLaunchSpec(name, filepath.Join(profilesBase, name), profile)
+	spec := BuildLaunchSpec(name, filepath.Join(a.BaseDir, name), profile)
 
 	path, err := exec.LookPath(argv[0])
 	if err != nil {

@@ -196,7 +196,7 @@ func verifyKeychainToken(profileDir string, status CredentialStatus) CredentialS
 	return status
 }
 
-func PrintChecks(checks []Check) {
+func (a *App) PrintChecks(checks []Check) {
 	for _, c := range checks {
 		var icon string
 		switch c.Status {
@@ -207,7 +207,7 @@ func PrintChecks(checks []Check) {
 		case "error":
 			icon = " ERR"
 		}
-		outf("  [%s] %-35s %s\n", icon, c.Name, c.Detail)
+		a.outf("  [%s] %-35s %s\n", icon, c.Name, c.Detail)
 	}
 }
 

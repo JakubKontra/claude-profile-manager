@@ -16,15 +16,15 @@ func direnvCmd() *cobra.Command {
 		Short: "Print .envrc snippet for a profile",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, base, err := loadCfg()
+			cfg, err := app.LoadConfig()
 			if err != nil {
 				return err
 			}
-			snippet, err := internal.Direnv(cfg, base, args[0])
+			snippet, err := app.Direnv(cfg, args[0])
 			if err != nil {
 				return err
 			}
-			fmt.Fprint(os.Stdout, snippet)
+			fmt.Fprint(app.Out, snippet)
 			return nil
 		},
 	}
@@ -43,7 +43,7 @@ func useCmd() *cobra.Command {
   eval "$(cpm use)"                    # interactive picker (menu on stderr)`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, base, err := loadCfg()
+			cfg, err := app.LoadConfig()
 			if err != nil {
 				return err
 			}
@@ -61,16 +61,16 @@ func useCmd() *cobra.Command {
 				if !stdinIsTerminal() {
 					return errors.New("profile name required (or run interactively)")
 				}
-				name, err = internal.SelectProfileInteractive(cfg, os.Stdin, os.Stderr)
+				name, err = internal.SelectProfileInteractive(cfg, app.In, app.Err)
 				if err != nil {
 					return err
 				}
 			}
-			snippet, err := internal.Use(cfg, base, name, dir, opts)
+			snippet, err := app.Use(cfg, name, dir, opts)
 			if err != nil {
 				return err
 			}
-			fmt.Fprint(os.Stdout, snippet)
+			fmt.Fprint(app.Out, snippet)
 			return nil
 		},
 	}
@@ -91,9 +91,9 @@ func whichCmd() *cobra.Command {
 			}
 			result := internal.Which(dir)
 			if asJSON {
-				return internal.PrintJSON(result)
+				return app.PrintJSON(result)
 			}
-			internal.RenderWhich(result)
+			app.RenderWhich(result)
 			return nil
 		},
 	}
@@ -107,11 +107,11 @@ func runCmd() *cobra.Command {
 		Short: "Run claude with a specific profile (one-shot)",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, base, err := loadCfg()
+			cfg, err := app.LoadConfig()
 			if err != nil {
 				return err
 			}
-			spec, err := internal.BuildRunExec(cfg, base, args[0], args[1:])
+			spec, err := app.BuildRunExec(cfg, args[0], args[1:])
 			if err != nil {
 				return err
 			}
@@ -130,11 +130,11 @@ func execCmd() *cobra.Command {
 		Long:  "Run an arbitrary command with the profile's CLAUDE_CONFIG_DIR, CLAUDE_PROFILE\nand env variables set. Useful for scripts, git hooks or CI.",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, base, err := loadCfg()
+			cfg, err := app.LoadConfig()
 			if err != nil {
 				return err
 			}
-			spec, err := internal.BuildExecExec(cfg, base, args[0], args[1:])
+			spec, err := app.BuildExecExec(cfg, args[0], args[1:])
 			if err != nil {
 				return err
 			}
@@ -150,7 +150,7 @@ func promptCmd() *cobra.Command {
 		Use:   "prompt",
 		Short: "Print current profile name for shell prompt (PS1/starship)",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Fprint(os.Stdout, internal.PromptString())
+			fmt.Fprint(app.Out, internal.PromptString())
 		},
 	}
 }
@@ -169,7 +169,7 @@ func hookCmd() *cobra.Command {
 			if opts.Shell == "" {
 				opts.Shell = internal.DetectShell(os.Getenv)
 			}
-			fmt.Fprint(os.Stdout, internal.GenerateShellHook(opts))
+			fmt.Fprint(app.Out, internal.GenerateShellHook(opts))
 		},
 	}
 	cmd.Flags().StringVar(&opts.Shell, "shell", "", "shell: bash, zsh or fish (default: from $SHELL)")
@@ -183,7 +183,7 @@ func linkCmd() *cobra.Command {
 		Short: "Create .claude-profile in current directory (like .nvmrc)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, _, err := loadCfg()
+			cfg, err := app.LoadConfig()
 			if err != nil {
 				return err
 			}
@@ -191,7 +191,7 @@ func linkCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return internal.Link(cfg, dir, args[0])
+			return app.Link(cfg, dir, args[0])
 		},
 	}
 }
@@ -205,7 +205,7 @@ func unlinkCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return internal.Unlink(dir)
+			return app.Unlink(dir)
 		},
 	}
 }

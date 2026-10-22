@@ -51,9 +51,9 @@ func TestUpgradeVerifiesChecksumAndReplacesRunningBinary(t *testing.T) {
 	exe := filepath.Join(t.TempDir(), "cpm")
 	mustWrite(t, exe, "old")
 	stubExecutable(t, exe)
-	captureOutput(t)
+	app, _ := testAppAt(t, "")
 
-	if err := Upgrade(); err != nil {
+	if err := app.Upgrade(); err != nil {
 		t.Fatalf("Upgrade: %v", err)
 	}
 	data, _ := os.ReadFile(exe)
@@ -72,9 +72,9 @@ func TestUpgradeRejectsBadChecksum(t *testing.T) {
 	exe := filepath.Join(t.TempDir(), "cpm")
 	mustWrite(t, exe, "old")
 	stubExecutable(t, exe)
-	captureOutput(t)
+	app, _ := testAppAt(t, "")
 
-	err := Upgrade()
+	err := app.Upgrade()
 	if err == nil || !strings.Contains(err.Error(), "checksum mismatch") {
 		t.Fatalf("expected checksum error, got %v", err)
 	}
@@ -93,9 +93,9 @@ func TestUpgradeAlreadyLatest(t *testing.T) {
 	exe := filepath.Join(t.TempDir(), "cpm")
 	mustWrite(t, exe, "old")
 	stubExecutable(t, exe)
-	buf := captureOutput(t)
+	app, buf := testAppAt(t, "")
 
-	if err := Upgrade(); err != nil {
+	if err := app.Upgrade(); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(buf.String(), "Already at latest") {
@@ -105,7 +105,8 @@ func TestUpgradeAlreadyLatest(t *testing.T) {
 
 func TestUpgradeRefusesHomebrewInstall(t *testing.T) {
 	stubExecutable(t, "/opt/homebrew/Cellar/cpm/0.2.1/bin/cpm")
-	err := Upgrade()
+	app, _ := testAppAt(t, "")
+	err := app.Upgrade()
 	if err == nil || !strings.Contains(err.Error(), "brew upgrade cpm") {
 		t.Fatalf("expected Homebrew hint, got %v", err)
 	}

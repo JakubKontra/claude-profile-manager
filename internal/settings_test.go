@@ -90,8 +90,8 @@ func TestCheckDivergenceWithSettingsOverrides(t *testing.T) {
 [profiles.work.settings]
 effortLevel = "high"
 `)
-	mustWrite(t, filepath.Join(env.SourceDir, "settings.json"), `{"model": "opus"}`)
 	app, _ := testAppAt(t, env.ConfigPath)
+	mustWrite(t, filepath.Join(env.SourceDir, "settings.json"), `{"model": "opus"}`)
 	if err := app.InstallProfiles(env.load(t), InstallOptions{}); err != nil {
 		t.Fatal(err)
 	}
@@ -107,8 +107,8 @@ effortLevel = "high"
 
 func TestCheckDivergenceUsesBaseline(t *testing.T) {
 	env := newTestEnv(t, "[profiles.work]\n")
-	mustWrite(t, filepath.Join(env.SourceDir, "settings.json"), "{\n  \"v\": 1\n}\n")
 	app, _ := testAppAt(t, env.ConfigPath)
+	mustWrite(t, filepath.Join(env.SourceDir, "settings.json"), "{\n  \"v\": 1\n}\n")
 	if err := app.InstallProfiles(env.load(t), InstallOptions{}); err != nil {
 		t.Fatal(err)
 	}

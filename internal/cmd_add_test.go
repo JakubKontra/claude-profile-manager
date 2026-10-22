@@ -10,9 +10,9 @@ import (
 
 func TestAddProfileAppendsAndInstalls(t *testing.T) {
 	env := newTestEnv(t, twoProfiles)
+	app, buf := testAppAt(t, env.ConfigPath)
 	mustWrite(t, filepath.Join(env.SourceDir, "settings.json"), `{}`)
 	stubKeychain(t, false)
-	app, buf := testAppAt(t, env.ConfigPath)
 
 	err := app.AddProfile("client", AddOptions{
 		Description: "Client",
@@ -99,8 +99,8 @@ func stubKeychainDelete(t *testing.T) *[]string {
 func installedEnv(t *testing.T) testEnv {
 	t.Helper()
 	env := newTestEnv(t, twoProfiles)
-	mustWrite(t, filepath.Join(env.SourceDir, "settings.json"), `{}`)
 	app, _ := testAppAt(t, env.ConfigPath)
+	mustWrite(t, filepath.Join(env.SourceDir, "settings.json"), `{}`)
 	if err := app.InstallProfiles(env.load(t), InstallOptions{}); err != nil {
 		t.Fatal(err)
 	}
@@ -110,9 +110,9 @@ func installedEnv(t *testing.T) testEnv {
 
 func TestRemoveProfileKeepsDirWithoutPurge(t *testing.T) {
 	env := installedEnv(t)
+	app, _ := testAppAt(t, env.ConfigPath)
 	deleted := stubKeychainDelete(t)
 
-	app, _ := testAppAt(t, env.ConfigPath)
 	err := app.RemoveProfile(env.load(t), "work", RemoveOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -137,10 +137,10 @@ func TestRemoveProfileKeepsDirWithoutPurge(t *testing.T) {
 
 func TestRemoveProfilePurgeDeletesEverything(t *testing.T) {
 	env := installedEnv(t)
+	app, _ := testAppAt(t, env.ConfigPath)
 	deleted := stubKeychainDelete(t)
 	profileDir := filepath.Join(env.profilesBase(), "work")
 
-	app, _ := testAppAt(t, env.ConfigPath)
 	err := app.RemoveProfile(env.load(t), "work", RemoveOptions{Purge: true, Yes: true})
 	if err != nil {
 		t.Fatal(err)
@@ -158,10 +158,10 @@ func TestRemoveProfilePurgeDeletesEverything(t *testing.T) {
 
 func TestRemoveProfilePromptAndNonInteractive(t *testing.T) {
 	env := installedEnv(t)
+	app, _ := testAppAt(t, env.ConfigPath)
 	stubKeychainDelete(t)
 	profileDir := filepath.Join(env.profilesBase(), "work")
 
-	app, _ := testAppAt(t, env.ConfigPath)
 	err := app.RemoveProfile(env.load(t), "work", RemoveOptions{Purge: true, IsTerminal: false})
 	if err == nil || !strings.Contains(err.Error(), "--yes") {
 		t.Errorf("non-interactive purge must require --yes, got %v", err)
@@ -199,9 +199,9 @@ func TestRemoveProfileErrors(t *testing.T) {
 
 func TestRemoveProfileKeepsForeignBinary(t *testing.T) {
 	env := installedEnv(t)
+	app, _ := testAppAt(t, env.ConfigPath)
 	// A user-provided script with the wrapper's name but no marker.
 	mustWrite(t, filepath.Join(env.BinDir, "claude-personal"), "#!/bin/sh\necho mine\n")
-	app, _ := testAppAt(t, env.ConfigPath)
 	if err := app.RemoveProfile(env.load(t), "personal", RemoveOptions{}); err != nil {
 		t.Fatal(err)
 	}

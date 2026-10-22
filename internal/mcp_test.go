@@ -179,12 +179,12 @@ mcp_exclude = ["notion"]
 [profiles.work.mcp_servers.jira]
 command = "jira-mcp"
 `)
+	app, _ := testAppAt(t, env.ConfigPath)
 	src := filepath.Join(env.Root, "claude.json")
 	mustWrite(t, src, sourceClaudeJSON)
 	// Point the install pipeline at our fake ~/.claude.json via HOME.
 	t.Setenv("HOME", env.Root)
 	os.Rename(src, filepath.Join(env.Root, ".claude.json"))
-	app, _ := testAppAt(t, env.ConfigPath)
 
 	if err := app.InstallProfiles(env.load(t), InstallOptions{}); err != nil {
 		t.Fatal(err)

@@ -65,14 +65,6 @@ func Execute() {
 	}
 }
 
-func loadCfg() (*internal.Config, string, error) {
-	cfg, err := app.LoadConfig()
-	if err != nil {
-		return nil, "", err
-	}
-	return cfg, app.BaseDir, nil
-}
-
 func cwd() (string, error) {
 	return os.Getwd()
 }

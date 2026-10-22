@@ -16,7 +16,7 @@ func installCmd() *cobra.Command {
 		Use:   "install",
 		Short: "Create profile directories and install wrapper scripts",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, _, err := loadCfg()
+			cfg, err := app.LoadConfig()
 			if err != nil {
 				return err
 			}
@@ -47,7 +47,7 @@ func cloneCmd() *cobra.Command {
 		Short: "Clone an existing profile (without credentials)",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, _, err := loadCfg()
+			cfg, err := app.LoadConfig()
 			if err != nil {
 				return err
 			}
