@@ -1,6 +1,9 @@
 package internal
 
-import "errors"
+import (
+	"errors"
+	"strings"
+)
 
 // ErrDoctorFailed is returned when at least one doctor check reported an error.
 // The report has already been printed by then.
@@ -54,4 +57,33 @@ func (a *App) RenderDoctorReport(r DoctorReport) {
 	} else {
 		a.outln("\nSome checks failed. Fix the issues above.")
 	}
+}
+
+// DoctorFix runs the checks, repairs the ones `cpm install` fixes (missing
+// profile directories, wrappers and bin dir, outdated wrappers, broken
+// symlinks into the source dir) and returns the report after the repair.
+// Other findings only carry a Fix hint. Cloud auto-pull and auto-push are
+// skipped.
+func (a *App) DoctorFix(cfg *Config, opts DoctorOptions) (DoctorReport, error) {
+	report := a.DoctorReportFor(cfg, opts)
+	var fixable []string
+	for _, c := range report.Checks {
+		if c.Status != "ok" && c.Fix == installFix {
+			fixable = append(fixable, c.Name)
+		}
+	}
+	if len(fixable) == 0 {
+		return report, nil
+	}
+	a.progressf("Fixing %d check%s with cpm install: %s\n", len(fixable), pluralS(len(fixable)), strings.Join(fixable, ", "))
+	if a.JSON {
+		out := a.Out
+		a.Out = a.Err
+		defer func() { a.Out = out }()
+	}
+	if err := a.InstallProfiles(cfg, InstallOptions{skipCloud: true}); err != nil {
+		return report, err
+	}
+	a.progressf("\n")
+	return a.DoctorReportFor(cfg, opts), nil
 }

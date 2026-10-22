@@ -50,7 +50,7 @@ func statusCmd() *cobra.Command {
 }
 
 func doctorCmd() *cobra.Command {
-	var asJSON bool
+	var asJSON, fix bool
 	var opts internal.DoctorOptions
 	cmd := &cobra.Command{
 		Use:   "doctor",
@@ -60,7 +60,15 @@ func doctorCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			report := app.DoctorReportFor(cfg, opts)
+			app.JSON = asJSON
+			var report internal.DoctorReport
+			if fix {
+				if report, err = app.DoctorFix(cfg, opts); err != nil {
+					return err
+				}
+			} else {
+				report = app.DoctorReportFor(cfg, opts)
+			}
 			if asJSON {
 				if err := app.PrintJSON(report); err != nil {
 					return err
@@ -76,6 +84,7 @@ func doctorCmd() *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "output as JSON")
 	cmd.Flags().BoolVar(&opts.Verify, "verify", false, "read Keychain tokens to check expiry (macOS, may prompt)")
+	cmd.Flags().BoolVar(&fix, "fix", false, "repair what cpm install can (missing or outdated wrappers, directories, symlinks)")
 	return cmd
 }
 

@@ -284,6 +284,9 @@ Releases: 0.6 (contract), 0.7 (profile lifecycle), 0.8 (quality), then `v1.0.0-r
   - Each check carries a fix hint (`fix` in JSON).
   - `--fix` runs the install once and prints the report before and after. The exit code follows the report after the fix.
 - **Done when:** a deleted wrapper and a broken symlink are clean after `--fix`.
+- **Status:** done.
+  - `fix` holds the command that fixes a check: `cpm install`, `cpm login <name>`, `cpm adopt <profile>` or `cpm remove <name> --purge`. `--fix` runs only `cpm install`, and skips cloud auto-pull and auto-push.
+  - A broken symlink is marked fixable only when its source directory exists, because only then can install relink it.
 
 ### 0.8: Quality
 
