@@ -123,6 +123,11 @@ Behavior stays the same. For every PR, `go test -race ./...`, `golangci-lint run
   - `cpm doctor` checks that every `match.profile` exists.
   - Update the README config reference.
 - **Done when:** unit tests cover the resolution order, glob matching and remote normalization, and an end-to-end test switches profile on `cd` without any `.claude-profile`.
+- **Status:** done.
+  - Without `[[match]]` rules the hook is the same pure-shell script as before. With rules, it calls the hidden `cpm resolve` on every directory change, which takes about 5 ms.
+  - A rule matches if any of the repository's remotes matches, not only `origin`.
+  - The hook now passes `--config` to cpm when it is not the default path.
+  - Follow-up: `cpm cloud pull` merges only new profiles, so `[[match]]` rules do not reach other machines yet.
 
 ### 2.2 Profile indicator inside Claude Code
 

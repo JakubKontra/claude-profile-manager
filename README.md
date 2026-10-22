@@ -47,7 +47,7 @@ claude-vertex       # Company via Google Cloud Vertex AI
 
 - **Isolated credentials** — every profile has its own `CLAUDE_CONFIG_DIR` and its own Keychain entry or `.credentials.json`.
 - **Shared setup** — commands, skills, agents, plugins and projects are symlinked from `~/.claude`, so you configure them once.
-- **Per-project auto-switch** — drop a `.claude-profile` into a repo and the shell hook picks the right account on `cd`, like `.nvmrc`.
+- **Per-project auto-switch** — drop a `.claude-profile` into a repo, or match repos by git remote or path, and the shell hook picks the right account on `cd`, like `.nvmrc`.
 - **Per-profile tuning** — model, extra dirs, env vars, `settings.json` overrides, attribution and MCP servers per profile.
 - **Cloud sync** — keep settings in sync across machines via a private git repo, with secret scanning and conflict-safe pulls.
 - **Safe by default** — `--dry-run` previews, local-edit detection on re-sync, backups before overwriting.
@@ -225,7 +225,9 @@ flowchart LR
     A["cd ~/Work/project"] --> B["shell hook"]
     B --> C{".claude-profile?"}
     C -->|"found: work"| D["auto-switch to work"]
-    C -->|"not found"| E["unset profile"]
+    C -->|"not found"| F{"[[match]] rule?"}
+    F -->|"matches: work"| D
+    F -->|"none"| E["unset profile"]
 
     style A fill:#7c3aed,color:#fff
     style D fill:#059669,color:#fff
@@ -248,6 +250,31 @@ cd ~/personal-project
 ```
 
 The `.claude-profile` file is automatically added to `.gitignore`.
+
+### Match by git remote or path
+
+To avoid a `.claude-profile` in every repository, add `[[match]]` rules to `config.toml`:
+
+```toml
+[[match]]
+remote = "github.com/company/*"   # any remote of the repo, SSH or HTTPS
+profile = "work"
+
+[[match]]
+path = "~/Work/client/**"
+profile = "client"
+```
+
+The profile for a directory is chosen in this order:
+
+1. The nearest `.claude-profile`.
+2. The first `[[match]]` rule that matches, in file order. A rule with both `remote` and `path` needs both to match.
+3. The hook's `--default` profile.
+4. Otherwise the profile is unset.
+
+In patterns, `*` matches within one path segment and `**` matches any depth; `~/Work/client/**` also matches `~/Work/client` itself. Remote URLs are compared as `host/owner/repo`, so `git@github.com:company/app.git` and `https://github.com/company/app` are the same. cpm reads the remote from `.git/config` directly, without running git.
+
+`cpm which` shows which rule applied, and `cpm doctor` reports rules whose profile does not exist. The hook reads the rules when the shell starts, so open a new shell after adding the first rule.
 
 ## Commands
 
@@ -272,12 +299,12 @@ The `.claude-profile` file is automatically added to `.gitignore`.
 
 | Command | Description |
 |---------|-------------|
-| `cpm use <profile\|auto> [--shell fish] [--quiet]` | Switch shell: `eval "$(cpm use work)"`; no argument shows a picker |
+| `cpm use <profile\|auto> [--shell fish] [--quiet]` | Switch shell: `eval "$(cpm use work)"`; `auto` uses `.claude-profile` or `[[match]]`; no argument shows a picker |
 | `cpm run <profile> [args]` | One-shot: `cpm run work -p "explain this"` |
 | `cpm exec <profile> -- <cmd>` | Run any command with the profile's environment |
 | `cpm link <profile>` | Create `.claude-profile` in current dir |
 | `cpm unlink` | Remove `.claude-profile` |
-| `cpm hook [--shell fish] [--default <profile>]` | Print shell hook for auto-switch |
+| `cpm hook [--shell fish] [--default <profile>]` | Print shell hook for auto-switch via `.claude-profile` and `[[match]]` |
 | `cpm direnv <profile>` | Print `.envrc` snippet |
 
 ### Inspecting
@@ -285,7 +312,7 @@ The `.claude-profile` file is automatically added to `.gitignore`.
 | Command | Description |
 |---------|-------------|
 | `cpm list [--json]` | List all profiles with status |
-| `cpm which [--json]` | Show active profile (from env or `.claude-profile`) |
+| `cpm which [--json]` | Show active profile (from env, `.claude-profile` or `[[match]]`) |
 | `cpm status` | Check sync divergence |
 | `cpm doctor [--json] [--verify]` | Diagnose issues; exit code 1 on errors |
 | `cpm credentials [--json]` | Show account, expiry and subscription for all profiles |
@@ -381,6 +408,9 @@ Profile names may contain letters, digits, `-` and `_` only.
 | `cloud.exclude` | `[]` | Files/dirs to exclude from sync |
 | `cloud.include` | `[]` | Extra files (relative to `source_dir`) to sync |
 | `cloud.allow_secrets` | `false` | Skip secret checks before cloud init/push |
+| `match[].remote` | | Glob over the repo's remote URLs, as `host/owner/repo` |
+| `match[].path` | | Glob over the directory; `~` is the home directory |
+| `match[].profile` | | Profile to use when the rule matches |
 
 </details>
 
