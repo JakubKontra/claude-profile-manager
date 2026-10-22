@@ -123,6 +123,7 @@ its Keychain entry are deleted as well. This asks for confirmation unless
 
 	cmd.Flags().BoolVar(&opts.Purge, "purge", false, "also delete the profile directory and credentials")
 	cmd.Flags().BoolVarP(&opts.Yes, "yes", "y", false, "do not ask for confirmation")
+	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "show what would be removed without changing anything")
 
 	return cmd
 }

@@ -1,0 +1,80 @@
+cpm
+    --config string
+cpm add <profile> [flags]
+    --add-dir stringArray
+    --inherit-mcp bool = true
+    --no-install bool
+    --share-projects bool = true
+    -d, --description string
+    -e, --env stringArray
+    -m, --model string
+cpm clone <source-profile> <new-profile>
+cpm cloud
+cpm cloud diff [flags]
+    --json bool
+cpm cloud init [flags]
+    --allow-secrets bool
+    --remote string
+cpm cloud pull [flags]
+    --dry-run bool
+cpm cloud push [flags]
+    --allow-secrets bool
+    --dry-run bool
+    -m, --message string
+cpm cloud remote <url>
+cpm cloud status [flags]
+    --json bool
+cpm completion
+cpm completion bash
+    --no-descriptions bool
+cpm completion fish [flags]
+    --no-descriptions bool
+cpm completion powershell [flags]
+    --no-descriptions bool
+cpm completion zsh [flags]
+    --no-descriptions bool
+cpm credentials [flags]
+    --json bool
+cpm direnv <profile>
+cpm doctor [flags]
+    --json bool
+    --verify bool
+cpm edit
+cpm exec <profile> -- <command> [args...]
+cpm hook [flags]
+    --default string
+    --shell string
+cpm init
+cpm install [flags]
+    --dry-run bool
+    --force bool
+    --sync bool
+cpm link <profile>
+cpm list [flags]
+    --json bool
+cpm login [profile...] [flags]
+    --all bool
+    --json bool
+cpm prompt
+cpm remove <profile> [flags]
+    --dry-run bool
+    --purge bool
+    -y, --yes bool
+cpm rename <old> <new> [flags]
+    --dry-run bool
+    --json bool
+cpm resolve [dir]  (hidden)
+cpm run <profile> [claude args...]
+cpm status [flags]
+    --json bool
+cpm unlink
+cpm upgrade [flags]
+    --prerelease bool
+cpm use [profile|auto] [flags]
+    --shell string
+    -q, --quiet bool
+cpm version [flags]
+    --json bool
+    --prerelease bool
+cpm which [flags]
+    --json bool
