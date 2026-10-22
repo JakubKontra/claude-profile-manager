@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-22
+
+This is the last release before 1.0. It adds no commands; it makes the existing ones easier to trust.
+
+### Added
+- Man pages, installed by Homebrew (`man cpm`, `man cpm-cloud-push`, …), and a command reference in [docs/cli](docs/cli/cpm.md) ([#44](https://github.com/JakubKontra/claude-profile-manager/pull/44)).
+- `cpm doctor` reports the platform and where logins are kept. Windows is supported through WSL ([#43](https://github.com/JakubKontra/claude-profile-manager/pull/43)).
+- [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md) ([#44](https://github.com/JakubKontra/claude-profile-manager/pull/44)).
+- Tests against files written by every release since v0.3.0, and weekly fuzzing of the parsers that read user input ([#41](https://github.com/JakubKontra/claude-profile-manager/pull/41)), ([#42](https://github.com/JakubKontra/claude-profile-manager/pull/42)).
+
+### Fixed
+- `[[match]]` rules with non-ASCII characters, such as `path = "~/Práce/**"`, never matched ([#42](https://github.com/JakubKontra/claude-profile-manager/pull/42)).
+- `**` in `[[match]]` did not match paths that contain a newline ([#42](https://github.com/JakubKontra/claude-profile-manager/pull/42)).
+- `cpm add -d` with text that is not valid UTF-8 wrote a config that could not be read again. It is now refused ([#42](https://github.com/JakubKontra/claude-profile-manager/pull/42)).
+
 ## [0.7.0] - 2026-10-22
 
 This release covers the whole life of a profile: taking over an existing login, renaming and removing it across machines, and uninstalling cpm.
@@ -150,7 +165,8 @@ Thanks [@JakubKontra](https://github.com/JakubKontra) for the improvements in th
 ### Added
 - Initial release: profiles, wrapper scripts, `.claude-profile` auto-switching, doctor, clone, upgrade.
 
-[Unreleased]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.4.0...v0.5.0
