@@ -207,7 +207,12 @@ func AppendProfileTable(data []byte, name string, p *Profile) ([]byte, error) {
 	if len(out) > 0 {
 		out = append(out, '\n')
 	}
-	return append(out, rendered...), nil
+	out = append(out, rendered...)
+	// The encoder passes invalid UTF-8 through, which TOML rejects.
+	if _, err := toml.Decode(string(out), &cfg); err != nil {
+		return nil, fmt.Errorf("cannot add profile %q: %w", name, err)
+	}
+	return out, nil
 }
 
 // AppendMatchRules adds [[match]] tables to the end of the config text.

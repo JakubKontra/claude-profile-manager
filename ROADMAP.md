@@ -307,6 +307,10 @@ Releases: 0.6 (contract), 0.7 (profile lifecycle), 0.8 (quality), then `v1.0.0-r
 #### 3.11 Fuzz tests
 - **Steps:** fuzz `tomledit`, `globMatch`, `NormalizeRemote`, `gitRemoteURLs` and `applyIndicator`. Check that the result parses again, that round trips return the input and that nothing panics. PRs run the seeds; a weekly workflow fuzzes.
 - **Done when:** every target runs in CI.
+- **Status:** done. The first runs found three bugs, fixed here, with the inputs kept as regression seeds:
+  - `globMatch` turned each byte of a pattern into its own character, so rules with non-ASCII paths such as `~/Práce/**` never matched.
+  - `**` did not match names that contain a newline.
+  - `cpm add -d` with invalid UTF-8 wrote a config that could not be read again. It is now refused.
 
 #### 3.12 Supported platforms
 - **Steps:** state macOS and Linux in the README, and Windows only through WSL (native Windows does not build because of `syscall.Exec`). `cpm doctor` reports the platform.

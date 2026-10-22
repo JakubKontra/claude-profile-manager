@@ -107,7 +107,7 @@ func remoteMatches(pattern string, remotes []string) bool {
 // the directory itself.
 func globMatch(pattern, name string) bool {
 	var b strings.Builder
-	b.WriteString("^")
+	b.WriteString("(?s)^") // ** spans any byte, newlines included
 	for i := 0; i < len(pattern); i++ {
 		switch c := pattern[i]; {
 		case strings.HasPrefix(pattern[i:], "/**") && i+3 == len(pattern):
@@ -121,7 +121,9 @@ func globMatch(pattern, name string) bool {
 		case c == '?':
 			b.WriteString("[^/]")
 		default:
-			b.WriteString(regexp.QuoteMeta(string(c)))
+			// One byte at a time keeps multi-byte characters intact;
+			// string(c) would turn each byte into its own rune.
+			b.WriteString(regexp.QuoteMeta(pattern[i : i+1]))
 		}
 	}
 	b.WriteString("$")
