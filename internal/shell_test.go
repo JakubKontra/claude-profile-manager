@@ -200,35 +200,36 @@ func TestGenerateShellHook(t *testing.T) {
 }
 
 func TestPromptStringEmpty(t *testing.T) {
-	os.Unsetenv("CLAUDE_PROFILE")
-	if p := PromptString(); p != "" {
+	t.Parallel()
+	app, _ := testApp(t)
+	if p := app.PromptString(); p != "" {
 		t.Errorf("PromptString() = %q, want empty", p)
 	}
 }
 
 func TestPromptStringSet(t *testing.T) {
-	os.Setenv("CLAUDE_PROFILE", "work")
-	defer os.Unsetenv("CLAUDE_PROFILE")
-
-	if p := PromptString(); p != "work" {
+	t.Parallel()
+	app, _ := testApp(t)
+	app.Env = []string{"CLAUDE_PROFILE=work"}
+	if p := app.PromptString(); p != "work" {
 		t.Errorf("PromptString() = %q, want %q", p, "work")
 	}
 }
 
 func TestCurrentProfile(t *testing.T) {
-	os.Setenv("CLAUDE_PROFILE", "personal")
-	defer os.Unsetenv("CLAUDE_PROFILE")
-
-	if p := CurrentProfile(); p != "personal" {
-		t.Errorf("CurrentProfile() = %q, want %q", p, "personal")
+	t.Parallel()
+	app, _ := testApp(t)
+	app.Env = []string{"CLAUDE_PROFILE=stale", "CLAUDE_PROFILE=personal"}
+	if p := app.CurrentProfile(); p != "personal" {
+		t.Errorf("CurrentProfile() = %q, want %q (last entry wins)", p, "personal")
 	}
 }
 
 func TestCurrentConfigDir(t *testing.T) {
-	os.Setenv("CLAUDE_CONFIG_DIR", "/test/path")
-	defer os.Unsetenv("CLAUDE_CONFIG_DIR")
-
-	if d := CurrentConfigDir(); d != "/test/path" {
+	t.Parallel()
+	app, _ := testApp(t)
+	app.Env = []string{"CLAUDE_CONFIG_DIR=/test/path"}
+	if d := app.CurrentConfigDir(); d != "/test/path" {
 		t.Errorf("CurrentConfigDir() = %q, want %q", d, "/test/path")
 	}
 }

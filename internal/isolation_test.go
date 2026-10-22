@@ -43,9 +43,9 @@ func TestMCPIsolationPreservesOwnServersAndCompatibility(t *testing.T) {
 }
 
 func TestAddIsolatedProfileAndClearInheritedServers(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, "[profiles.old]\n")
 	app := env.App
-	t.Setenv("HOME", env.Root)
 	mustMkdir(t, filepath.Join(env.SourceDir, "projects"))
 	mustWrite(t, filepath.Join(env.Root, ".claude.json"), `{"mcpServers":{"global":{"command":"global"}}}`)
 	no := false

@@ -26,6 +26,8 @@ type DoctorOptions struct {
 	// Keychain is where logins are looked up; nil means no Keychain.
 	// App.DoctorReportFor passes the App's store.
 	Keychain KeychainStore
+	// PathEnv is the PATH searched for the bin dir; empty means $PATH.
+	PathEnv string
 }
 
 // rcFiles are the shell startup files scanned for the cpm hook.
@@ -73,7 +75,11 @@ func RunDoctorWithOptions(cfg *Config, profilesBase string, opts DoctorOptions) 
 	}
 
 	// Check bin dir is on PATH
-	pathDirs := filepath.SplitList(os.Getenv("PATH"))
+	pathEnv := opts.PathEnv
+	if pathEnv == "" {
+		pathEnv = os.Getenv("PATH")
+	}
+	pathDirs := filepath.SplitList(pathEnv)
 	binOnPath := false
 	for _, d := range pathDirs {
 		if d == cfg.BinDir {

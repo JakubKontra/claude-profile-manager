@@ -31,7 +31,7 @@ func TestLocalSecretsRuntimeOnly(t *testing.T) {
 	}
 	cfg.Cloud = &CloudConfig{Include: []string{"secrets.toml"}}
 	mustWrite(t, filepath.Join(env.SourceDir, "secrets.toml"), "private")
-	files, err := GatherSyncFiles(cfg, env.ConfigPath)
+	files, err := env.App.GatherSyncFiles(cfg, env.ConfigPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,9 +45,9 @@ func TestLocalSecretsRuntimeOnly(t *testing.T) {
 }
 
 func TestInitialCloudCommitBlocksConfigAndMCPSecrets(t *testing.T) {
+	t.Parallel()
 	requireGit(t)
 	env := newCloudEnv(t, "[profiles.work.env]\nAPI_TOKEN = 'private'\n")
-	env.activate(t)
 	if err := env.App.CloudInit(""); err == nil {
 		t.Fatal("initial secret commit accepted")
 	}

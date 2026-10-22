@@ -3,7 +3,6 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"os"
 	"syscall"
 
 	"github.com/jakubkontra/cpm/internal"
@@ -52,7 +51,7 @@ func useCmd() *cobra.Command {
 				return err
 			}
 			if opts.Shell == "" {
-				opts.Shell = internal.DetectShell(os.Getenv)
+				opts.Shell = internal.DetectShell(app.Getenv)
 			}
 			var name string
 			if len(args) == 1 {
@@ -61,7 +60,7 @@ func useCmd() *cobra.Command {
 				if !stdinIsTerminal() {
 					return errors.New("profile name required (or run interactively)")
 				}
-				name, err = internal.SelectProfileInteractive(cfg, app.In, app.Err)
+				name, err = internal.SelectProfileInteractive(cfg, app.CurrentProfile(), app.In, app.Err)
 				if err != nil {
 					return err
 				}
@@ -89,7 +88,7 @@ func whichCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result := internal.Which(dir)
+			result := app.Which(dir)
 			if asJSON {
 				return app.PrintJSON(result)
 			}
@@ -150,7 +149,7 @@ func promptCmd() *cobra.Command {
 		Use:   "prompt",
 		Short: "Print current profile name for shell prompt (PS1/starship)",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Fprint(app.Out, internal.PromptString())
+			fmt.Fprint(app.Out, app.PromptString())
 		},
 	}
 }
@@ -167,7 +166,7 @@ func hookCmd() *cobra.Command {
   eval "$(cpm hook --default personal)" # fall back to a profile outside projects`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if opts.Shell == "" {
-				opts.Shell = internal.DetectShell(os.Getenv)
+				opts.Shell = internal.DetectShell(app.Getenv)
 			}
 			fmt.Fprint(app.Out, internal.GenerateShellHook(opts))
 		},

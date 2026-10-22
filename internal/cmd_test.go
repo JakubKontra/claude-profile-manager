@@ -75,11 +75,12 @@ func TestInstallProfilesRefusesWhenDiverged(t *testing.T) {
 }
 
 func TestListProfilesStatuses(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, twoProfiles)
 	app, buf := env.App, env.Out
 	mustMkdir(t, filepath.Join(env.profilesBase(), "work"))
 	env.Keychain.login(filepath.Join(env.profilesBase(), "work"), "token")
-	t.Setenv("CLAUDE_PROFILE", "work")
+	app.Env = []string{"CLAUDE_PROFILE=work"}
 
 	entries := app.ListProfiles(env.load(t))
 	if len(entries) != 2 {
@@ -118,26 +119,27 @@ func TestListProfilesNotAuthenticatedWithoutKeychainOrFile(t *testing.T) {
 }
 
 func TestWhichFromEnv(t *testing.T) {
-	t.Setenv("CLAUDE_PROFILE", "work")
-	t.Setenv("CLAUDE_CONFIG_DIR", "/p/work")
-	r := Which(t.TempDir())
+	t.Parallel()
+	app, _ := testApp(t)
+	app.Env = []string{"CLAUDE_PROFILE=work", "CLAUDE_CONFIG_DIR=/p/work"}
+	r := app.Which(t.TempDir())
 	if !r.Active || r.Profile != "work" || r.Source != "env" || r.ConfigDir != "/p/work" || r.Command != "claude-work" {
 		t.Errorf("unexpected result: %+v", r)
 	}
 }
 
 func TestWhichFromFile(t *testing.T) {
-	t.Setenv("CLAUDE_PROFILE", "")
+	t.Parallel()
+	app, buf := testApp(t)
 	dir := t.TempDir()
 	mustWrite(t, filepath.Join(dir, ".claude-profile"), "personal\n")
 	sub := filepath.Join(dir, "a", "b")
 	mustMkdir(t, sub)
 
-	r := Which(sub)
+	r := app.Which(sub)
 	if r.Active || r.Profile != "personal" || r.Source != "file" {
 		t.Errorf("unexpected result: %+v", r)
 	}
-	app, buf := testApp(t)
 	app.RenderWhich(r)
 	if !strings.Contains(buf.String(), "not active in this shell") {
 		t.Errorf("render should hint about activation: %q", buf.String())
@@ -145,8 +147,9 @@ func TestWhichFromFile(t *testing.T) {
 }
 
 func TestWhichNone(t *testing.T) {
-	t.Setenv("CLAUDE_PROFILE", "")
-	r := Which(t.TempDir())
+	t.Parallel()
+	app, _ := testApp(t)
+	r := app.Which(t.TempDir())
 	if r.Active || r.Profile != "" {
 		t.Errorf("expected empty result, got %+v", r)
 	}
@@ -170,6 +173,7 @@ func TestDoctorReportCountsAndExitCondition(t *testing.T) {
 }
 
 func TestBuildRunExecArgsAndEnv(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, `[profiles.work]
 model = "sonnet"
 add_dirs = ["/extra"]
@@ -180,9 +184,7 @@ env = { FOO = "bar" }
 	fakeBin := t.TempDir()
 	mustWrite(t, filepath.Join(fakeBin, "claude"), "#!/bin/sh\n")
 	os.Chmod(filepath.Join(fakeBin, "claude"), 0o755)
-	t.Setenv("PATH", fakeBin)
-	t.Setenv("CLAUDE_PROFILE", "stale")
-	t.Setenv("ANTHROPIC_API_KEY", "leak")
+	app.Env = []string{"PATH=" + fakeBin, "CLAUDE_PROFILE=stale", "ANTHROPIC_API_KEY=leak"}
 
 	spec, err := app.BuildRunExec(env.load(t), "work", []string{"-p", "hi"})
 	if err != nil {

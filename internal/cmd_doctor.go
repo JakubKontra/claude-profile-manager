@@ -19,6 +19,15 @@ func (a *App) DoctorReportFor(cfg *Config, opts DoctorOptions) DoctorReport {
 	if opts.Keychain == nil {
 		opts.Keychain = a.Keychain
 	}
+	if opts.HomeDir == "" {
+		opts.HomeDir = a.Home
+	}
+	if opts.PathEnv == "" {
+		opts.PathEnv = a.Getenv("PATH")
+	}
+	if opts.LookPath == nil {
+		opts.LookPath = a.lookPath
+	}
 	checks := RunDoctorWithOptions(cfg, a.BaseDir, opts)
 	report := DoctorReport{Checks: checks}
 	for _, c := range checks {

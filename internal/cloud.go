@@ -92,7 +92,7 @@ func (a *App) CloudInitWithSecrets(remote string, allowSecrets bool) error {
 		return fmt.Errorf("git not found on PATH — install git first")
 	}
 
-	cfg, err := LoadCloudConfig(a.ConfigPath)
+	cfg, err := a.LoadCloudConfig()
 	if err != nil {
 		return err
 	}
@@ -108,11 +108,11 @@ func (a *App) CloudInitWithSecrets(remote string, allowSecrets bool) error {
 			if _, err := a.git("", "clone", remote, repoDir); err != nil {
 				return fmt.Errorf("cannot clone remote: %w", err)
 			}
-			plan := PlanDistribute(repoDir, cfg, a.ConfigPath)
+			plan := a.PlanDistribute(repoDir, cfg, a.ConfigPath)
 			if err := a.ApplyDistribute(plan); err != nil {
 				return fmt.Errorf("distributing files: %w", err)
 			}
-			if err := saveCloudRemote(a.ConfigPath, remote); err != nil {
+			if err := saveCloudRemote(a.expand(a.ConfigPath), remote); err != nil {
 				return fmt.Errorf("saving remote to config: %w", err)
 			}
 			a.outln("\nCloud repo cloned and files distributed.")
@@ -121,7 +121,7 @@ func (a *App) CloudInitWithSecrets(remote string, allowSecrets bool) error {
 		}
 	}
 
-	files, err := GatherSyncFiles(cfg, a.ConfigPath)
+	files, err := a.GatherSyncFiles(cfg, a.ConfigPath)
 	if err != nil {
 		return err
 	}
@@ -169,7 +169,7 @@ func (a *App) CloudInitWithSecrets(remote string, allowSecrets bool) error {
 		if _, err := a.git(repoDir, "remote", "add", "origin", remote); err != nil {
 			return fmt.Errorf("cannot add remote: %w", err)
 		}
-		if err := saveCloudRemote(a.ConfigPath, remote); err != nil {
+		if err := saveCloudRemote(a.expand(a.ConfigPath), remote); err != nil {
 			return fmt.Errorf("saving remote to config: %w", err)
 		}
 		a.outf("\nRemote set to: %s\n", remote)
@@ -182,7 +182,7 @@ func (a *App) CloudInitWithSecrets(remote string, allowSecrets bool) error {
 		a.outln("Push with: cpm cloud push")
 	}
 
-	return recordCloudState(repoDir, cfg, a.ConfigPath)
+	return a.recordCloudState(repoDir, cfg, a.ConfigPath)
 }
 
 // PushOptions controls CloudPush.
@@ -202,12 +202,12 @@ func (a *App) CloudPush(opts PushOptions) error {
 		return err
 	}
 
-	cfg, err := LoadCloudConfig(a.ConfigPath)
+	cfg, err := a.LoadCloudConfig()
 	if err != nil {
 		return err
 	}
 
-	files, err := GatherSyncFiles(cfg, a.ConfigPath)
+	files, err := a.GatherSyncFiles(cfg, a.ConfigPath)
 	if err != nil {
 		return err
 	}
@@ -235,7 +235,7 @@ func (a *App) CloudPush(opts PushOptions) error {
 				return err
 			}
 		}
-		return recordCloudState(repoDir, cfg, a.ConfigPath)
+		return a.recordCloudState(repoDir, cfg, a.ConfigPath)
 	}
 
 	if opts.DryRun {
@@ -271,7 +271,7 @@ func (a *App) CloudPush(opts PushOptions) error {
 		a.outln("\nCommitted locally. Add a remote with: cpm cloud remote <url>")
 	}
 
-	return recordCloudState(repoDir, cfg, a.ConfigPath)
+	return a.recordCloudState(repoDir, cfg, a.ConfigPath)
 }
 
 // CloudDiff stages the live files into the repo and shows the diff against
@@ -281,11 +281,11 @@ func (a *App) CloudDiff() error {
 	if err := ensureCloudRepo(repoDir); err != nil {
 		return err
 	}
-	cfg, err := LoadCloudConfig(a.ConfigPath)
+	cfg, err := a.LoadCloudConfig()
 	if err != nil {
 		return err
 	}
-	files, err := GatherSyncFiles(cfg, a.ConfigPath)
+	files, err := a.GatherSyncFiles(cfg, a.ConfigPath)
 	if err != nil {
 		return err
 	}
@@ -394,11 +394,11 @@ func (a *App) cloudPullFiles() error {
 	if _, err := a.git(repoDir, "pull", "--ff-only", "origin", "HEAD"); err != nil {
 		return fmt.Errorf("pull failed (possible divergence): %w", err)
 	}
-	cfg, err := LoadCloudConfig(a.ConfigPath)
+	cfg, err := a.LoadCloudConfig()
 	if err != nil {
 		return err
 	}
-	return a.ApplyDistribute(PlanDistribute(repoDir, cfg, a.ConfigPath))
+	return a.ApplyDistribute(a.PlanDistribute(repoDir, cfg, a.ConfigPath))
 }
 
 // CloudPull pulls from remote and distributes files to their live locations.
@@ -422,12 +422,12 @@ func (a *App) CloudPull(dryRun bool) error {
 		a.outln("Repo already up to date.")
 	}
 
-	cfg, err := LoadCloudConfig(a.ConfigPath)
+	cfg, err := a.LoadCloudConfig()
 	if err != nil {
 		return err
 	}
 
-	plan := PlanDistribute(repoDir, cfg, a.ConfigPath)
+	plan := a.PlanDistribute(repoDir, cfg, a.ConfigPath)
 	if dryRun {
 		a.outln("\nDry run — files that would change:")
 		if !a.printPlan(plan) {
@@ -444,7 +444,7 @@ func (a *App) CloudPull(dryRun bool) error {
 
 	// Profiles hold copies of settings.json / CLAUDE.md; refresh them so the
 	// pulled changes actually take effect.
-	if full, err := LoadConfig(a.ConfigPath); err == nil {
+	if full, err := a.LoadConfig(); err == nil {
 		a.outln("\nRe-syncing profiles:")
 		if err := a.InstallProfiles(full, InstallOptions{Sync: true, skipCloud: true}); err != nil {
 			if errors.Is(err, ErrDiverged) {
@@ -488,14 +488,14 @@ func (a *App) CloudStatus() error {
 	}
 
 	// Local changes
-	cfg, err := LoadCloudConfig(a.ConfigPath)
+	cfg, err := a.LoadCloudConfig()
 	if err != nil {
 		return err
 	}
 
 	a.outln("\nLocal changes (not yet pushed):")
 	hasChanges := false
-	files, _ := GatherSyncFiles(cfg, a.ConfigPath)
+	files, _ := a.GatherSyncFiles(cfg, a.ConfigPath)
 	for repoPath, srcPath := range files {
 		dstPath := filepath.Join(repoDir, repoPath)
 		if filesAreDifferent(srcPath, dstPath) {
@@ -527,7 +527,7 @@ func (a *App) CloudRemote(url string) error {
 		}
 	}
 
-	if err := saveCloudRemote(a.ConfigPath, url); err != nil {
+	if err := saveCloudRemote(a.expand(a.ConfigPath), url); err != nil {
 		return fmt.Errorf("saving remote to config: %w", err)
 	}
 
@@ -536,8 +536,8 @@ func (a *App) CloudRemote(url string) error {
 }
 
 // GatherSyncFiles returns a map of repoPath -> absoluteSourcePath for all syncable files.
-func GatherSyncFiles(cfg *Config, configPath string) (map[string]string, error) {
-	home, _ := os.UserHomeDir()
+func (a *App) GatherSyncFiles(cfg *Config, configPath string) (map[string]string, error) {
+	home := a.Home
 	files := make(map[string]string)
 
 	// Files from source_dir
@@ -583,7 +583,7 @@ func GatherSyncFiles(cfg *Config, configPath string) (map[string]string, error) 
 
 	// CPM config.toml
 	if !isExcluded("cpm/config.toml", cfg) {
-		cfgPath := ExpandPath(configPath)
+		cfgPath := a.expand(configPath)
 		if _, err := os.Stat(cfgPath); err == nil {
 			files["cpm/config.toml"] = cfgPath
 		}
@@ -615,8 +615,8 @@ type DistributeAction struct {
 // PlanDistribute compares the cloud repo with the live files and returns
 // what applying it would do. Deletions are only planned inside the synced
 // directories (commands/, agents/, ...), never for top-level files.
-func PlanDistribute(repoDir string, cfg *Config, configPath string) []DistributeAction {
-	home, _ := os.UserHomeDir()
+func (a *App) PlanDistribute(repoDir string, cfg *Config, configPath string) []DistributeAction {
+	home := a.Home
 	var plan []DistributeAction
 
 	add := func(repoPath, dest string, excluded bool) {
@@ -679,7 +679,7 @@ func PlanDistribute(repoDir string, cfg *Config, configPath string) []Distribute
 	if configPath != "" && !isExcluded("cpm/config.toml", cfg) {
 		src := filepath.Join(repoDir, "cpm", "config.toml")
 		if _, err := os.Stat(src); err == nil {
-			plan = append(plan, DistributeAction{RepoPath: "cpm/config.toml", Source: src, Dest: ExpandPath(configPath), Kind: "merge"})
+			plan = append(plan, DistributeAction{RepoPath: "cpm/config.toml", Source: src, Dest: a.expand(configPath), Kind: "merge"})
 		}
 	}
 
@@ -724,7 +724,7 @@ func (a *App) ApplyDistribute(plan []DistributeAction) error {
 
 // DistributeSyncFiles applies the repo to the live locations (no config merge).
 func (a *App) DistributeSyncFiles(repoDir string, cfg *Config) error {
-	return a.ApplyDistribute(PlanDistribute(repoDir, cfg, ""))
+	return a.ApplyDistribute(a.PlanDistribute(repoDir, cfg, ""))
 }
 
 // --- helpers ---
@@ -851,7 +851,7 @@ func saveCloudRemote(configPath string, remote string) error {
 // mergeConfigTOML adds profiles that exist in the pulled config but not
 // locally. source_dir, bin_dir and existing profiles are left untouched.
 func (a *App) mergeConfigTOML(pulledPath, localConfigPath string) error {
-	localPath := ExpandPath(localConfigPath)
+	localPath := a.expand(localConfigPath)
 
 	pulledData, err := os.ReadFile(pulledPath)
 	if err != nil {

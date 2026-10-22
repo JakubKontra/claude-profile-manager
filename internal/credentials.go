@@ -121,8 +121,11 @@ func KeychainServiceName(configDir string) string {
 }
 
 // keychainAccount mirrors Claude Code's account-name resolution.
-func keychainAccount() string {
-	name := os.Getenv("USER")
+func keychainAccount() string { return keychainAccountFor(os.Getenv("USER")) }
+
+// keychainAccountFor resolves the account from $USER, falling back to the
+// current user and then to a fixed name when the result is not valid.
+func keychainAccountFor(name string) string {
 	if name == "" {
 		if u, err := user.Current(); err == nil {
 			name = u.Username

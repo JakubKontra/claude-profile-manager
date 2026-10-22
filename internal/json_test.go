@@ -7,12 +7,13 @@ import (
 )
 
 func TestJSONShapes(t *testing.T) {
+	t.Parallel()
 	env := newTestEnv(t, twoProfiles)
 	app, buf := env.App, env.Out
 	mustMkdir(t, filepath.Join(env.profilesBase(), "work"))
 	env.Keychain.login(filepath.Join(env.profilesBase(), "work"), "token")
 	env.Keychain.login(filepath.Join(env.profilesBase(), "personal"), "token")
-	t.Setenv("CLAUDE_PROFILE", "work")
+	app.Env = []string{"CLAUDE_PROFILE=work"}
 
 	if err := app.PrintJSON(app.ListProfiles(env.load(t))); err != nil {
 		t.Fatal(err)
@@ -29,7 +30,7 @@ func TestJSONShapes(t *testing.T) {
 	}
 
 	buf.Reset()
-	if err := app.PrintJSON(Which(t.TempDir())); err != nil {
+	if err := app.PrintJSON(app.Which(t.TempDir())); err != nil {
 		t.Fatal(err)
 	}
 	var which map[string]any

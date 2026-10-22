@@ -21,7 +21,7 @@ type ProfileListEntry struct {
 
 // ListProfiles gathers the status of every configured profile.
 func (a *App) ListProfiles(cfg *Config) []ProfileListEntry {
-	current := CurrentProfile()
+	current := a.CurrentProfile()
 	var entries []ProfileListEntry
 
 	for _, name := range SortedProfileNames(cfg) {

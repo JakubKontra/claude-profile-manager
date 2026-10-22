@@ -42,7 +42,7 @@ func (a *App) InstallProfiles(cfg *Config, opts InstallOptions) error {
 			return fmt.Errorf("auto pull: %w", err)
 		}
 		// Pulled files may include settings; re-read the config too.
-		if fresh, err := LoadConfig(a.ConfigPath); err == nil {
+		if fresh, err := a.LoadConfig(); err == nil {
 			cfg = fresh
 		}
 		a.outln()

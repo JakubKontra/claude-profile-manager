@@ -34,12 +34,12 @@ func (a *App) Use(cfg *Config, name, cwd string, opts UseOptions) (string, error
 
 // SelectProfileInteractive prints a numbered menu to prompt and reads the
 // choice from in. The menu goes to prompt (stderr) so stdout stays eval-safe.
-func SelectProfileInteractive(cfg *Config, in io.Reader, prompt io.Writer) (string, error) {
+// current is marked in the list.
+func SelectProfileInteractive(cfg *Config, current string, in io.Reader, prompt io.Writer) (string, error) {
 	names := SortedProfileNames(cfg)
 	if len(names) == 0 {
 		return "", fmt.Errorf("no profiles configured")
 	}
-	current := CurrentProfile()
 	fmt.Fprintln(prompt, "Select a profile:")
 	for i, name := range names {
 		marker := "  "

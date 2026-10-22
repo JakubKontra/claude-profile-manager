@@ -167,6 +167,6 @@ func saveDistributeState(plan []DistributeAction) error {
 	return writeFileAtomic(path, data, 0o600)
 }
 
-func recordCloudState(repoDir string, cfg *Config, configPath string) error {
-	return saveDistributeState(PlanDistribute(repoDir, cfg, configPath))
+func (a *App) recordCloudState(repoDir string, cfg *Config, configPath string) error {
+	return saveDistributeState(a.PlanDistribute(repoDir, cfg, configPath))
 }

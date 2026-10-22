@@ -86,13 +86,12 @@ func TestGetCredentialStatusNotAuthenticated(t *testing.T) {
 }
 
 func TestKeychainAccountFallsBackForOddUsernames(t *testing.T) {
-	t.Setenv("USER", "not a valid/name")
-	if got := keychainAccount(); got != "claude-code-user" {
+	t.Parallel()
+	if got := keychainAccountFor("not a valid/name"); got != "claude-code-user" {
 		t.Errorf("keychainAccount = %q, want claude-code-user", got)
 	}
 
-	t.Setenv("USER", "jakub.kontra")
-	if got := keychainAccount(); got != "jakub.kontra" {
+	if got := keychainAccountFor("jakub.kontra"); got != "jakub.kontra" {
 		t.Errorf("keychainAccount = %q, want jakub.kontra", got)
 	}
 }

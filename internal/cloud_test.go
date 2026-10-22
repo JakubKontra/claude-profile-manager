@@ -27,7 +27,8 @@ func TestGatherSyncFiles(t *testing.T) {
 	cfg := &Config{SourceDir: sourceDir}
 
 	// Use a config path that doesn't exist (no cpm/config.toml)
-	files, err := GatherSyncFiles(cfg, filepath.Join(tmpDir, "config.toml"))
+	app, _ := testApp(t)
+	files, err := app.GatherSyncFiles(cfg, filepath.Join(tmpDir, "config.toml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +64,8 @@ func TestGatherSyncFilesWithExclude(t *testing.T) {
 		},
 	}
 
-	files, err := GatherSyncFiles(cfg, filepath.Join(tmpDir, "config.toml"))
+	app, _ := testApp(t)
+	files, err := app.GatherSyncFiles(cfg, filepath.Join(tmpDir, "config.toml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +93,8 @@ func TestGatherSyncFilesDirExclude(t *testing.T) {
 		},
 	}
 
-	files, err := GatherSyncFiles(cfg, filepath.Join(tmpDir, "config.toml"))
+	app, _ := testApp(t)
+	files, err := app.GatherSyncFiles(cfg, filepath.Join(tmpDir, "config.toml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +124,8 @@ func TestDistributeSyncFilesRoundTrip(t *testing.T) {
 
 	// Gather files
 	cfg := &Config{SourceDir: sourceDir}
-	files, _ := GatherSyncFiles(cfg, filepath.Join(tmpDir, "config.toml"))
+	app, _ := testApp(t)
+	files, _ := app.GatherSyncFiles(cfg, filepath.Join(tmpDir, "config.toml"))
 
 	// Copy to repo
 	for repoPath, srcPath := range files {
@@ -132,7 +136,6 @@ func TestDistributeSyncFilesRoundTrip(t *testing.T) {
 
 	// Distribute from repo to restore dir
 	restoreCfg := &Config{SourceDir: restoreDir}
-	app, _ := testApp(t)
 	app.DistributeSyncFiles(repoDir, restoreCfg)
 
 	// Check files were restored
@@ -323,10 +326,12 @@ remote = "git@example:x.git"
 }
 
 func TestPlanDistributeKindsExcludeAndDeletes(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	repo := filepath.Join(root, "repo")
 	live := filepath.Join(root, "live")
-	t.Setenv("HOME", filepath.Join(root, "home"))
+	app, _ := testApp(t)
+	app.Home = filepath.Join(root, "home")
 
 	mustWrite(t, filepath.Join(repo, "settings.json"), `{"a":1}`)
 	mustWrite(t, filepath.Join(repo, "CLAUDE.md"), "new")
@@ -349,7 +354,7 @@ func TestPlanDistributeKindsExcludeAndDeletes(t *testing.T) {
 	data, _ := json.Marshal(baseline)
 	mustWrite(t, cloudStatePath(repo), string(data))
 	cfg := &Config{SourceDir: live, Cloud: &CloudConfig{Exclude: []string{"CLAUDE.md", "agents/"}}}
-	plan := PlanDistribute(repo, cfg, filepath.Join(root, "config.toml"))
+	plan := app.PlanDistribute(repo, cfg, filepath.Join(root, "config.toml"))
 
 	kinds := map[string]string{}
 	for _, a := range plan {
@@ -376,7 +381,6 @@ func TestPlanDistributeKindsExcludeAndDeletes(t *testing.T) {
 		t.Error("top-level files are never deleted")
 	}
 
-	app, _ := testApp(t)
 	if err := app.ApplyDistribute(plan); err != nil {
 		t.Fatal(err)
 	}
@@ -402,11 +406,13 @@ func TestPlanDistributeKindsExcludeAndDeletes(t *testing.T) {
 }
 
 func TestPlanDistributeSkipsMissingRepoDirs(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	live := filepath.Join(root, "live")
 	mustWrite(t, filepath.Join(live, "commands", "mine.md"), "x")
-	t.Setenv("HOME", root)
-	plan := PlanDistribute(filepath.Join(root, "empty-repo"), &Config{SourceDir: live}, "")
+	app, _ := testApp(t)
+	app.Home = root
+	plan := app.PlanDistribute(filepath.Join(root, "empty-repo"), &Config{SourceDir: live}, "")
 	if len(plan) != 1 || plan[0].Kind != "local" {
 		t.Errorf("a repo without commands/ must not delete local commands: %v", plan)
 	}
@@ -423,12 +429,30 @@ func newCloudEnv(t *testing.T, profiles string) cloudEnv {
 	env := newTestEnv(t, profiles)
 	home := filepath.Join(env.Root, "home")
 	mustMkdir(t, home)
+	env.App.Home = home
+	env.App.Run = ExecRunner{Env: gitTestEnv(home)}
 	return cloudEnv{testEnv: env, Home: home}
 }
 
-func (c cloudEnv) activate(t *testing.T) {
+// gitTestEnv isolates git from the user's config and gives commits a fixed
+// identity.
+func gitTestEnv(home string) []string {
+	return []string{
+		"HOME=" + home,
+		"GIT_AUTHOR_NAME=cpm test",
+		"GIT_AUTHOR_EMAIL=cpm@test",
+		"GIT_COMMITTER_NAME=cpm test",
+		"GIT_COMMITTER_EMAIL=cpm@test",
+		"GIT_CONFIG_NOSYSTEM=1",
+	}
+}
+
+// gitCommand runs git directly, isolated like the cloud envs' git.
+func gitCommand(t *testing.T, args ...string) *exec.Cmd {
 	t.Helper()
-	t.Setenv("HOME", c.Home)
+	cmd := exec.Command("git", args...)
+	cmd.Env = append(os.Environ(), gitTestEnv(t.TempDir())...)
+	return cmd
 }
 
 func requireGit(t *testing.T) {
@@ -436,23 +460,18 @@ func requireGit(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not available")
 	}
-	t.Setenv("GIT_AUTHOR_NAME", "cpm test")
-	t.Setenv("GIT_AUTHOR_EMAIL", "cpm@test")
-	t.Setenv("GIT_COMMITTER_NAME", "cpm test")
-	t.Setenv("GIT_COMMITTER_EMAIL", "cpm@test")
-	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
 }
 
 func TestCloudPushPullRoundTrip(t *testing.T) {
+	t.Parallel()
 	requireGit(t)
 	bare := filepath.Join(t.TempDir(), "remote.git")
-	if out, err := exec.Command("git", "init", "--bare", bare).CombinedOutput(); err != nil {
+	if out, err := gitCommand(t, "init", "--bare", bare).CombinedOutput(); err != nil {
 		t.Fatalf("git init --bare: %v\n%s", err, out)
 	}
 
 	// Machine A: fresh init against an empty remote, then push.
 	a := newCloudEnv(t, "[profiles.work]\ndescription = \"Work\"\n")
-	a.activate(t)
 	mustWrite(t, filepath.Join(a.SourceDir, "settings.json"), `{"from": "A"}`)
 	mustWrite(t, filepath.Join(a.SourceDir, "commands", "one.md"), "one")
 	mustWrite(t, filepath.Join(a.SourceDir, "commands", "two.md"), "two")
@@ -468,7 +487,6 @@ func TestCloudPushPullRoundTrip(t *testing.T) {
 
 	// Machine B: clone, files are distributed and the profile merged.
 	b := newCloudEnv(t, "[profiles.personal]\n")
-	b.activate(t)
 	if err := b.App.CloudInit(bare); err != nil {
 		t.Fatalf("init B: %v", err)
 	}
@@ -487,7 +505,6 @@ func TestCloudPushPullRoundTrip(t *testing.T) {
 	}
 
 	// A changes and deletes; B pulls.
-	a.activate(t)
 	mustWrite(t, filepath.Join(a.SourceDir, "settings.json"), `{"from": "A2"}`)
 	os.Remove(filepath.Join(a.SourceDir, "commands", "two.md"))
 	if err := a.App.CloudPush(PushOptions{}); err != nil {
@@ -497,7 +514,6 @@ func TestCloudPushPullRoundTrip(t *testing.T) {
 		t.Fatalf("no-op push: %v", err)
 	}
 
-	b.activate(t)
 	if err := b.App.CloudPull(true); err != nil {
 		t.Fatalf("dry-run pull B: %v", err)
 	}
@@ -519,9 +535,9 @@ func TestCloudPushPullRoundTrip(t *testing.T) {
 }
 
 func TestCloudInitRemoteUnreachableErrors(t *testing.T) {
+	t.Parallel()
 	requireGit(t)
 	env := newCloudEnv(t, "[profiles.a]\n")
-	env.activate(t)
 	err := env.App.CloudInit(filepath.Join(env.Root, "does-not-exist.git"))
 	if err == nil || !strings.Contains(err.Error(), "cannot reach remote") {
 		t.Fatalf("expected unreachable remote error, got %v", err)
