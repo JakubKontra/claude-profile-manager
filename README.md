@@ -49,6 +49,7 @@ claude-vertex       # Company via Google Cloud Vertex AI
 - **Shared setup** — commands, skills, agents, plugins and projects are symlinked from `~/.claude`, so you configure them once.
 - **Per-project auto-switch** — drop a `.claude-profile` into a repo, or match repos by git remote or path, and the shell hook picks the right account on `cd`, like `.nvmrc`.
 - **Per-profile tuning** — model, extra dirs, env vars, `settings.json` overrides, attribution and MCP servers per profile.
+- **Profile in the status line** — `indicator = true` shows the active profile inside Claude Code, so you notice the wrong account before you start.
 - **Cloud sync** — keep settings in sync across machines via a private git repo, with secret scanning and conflict-safe pulls.
 - **Safe by default** — `--dry-run` previews, local-edit detection on re-sync, backups before overwriting.
 - **Scriptable** — `--json` output, `cpm exec`, meaningful exit codes, completions for bash, zsh, fish and PowerShell.
@@ -116,6 +117,7 @@ mkdir -p ~/.claude-profiles
 cat > ~/.claude-profiles/config.toml << 'EOF'
 source_dir = "~/.claude"
 bin_dir = "~/.local/bin"
+indicator = true                   # show "cpm: <profile>" in Claude Code's status line
 
 [profiles.personal]
 description = "Personal account"
@@ -382,6 +384,8 @@ CLOUD_ML_REGION = "europe-west1"
 
 Profile names may contain letters, digits, `-` and `_` only.
 
+With `indicator = true`, `cpm install` sets a `statusLine` in each profile's `settings.json` that prints `cpm: <profile>`. It never replaces a `statusLine` you already have in `~/.claude/settings.json`, in `profiles.<name>.settings` or in the profile itself. Set `indicator` per profile to override the global value; turning it off removes the line cpm added on the next `cpm install`.
+
 <details>
 <summary><strong>Config reference</strong></summary>
 
@@ -390,6 +394,7 @@ Profile names may contain letters, digits, `-` and `_` only.
 | `source_dir` | `~/.claude` | Source for shared config |
 | `bin_dir` | `~/.local/bin` | Where wrapper scripts are installed |
 | `share` | `["commands", "skills", "agents", "plugins", "projects"]` | Default shared directories |
+| `indicator` | `false` | Show the profile name in Claude Code's status line |
 | `profiles.<name>.description` | | Human-readable description |
 | `profiles.<name>.model` | | Default model (`sonnet`, `opus`) |
 | `profiles.<name>.add_dirs` | | Extra dirs passed via `--add-dir` |
@@ -397,6 +402,7 @@ Profile names may contain letters, digits, `-` and `_` only.
 | `profiles.<name>.attribution.commit` | | Git commit attribution text |
 | `profiles.<name>.attribution.pr` | | PR description attribution text |
 | `profiles.<name>.settings` | | Table deep-merged into the profile's `settings.json` (maps merge, other values replace) |
+| `profiles.<name>.indicator` | inherits | Overrides the global `indicator` |
 | `profiles.<name>.share` | inherits | Directories symlinked from `source_dir` (replaces the global list) |
 | `profiles.<name>.isolate` | `[]` | Directories removed from the share list for this profile |
 | `profiles.<name>.inherit_mcp` | `true` | Inherit global MCP servers; profile-specific servers always apply |

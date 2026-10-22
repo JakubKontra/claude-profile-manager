@@ -84,11 +84,16 @@ func (a *App) PlanInstall(cfg *Config, opts InstallOptions) ([]InstallAction, er
 					return nil, err
 				}
 			}
+			indicator := dest == settings && IndicatorEnabled(cfg, profile)
 			if data == nil {
-				continue
+				if !indicator {
+					continue
+				}
+				data = []byte("{}\n") // the indicator needs a settings.json
 			}
 			if dest == settings {
 				data, _ = applySettingsToSource(data, EffectiveSettingsOverrides(profile))
+				data = applyIndicator(data, name, indicator)
 			}
 			if err := p.write(dest, data, 0o600); err != nil {
 				return nil, err

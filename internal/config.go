@@ -40,6 +40,9 @@ type Profile struct {
 	// Settings are deep-merged into the profile's settings.json
 	// ([profiles.x.settings]); maps merge, everything else is replaced.
 	Settings map[string]any `toml:"settings,omitempty"`
+
+	// Indicator overrides the global indicator setting for this profile.
+	Indicator *bool `toml:"indicator,omitempty"`
 }
 
 type CloudConfig struct {
@@ -66,6 +69,8 @@ type Config struct {
 	Cloud    *CloudConfig        `toml:"cloud"`
 	// Match picks profiles for directories without a .claude-profile.
 	Match []MatchRule `toml:"match,omitempty"`
+	// Indicator shows the profile name in Claude Code's status line.
+	Indicator bool `toml:"indicator,omitempty"`
 
 	// Undecoded lists keys present in the file that no field consumed —
 	// usually typos. Filled by the loader, reported by doctor.

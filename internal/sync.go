@@ -1,10 +1,12 @@
 package internal
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 )
 
@@ -160,6 +162,67 @@ func EffectiveSettingsOverrides(p *Profile) map[string]any {
 	return overrides
 }
 
+// IndicatorEnabled reports whether the profile shows its name in Claude
+// Code's status line: the profile's indicator setting, else the global one.
+func IndicatorEnabled(cfg *Config, p *Profile) bool {
+	if p != nil && p.Indicator != nil {
+		return *p.Indicator
+	}
+	return cfg != nil && cfg.Indicator
+}
+
+// indicatorStatusLine is the statusLine cpm injects for profile name.
+func indicatorStatusLine(name string) map[string]any {
+	// Profile names are limited to [a-zA-Z0-9_-], so quoting is safe.
+	return map[string]any{"type": "command", "command": "echo 'cpm: " + name + "'"}
+}
+
+// isIndicator reports whether v is the statusLine cpm injects for name.
+func isIndicator(v any, name string) bool {
+	return reflect.DeepEqual(v, indicatorStatusLine(name))
+}
+
+// applyIndicator adds the profile's statusLine to settings when on and none
+// is set, and removes the one cpm injected when off. Any other statusLine is
+// left alone. Unparseable input is returned unchanged.
+func applyIndicator(data []byte, name string, on bool) []byte {
+	settings := map[string]any{}
+	if len(bytes.TrimSpace(data)) > 0 {
+		if err := json.Unmarshal(data, &settings); err != nil || settings == nil {
+			return data
+		}
+	}
+	current, has := settings["statusLine"]
+	switch {
+	case on && !has:
+		settings["statusLine"] = indicatorStatusLine(name)
+	case !on && has && isIndicator(current, name):
+		delete(settings, "statusLine")
+	default:
+		return data
+	}
+	out, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return data
+	}
+	return append(out, '\n')
+}
+
+// settingsEqual reports whether two settings.json files hold the same
+// values, ignoring formatting and the statusLine cpm injects for name.
+func settingsEqual(a, b []byte, name string) bool {
+	var x, y map[string]any
+	if json.Unmarshal(a, &x) != nil || json.Unmarshal(b, &y) != nil {
+		return bytes.Equal(a, b)
+	}
+	for _, m := range []map[string]any{x, y} {
+		if m != nil && isIndicator(m["statusLine"], name) {
+			delete(m, "statusLine")
+		}
+	}
+	return reflect.DeepEqual(x, y)
+}
+
 // deepMerge merges src into dst: nested maps merge recursively, every other
 // value (including arrays) replaces the destination. dst may be nil.
 func deepMerge(dst, src map[string]any) map[string]any {
@@ -251,10 +314,15 @@ func CheckDivergence(cfg *Config, profilesBase string) []DivergedFile {
 				// cpm wrote (baseline plus overrides), regardless of what the
 				// source looks like now.
 				expected := baseData
-				if filename == "settings.json" && len(overrides) > 0 {
-					expected, _ = applySettingsToSource(baseData, overrides)
+				if filename == "settings.json" {
+					if len(overrides) > 0 {
+						expected, _ = applySettingsToSource(baseData, overrides)
+					}
+					// The injected indicator is cpm's, not a local edit.
+					hasLocalChanges = !settingsEqual(expected, dstData, name)
+				} else {
+					hasLocalChanges = string(expected) != string(dstData)
 				}
-				hasLocalChanges = string(expected) != string(dstData)
 			} else {
 				// No baseline (profile installed by an older cpm): fall back
 				// to comparing against the current source.
@@ -263,8 +331,11 @@ func CheckDivergence(cfg *Config, profilesBase string) []DivergedFile {
 					continue
 				}
 				expected := srcData
-				if filename == "settings.json" && len(overrides) > 0 {
-					expected, _ = applySettingsToSource(srcData, overrides)
+				if filename == "settings.json" {
+					if len(overrides) > 0 {
+						expected, _ = applySettingsToSource(srcData, overrides)
+					}
+					expected = applyIndicator(expected, name, IndicatorEnabled(cfg, profile))
 				}
 				hasLocalChanges = string(expected) != string(dstData) && hasLinesNotIn(dstData, expected)
 			}
