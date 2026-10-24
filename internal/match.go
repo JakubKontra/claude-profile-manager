@@ -183,17 +183,43 @@ func gitRemoteURLs(dir string) []string {
 		line := strings.TrimSpace(scanner.Text())
 		if strings.HasPrefix(line, "[") {
 			inRemote = strings.HasPrefix(line, "[remote ")
-			continue
+			// git accepts a key on the section line: [remote "origin"] url = ...
+			end := strings.LastIndexByte(line, ']')
+			if !inRemote || end < 0 {
+				continue
+			}
+			line = strings.TrimSpace(line[end+1:])
 		}
 		if !inRemote {
 			continue
 		}
 		key, value, found := strings.Cut(line, "=")
 		if found && strings.EqualFold(strings.TrimSpace(key), "url") {
-			urls = append(urls, strings.Trim(strings.TrimSpace(value), `"`))
+			urls = append(urls, gitConfigValue(value))
 		}
 	}
 	return urls
+}
+
+// gitConfigValue reads a value the way git does: surrounding space and quotes
+// are dropped, and an unquoted # or ; starts a comment.
+func gitConfigValue(raw string) string {
+	var b strings.Builder
+	inQuotes := false
+	for i := 0; i < len(raw); i++ {
+		switch c := raw[i]; {
+		case c == '\\' && i+1 < len(raw):
+			i++
+			b.WriteByte(raw[i])
+		case c == '"':
+			inQuotes = !inQuotes
+		case (c == '#' || c == ';') && !inQuotes:
+			return strings.TrimSpace(b.String())
+		default:
+			b.WriteByte(c)
+		}
+	}
+	return strings.TrimSpace(b.String())
 }
 
 // findGitConfig walks up from dir to the nearest .git and returns the
