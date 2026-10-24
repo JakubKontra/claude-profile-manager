@@ -12,7 +12,7 @@
       packages = forAllSystems (pkgs: rec {
         cpm = pkgs.buildGo126Module {
           pname = "cpm";
-          version = "1.0.0-rc.1";
+          version = "1.0.0-rc.2";
           src = self;
           vendorHash = "sha256-n58Qmiv3gik1qkuXQFbQ+soeOQtUz1dUocEAJepqp/E=";
           env.CGO_ENABLED = 0;
@@ -20,7 +20,7 @@
           checkFlags = [ "-skip=TestHookExecution|TestGenerateWrapperExecutes" ];
           ldflags = [
             "-s" "-w"
-            "-X github.com/jakubkontra/cpm/internal.Version=1.0.0-rc.1"
+            "-X github.com/jakubkontra/cpm/internal.Version=1.0.0-rc.2"
             "-X github.com/jakubkontra/cpm/internal.Commit=${self.shortRev or "dirty"}"
           ];
           meta = {

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-rc.2] - 2026-10-24
+
+Second release candidate for 1.0, with one fix. It is published as a GitHub prerelease, like rc.1.
+
+### Fixed
+- A `[[match]]` rule that names a repository, such as `remote = "github.com/work/app"`, did not match when the remote's `url` line in `.git/config` ended with a `#` or `;` comment, or stood on the section line. cpm now reads these lines the way git does. Thanks [@arnavsharma2077-a11y](https://github.com/arnavsharma2077-a11y) for the report and the patch.
+
 ## [1.0.0-rc.1] - 2026-10-22
 
 Release candidate for 1.0. It has the same features as 0.8.0. From 1.0, the interfaces listed in [docs/stability.md](docs/stability.md) stay compatible for all of 1.x: config, commands and flags, `--json` output, exit codes, the wrapper and hook contract, and the files on disk and in the cloud repository.
@@ -179,7 +186,8 @@ Thanks [@JakubKontra](https://github.com/JakubKontra) for the improvements in th
 ### Added
 - Initial release: profiles, wrapper scripts, `.claude-profile` auto-switching, doctor, clone, upgrade.
 
-[Unreleased]: https://github.com/jakubkontra/claude-profile-manager/compare/v1.0.0-rc.1...HEAD
+[Unreleased]: https://github.com/jakubkontra/claude-profile-manager/compare/v1.0.0-rc.2...HEAD
+[1.0.0-rc.2]: https://github.com/jakubkontra/claude-profile-manager/compare/v1.0.0-rc.1...v1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.8.0...v1.0.0-rc.1
 [0.8.0]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.6.0...v0.7.0
