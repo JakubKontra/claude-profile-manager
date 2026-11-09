@@ -7,8 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-09
+
+First stable release. It has the features of 0.8.0 and the fixes from the two release candidates. The interfaces listed in [docs/stability.md](docs/stability.md) stay compatible for all of 1.x. See [1.0.0-rc.1](#100-rc1---2026-10-22) for notes on upgrading from 0.x.
+
 ### Fixed
-- `brew install jakubkontra/tap/cpm` failed with `Errno::ENOENT: No such file or directory - cpm`. Release assets are bare binaries named `cpm_<os>_<arch>`, and the formula installed a file called `cpm`. The formula now installs the downloaded binary as `cpm`.
+- `brew install jakubkontra/tap/cpm` failed with `Errno::ENOENT: No such file or directory - cpm`. Release assets are bare binaries named `cpm_<os>_<arch>`, and the formula installed a file called `cpm`. The formula now installs the downloaded binary as `cpm`. Thanks [@vdeserto](https://github.com/vdeserto) for the report and the patch ([#48](https://github.com/JakubKontra/claude-profile-manager/pull/48)).
 
 ## [1.0.0-rc.2] - 2026-10-24
 
@@ -189,7 +193,8 @@ Thanks [@JakubKontra](https://github.com/JakubKontra) for the improvements in th
 ### Added
 - Initial release: profiles, wrapper scripts, `.claude-profile` auto-switching, doctor, clone, upgrade.
 
-[Unreleased]: https://github.com/jakubkontra/claude-profile-manager/compare/v1.0.0-rc.2...HEAD
+[Unreleased]: https://github.com/jakubkontra/claude-profile-manager/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/jakubkontra/claude-profile-manager/compare/v1.0.0-rc.2...v1.0.0
 [1.0.0-rc.2]: https://github.com/jakubkontra/claude-profile-manager/compare/v1.0.0-rc.1...v1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.8.0...v1.0.0-rc.1
 [0.8.0]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.7.0...v0.8.0
