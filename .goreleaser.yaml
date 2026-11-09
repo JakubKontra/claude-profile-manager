@@ -45,7 +45,9 @@ brews:
     description: "Claude Profile Manager — manage multiple Claude Code accounts"
     license: "MIT"
     install: |
-      bin.install "cpm"
+      # Release assets are bare binaries named cpm_<os>_<arch>, so Homebrew
+      # stages that file, not one called cpm.
+      bin.install Dir["cpm_*"].first => "cpm"
       # cpm writes its own man pages; a failure must not break the install.
       if quiet_system bin/"cpm", "docs", "--man", "man1"
         man1.install Dir["man1/*.1"]
