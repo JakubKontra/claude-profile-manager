@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `brew install jakubkontra/tap/cpm` failed with `Errno::ENOENT: No such file or directory - cpm`. Release assets are bare binaries named `cpm_<os>_<arch>`, and the formula installed a file called `cpm`. The formula now installs the downloaded binary as `cpm`.
+
 ## [1.0.0-rc.2] - 2026-10-24
 
 Second release candidate for 1.0, with one fix. It is published as a GitHub prerelease, like rc.1.
