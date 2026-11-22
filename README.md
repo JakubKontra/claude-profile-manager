@@ -204,7 +204,7 @@ Where the OAuth token ends up depends on the platform:
 | **macOS** | Keychain, service `Claude Code-credentials-<first 8 hex of sha256(configDir)>`. No `.credentials.json` is written. |
 | **Linux / CI** | `<profile>/.credentials.json` |
 
-The default `~/.claude` login uses the bare `Claude Code-credentials` service, so profiles never overwrite each other or your default session.
+The default `~/.claude` login uses the bare `Claude Code-credentials` service, so profiles never overwrite each other or your default session. Each login must still be its own: a login copied to a second place shares one refresh token with the original, and the first of the two to refresh it logs the other out. `cpm doctor` reports such a pair as `shared login` (on macOS with `--verify`).
 
 `cpm doctor` and `cpm credentials` check both and report which one a profile is using. On Linux the file also tells expiry and subscription type; on macOS `cpm doctor --verify` reads the Keychain token to report the same (this may trigger an access prompt).
 
@@ -216,7 +216,7 @@ claude-work auth logout    # clears only the work entry
 claude-work auth login     # OAuth in the browser
 ```
 
-Already logged in with plain `claude`? `cpm adopt <profile>` copies that login from `~/.claude` (or `--from <dir>`) into a profile, adding the profile if needed, so you skip the browser login. `--move` removes it from the source afterwards, and `--dry-run` shows the steps.
+Already logged in with plain `claude`? `cpm adopt <profile>` moves that login from `~/.claude` (or `--from <dir>`) into a profile, adding the profile if needed, so you skip the browser login. Plain `claude` is logged out afterwards, because an OAuth login works in one place only. `--dry-run` shows the steps. `--copy` keeps the login in the source too, but the two copies then share one refresh token and one of them gets logged out. To keep the default session and give the profile its own login, use `cpm login <profile>` instead.
 
 To log in several profiles in one go, for example on a new machine, use `cpm login`. It runs `claude auth login` in each profile, one after another, and prints a summary:
 
@@ -331,7 +331,7 @@ In patterns, `*` matches within one path segment and `**` matches any depth; `~/
 | `cpm status [--json]` | Check sync divergence |
 | `cpm doctor [--json] [--verify] [--fix]` | Diagnose issues; `--fix` repairs what `cpm install` can; exit code 3 on errors |
 | `cpm credentials [--json]` | Show account, expiry and subscription for all profiles |
-| `cpm adopt <profile> [--from dir] [--move] [--dry-run] [--json]` | Copy an existing Claude Code login (default `~/.claude`) into a profile |
+| `cpm adopt <profile> [--from dir] [--copy] [--dry-run] [--json]` | Move an existing Claude Code login (default `~/.claude`) into a profile |
 | `cpm login [profile...] [--all] [--json]` | Run `claude auth login` for profiles one at a time, then print a summary |
 
 ### Cloud

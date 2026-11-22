@@ -232,8 +232,75 @@ func RunDoctorWithOptions(cfg *Config, profilesBase string, opts DoctorOptions) 
 		}
 	}
 
+	checks = append(checks, sharedLoginChecks(cfg, profilesBase, home, kc, opts)...)
+
 	for _, name := range orphanProfiles(cfg, profilesBase) {
 		checks = append(checks, Check{"orphan/" + name, "warn", fmt.Sprintf("profile data remains; remove with cpm remove %s --purge", name), "cpm remove " + name + " --purge"})
+	}
+	return checks
+}
+
+// sharedLoginChecks warns about logins that hold the same OAuth refresh
+// token, as a copied login does (cpm adopt --copy, or an older cpm adopt). The
+// server replaces the token on each refresh, so the first login to refresh
+// logs the others out. .credentials.json files are always compared; Keychain
+// entries only with Verify, because reading them may prompt.
+func sharedLoginChecks(cfg *Config, profilesBase, home string, kc KeychainStore, opts DoctorOptions) []Check {
+	account := keychainAccountFor(opts.User)
+	// holders maps a token hash to the logins that hold it; "" is ~/.claude.
+	holders := map[string][]string{}
+	var order []string
+	add := func(profile, hash string) {
+		if hash == "" {
+			return
+		}
+		for _, p := range holders[hash] {
+			if p == profile {
+				return
+			}
+		}
+		if len(holders[hash]) == 0 {
+			order = append(order, hash)
+		}
+		holders[hash] = append(holders[hash], profile)
+	}
+	collect := func(profile, dir, service string) {
+		if data, err := os.ReadFile(filepath.Join(dir, ".credentials.json")); err == nil {
+			add(profile, refreshTokenHash(data))
+		}
+		if opts.Verify && kc.Exists(service, account) {
+			if data, err := kc.Read(service, account); err == nil {
+				add(profile, refreshTokenHash(data))
+			}
+		}
+	}
+	collect("", filepath.Join(home, ".claude"), keychainServiceBase)
+	for _, name := range SortedProfileNames(cfg) {
+		dir := filepath.Join(profilesBase, name)
+		collect(name, dir, KeychainServiceName(dir))
+	}
+
+	var checks []Check
+	for _, hash := range order {
+		logins := holders[hash]
+		if len(logins) < 2 {
+			continue
+		}
+		// One login keeps the token; the others need a new login.
+		var labels, fixes []string
+		for i, p := range logins {
+			if p == "" {
+				labels = append(labels, "~/.claude")
+				continue
+			}
+			labels = append(labels, "profile "+p)
+			if i > 0 {
+				fixes = append(fixes, fmt.Sprintf("claude-%s auth logout && claude-%s auth login", p, p))
+			}
+		}
+		fix := strings.Join(fixes, " && ")
+		checks = append(checks, Check{"shared login", "warn",
+			strings.Join(labels, " and ") + " share one refresh token; the first to refresh it logs the others out (run " + fix + ")", fix})
 	}
 	return checks
 }

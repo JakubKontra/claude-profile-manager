@@ -9,6 +9,7 @@ cpm add <profile> [flags]
     -e, --env stringArray
     -m, --model string
 cpm adopt <profile> [flags]
+    --copy bool
     --dry-run bool
     --from string
     --json bool

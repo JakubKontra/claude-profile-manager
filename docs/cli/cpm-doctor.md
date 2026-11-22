@@ -12,7 +12,7 @@ cpm doctor [flags]
 
 - `--fix`: repair what cpm install can (missing or outdated wrappers, directories, symlinks)
 - `--json`: output as JSON
-- `--verify`: read Keychain tokens to check expiry (macOS, may prompt)
+- `--verify`: read Keychain tokens to check expiry and shared logins (macOS, may prompt)
 
 ## Global flags
 

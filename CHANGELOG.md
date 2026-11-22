@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- `cpm adopt <profile>` now moves the login: it deletes it from the source (by default `~/.claude`) after copying it into the profile. Before, the login stayed in both places with the same OAuth refresh token, and the first of the two to refresh it logged the other out with `invalid_grant`. This changes a 1.x default on purpose, because the copy could not keep working. `--copy` keeps the old behavior and prints a warning, which `--json` reports as `warning`. `--move` is still accepted and does what the default does. To keep the default session and give the profile its own login, use `cpm login <profile>`. Thanks [@vdeserto](https://github.com/vdeserto) for the report and the analysis ([#50](https://github.com/JakubKontra/claude-profile-manager/issues/50)).
+
+### Added
+- `cpm doctor` warns with a `shared login` check when two logins (`~/.claude` or profiles) hold the same refresh token, and names the command that gives one of them its own login. This finds logins copied by an older `cpm adopt`. `.credentials.json` files are always compared; Keychain entries on macOS only with `--verify` ([#50](https://github.com/JakubKontra/claude-profile-manager/issues/50)).
+
 ## [1.0.0] - 2026-11-09
 
 First stable release. It has the features of 0.8.0 and the fixes from the two release candidates. The interfaces listed in [docs/stability.md](docs/stability.md) stay compatible for all of 1.x. See [1.0.0-rc.1](#100-rc1---2026-10-22) for notes on upgrading from 0.x.
