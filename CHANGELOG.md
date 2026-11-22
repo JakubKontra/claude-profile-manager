@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-22
+
+`cpm adopt` now moves a login instead of copying it, and `cpm doctor` finds logins that share a refresh token. If you ran `cpm adopt` without `--move` on an older version, run `cpm doctor` (on macOS `cpm doctor --verify`) and log one of the reported logins in again.
+
 ### Changed
 - `cpm adopt <profile>` now moves the login: it deletes it from the source (by default `~/.claude`) after copying it into the profile. Before, the login stayed in both places with the same OAuth refresh token, and the first of the two to refresh it logged the other out with `invalid_grant`. This changes a 1.x default on purpose, because the copy could not keep working. `--copy` keeps the old behavior and prints a warning, which `--json` reports as `warning`. `--move` is still accepted and does what the default does. To keep the default session and give the profile its own login, use `cpm login <profile>`. Thanks [@vdeserto](https://github.com/vdeserto) for the report and the analysis ([#50](https://github.com/JakubKontra/claude-profile-manager/issues/50)).
 
@@ -199,7 +203,8 @@ Thanks [@JakubKontra](https://github.com/JakubKontra) for the improvements in th
 ### Added
 - Initial release: profiles, wrapper scripts, `.claude-profile` auto-switching, doctor, clone, upgrade.
 
-[Unreleased]: https://github.com/jakubkontra/claude-profile-manager/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/jakubkontra/claude-profile-manager/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/jakubkontra/claude-profile-manager/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/jakubkontra/claude-profile-manager/compare/v1.0.0-rc.2...v1.0.0
 [1.0.0-rc.2]: https://github.com/jakubkontra/claude-profile-manager/compare/v1.0.0-rc.1...v1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/jakubkontra/claude-profile-manager/compare/v0.8.0...v1.0.0-rc.1
