@@ -93,6 +93,23 @@ func parseCredentialsJSON(data []byte, fileModTime, now time.Time) (CredentialFi
 	return info, nil
 }
 
+// refreshTokenHash returns a short hash of the OAuth refresh token in a
+// credential blob, or "" when there is none. Two logins with the same hash
+// share one token, so the first to refresh it logs the other out. The token
+// itself is not returned.
+func refreshTokenHash(data []byte) string {
+	var creds struct {
+		ClaudeAiOauth struct {
+			RefreshToken string `json:"refreshToken"`
+		} `json:"claudeAiOauth"`
+	}
+	if json.Unmarshal(data, &creds) != nil || creds.ClaudeAiOauth.RefreshToken == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(creds.ClaudeAiOauth.RefreshToken))
+	return hex.EncodeToString(sum[:])[:16]
+}
+
 // GetCredentialInfo reads <profileDir>/.credentials.json.
 func GetCredentialInfo(profileDir string) (CredentialFileInfo, error) {
 	credPath := filepath.Join(profileDir, ".credentials.json")

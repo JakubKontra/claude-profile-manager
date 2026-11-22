@@ -13,7 +13,12 @@ type AdoptOptions struct {
 	// From is the Claude Code config dir to take the login from; "" means
 	// the default ~/.claude.
 	From string
-	// Move deletes the login from the source after copying it.
+	// Copy keeps the login in the source too. Both places then hold the
+	// same OAuth refresh token, and the first one to refresh it logs the
+	// other out.
+	Copy bool
+	// Move is the default and changes nothing; the --move flag is kept for
+	// compatibility.
 	Move   bool
 	DryRun bool
 }
@@ -24,6 +29,8 @@ type AdoptReport struct {
 	From    string `json:"from"`
 	DryRun  bool   `json:"dry_run"`
 	Steps   []Step `json:"steps"`
+	// Warning is set when the login was copied and is now shared.
+	Warning string `json:"warning,omitempty"`
 }
 
 // loginSource is where Claude Code keeps the login of a config dir.
@@ -45,11 +52,17 @@ func (a *App) loginSourceFor(from string) loginSource {
 	return loginSource{dir: dir, service: KeychainServiceName(dir), claudeJSON: filepath.Join(dir, ".claude.json")}
 }
 
-// AdoptLogin copies an existing Claude Code login (by default the one in
+// AdoptLogin moves an existing Claude Code login (by default the one in
 // ~/.claude) into profile name, so it needs no new login. A profile missing
-// from the config is added first. With Move the source login is deleted at
-// the end; a failure before that reverts every step.
+// from the config is added first. The source login is deleted at the end; a
+// failure before that reverts every step. With Copy the source keeps its
+// login, and the report carries a warning: an OAuth refresh token is valid
+// in one place only.
 func (a *App) AdoptLogin(cfg *Config, name string, opts AdoptOptions) (AdoptReport, error) {
+	if opts.Copy && opts.Move {
+		return AdoptReport{Profile: name, Steps: []Step{}}, UsageError(fmt.Errorf("--copy and --move cannot be used together"))
+	}
+	move := !opts.Copy
 	src := a.loginSourceFor(opts.From)
 	report := AdoptReport{Profile: name, From: src.dir, DryRun: opts.DryRun, Steps: []Step{}}
 	if err := ValidateProfileName(name); err != nil {
@@ -70,7 +83,7 @@ func (a *App) AdoptLogin(cfg *Config, name string, opts AdoptOptions) (AdoptRepo
 			report.Steps = append(report.Steps, Step{"config", fmt.Sprintf("add and install profile %q", name)})
 			a.progressf("  %s\n", report.Steps[0])
 			// The rest depends on the new profile; show what would be copied.
-			return a.adoptPreview(report, src, dir, inKeychain, inFile, opts.Move), nil
+			return a.adoptPreview(report, src, dir, inKeychain, inFile, move), nil
 		}
 		if err := a.AddProfile(name, AddOptions{}); err != nil {
 			return report, err
@@ -83,7 +96,7 @@ func (a *App) AdoptLogin(cfg *Config, name string, opts AdoptOptions) (AdoptRepo
 		return report, fmt.Errorf("profile %q is already logged in (%s); log it out first: claude-%s auth logout", name, status.Account, name)
 	}
 
-	steps, finish, err := a.planAdopt(src, dir, account, inKeychain, inFile, opts.Move)
+	steps, finish, err := a.planAdopt(src, dir, account, inKeychain, inFile, move)
 	if err != nil {
 		return report, err
 	}
@@ -98,6 +111,13 @@ func (a *App) AdoptLogin(cfg *Config, name string, opts AdoptOptions) (AdoptRepo
 		return report, err
 	}
 	a.progressf("\nProfile %q now uses that login: claude-%s auth status\n", name, name)
+	if move {
+		a.progressf("%s is logged out now. To use it too, log in there again; that login is separate.\n", src.dir)
+		return report, nil
+	}
+	report.Warning = fmt.Sprintf("%s and profile %q share one refresh token. The first one to refresh it logs the other out. "+
+		"For separate logins run: claude-%s auth logout && claude-%s auth login", src.dir, name, name, name)
+	a.progressf("\nWarning: %s\n", report.Warning)
 	return report, nil
 }
 

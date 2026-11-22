@@ -25,11 +25,11 @@ func adoptEnv(t *testing.T) testEnv {
 	return env
 }
 
-func TestAdoptCopiesDefaultLogin(t *testing.T) {
+func TestAdoptCopyKeepsSourceAndWarns(t *testing.T) {
 	t.Parallel()
 	env := adoptEnv(t)
 	dir := filepath.Join(env.profilesBase(), "work")
-	report, err := env.App.AdoptLogin(env.load(t), "work", AdoptOptions{})
+	report, err := env.App.AdoptLogin(env.load(t), "work", AdoptOptions{Copy: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func TestAdoptCopiesDefaultLogin(t *testing.T) {
 		t.Errorf("login not copied: %q", secret)
 	}
 	if !env.Keychain.Exists(keychainServiceBase, "") {
-		t.Error("source login deleted without --move")
+		t.Error("source login deleted with --copy")
 	}
 	status, err := GetCredentialStatus(env.Keychain, dir)
 	if err != nil || status.Account != "me@example.com" {
@@ -53,6 +53,10 @@ func TestAdoptCopiesDefaultLogin(t *testing.T) {
 	if !reflect.DeepEqual(kinds, []string{"keychain", "account"}) {
 		t.Errorf("steps: %v", kinds)
 	}
+	// The copy shares the refresh token (issue #50); the user is told.
+	if !strings.Contains(report.Warning, "share one refresh token") || !strings.Contains(env.Out.String(), "Warning: "+report.Warning) {
+		t.Errorf("warning = %q, output:\n%s", report.Warning, env.Out.String())
+	}
 
 	// A second adopt refuses: the profile is logged in now.
 	if _, err := env.App.AdoptLogin(env.load(t), "work", AdoptOptions{}); err == nil || !strings.Contains(err.Error(), "already logged in") {
@@ -60,14 +64,33 @@ func TestAdoptCopiesDefaultLogin(t *testing.T) {
 	}
 }
 
-func TestAdoptMove(t *testing.T) {
+// Adopt moves by default: a login left in the source would share its
+// refresh token with the profile (issue #50). --move asks for the same.
+func TestAdoptMovesByDefault(t *testing.T) {
 	t.Parallel()
-	env := adoptEnv(t)
-	if _, err := env.App.AdoptLogin(env.load(t), "work", AdoptOptions{Move: true}); err != nil {
-		t.Fatal(err)
+	for _, opts := range []AdoptOptions{{}, {Move: true}} {
+		env := adoptEnv(t)
+		dir := filepath.Join(env.profilesBase(), "work")
+		report, err := env.App.AdoptLogin(env.load(t), "work", opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if env.Keychain.Exists(keychainServiceBase, "") {
+			t.Errorf("%+v left the source login", opts)
+		}
+		if secret, _ := env.Keychain.Read(KeychainServiceName(dir), ""); string(secret) != `{"token":"default"}` {
+			t.Errorf("%+v: login not moved: %q", opts, secret)
+		}
+		if n := len(report.Steps); n == 0 || report.Steps[n-1].Kind != "delete" {
+			t.Errorf("%+v: steps %+v", opts, report.Steps)
+		}
+		if report.Warning != "" || !strings.Contains(env.Out.String(), "is logged out now") {
+			t.Errorf("%+v: warning %q, output:\n%s", opts, report.Warning, env.Out.String())
+		}
 	}
-	if env.Keychain.Exists(keychainServiceBase, "") {
-		t.Error("--move left the source login")
+	env := adoptEnv(t)
+	if _, err := env.App.AdoptLogin(env.load(t), "work", AdoptOptions{Copy: true, Move: true}); !errors.Is(err, ErrUsage) {
+		t.Error("--copy with --move accepted")
 	}
 }
 
@@ -77,7 +100,7 @@ func TestAdoptRollsBack(t *testing.T) {
 	dir := filepath.Join(env.profilesBase(), "work")
 	// The account step fails on an unreadable profile .claude.json.
 	mustWrite(t, filepath.Join(dir, ".claude.json"), "{oops")
-	_, err := env.App.AdoptLogin(env.load(t), "work", AdoptOptions{Move: true})
+	_, err := env.App.AdoptLogin(env.load(t), "work", AdoptOptions{})
 	if err == nil || !strings.Contains(err.Error(), "invalid") {
 		t.Fatalf("err = %v", err)
 	}
@@ -104,7 +127,7 @@ func TestAdoptFileLoginAndNewProfile(t *testing.T) {
 	if !reflect.DeepEqual(before, snapshotTree(t, env.Root)) {
 		t.Error("dry run changed files")
 	}
-	if len(report.Steps) != 3 || report.Steps[0].Kind != "config" || report.Steps[1].Kind != "file" {
+	if len(report.Steps) != 4 || report.Steps[0].Kind != "config" || report.Steps[1].Kind != "file" || report.Steps[3].Kind != "delete" {
 		t.Errorf("dry run steps: %+v", report.Steps)
 	}
 
@@ -117,6 +140,9 @@ func TestAdoptFileLoginAndNewProfile(t *testing.T) {
 	}
 	if st, _ := os.Stat(filepath.Join(dir, ".credentials.json")); st.Mode().Perm() != 0o600 {
 		t.Errorf("credentials mode %v", st.Mode())
+	}
+	if fileExists(filepath.Join(from, ".credentials.json")) {
+		t.Error("source login file left behind")
 	}
 	if status, err := GetCredentialStatus(env.Keychain, dir); err != nil || status.Account != "c@example.com" {
 		t.Errorf("status: %+v %v", status, err)
@@ -152,5 +178,79 @@ func TestDoctorSuggestsAdopt(t *testing.T) {
 	report = env.App.DoctorReportFor(env.load(t), DoctorOptions{LookPath: noLookPath})
 	if _, ok := findCheck(report.Checks, "default login"); ok {
 		t.Error("suggestion stays after adopting")
+	}
+}
+
+func TestDoctorSharedLogin(t *testing.T) {
+	t.Parallel()
+	blob := func(token string) string {
+		return `{"claudeAiOauth":{"accessToken":"a","refreshToken":"` + token + `"}}`
+	}
+	shared := func(env testEnv, opts DoctorOptions) (Check, bool) {
+		opts.LookPath = noLookPath
+		return findCheck(env.App.DoctorReportFor(env.load(t), opts).Checks, "shared login")
+	}
+
+	// Keychain logins are compared only with --verify.
+	env := adoptEnv(t)
+	work := filepath.Join(env.profilesBase(), "work")
+	env.Keychain.login(work, blob("one"))
+	env.Keychain.mu.Lock()
+	env.Keychain.entries[keychainServiceBase] = []byte(blob("one"))
+	env.Keychain.mu.Unlock()
+	if c, ok := shared(env, DoctorOptions{}); ok {
+		t.Errorf("Keychain read without --verify: %+v", c)
+	}
+	c, ok := shared(env, DoctorOptions{Verify: true})
+	if !ok || c.Status != "warn" || !strings.Contains(c.Detail, "~/.claude and profile work share one refresh token") ||
+		c.Fix != "claude-work auth logout && claude-work auth login" {
+		t.Errorf("shared Keychain login: %+v", c)
+	}
+	if strings.Contains(c.Detail+c.Fix, "one\"") {
+		t.Errorf("token leaked: %+v", c)
+	}
+
+	// Different tokens, or no refresh token at all, are fine.
+	env.Keychain.login(work, blob("two"))
+	if c, ok := shared(env, DoctorOptions{Verify: true}); ok {
+		t.Errorf("separate logins reported: %+v", c)
+	}
+	env.Keychain.login(work, `{"token":"default"}`)
+	env.Keychain.mu.Lock()
+	env.Keychain.entries[keychainServiceBase] = []byte(`{"token":"default"}`)
+	env.Keychain.mu.Unlock()
+	if c, ok := shared(env, DoctorOptions{Verify: true}); ok {
+		t.Errorf("logins without a refresh token reported: %+v", c)
+	}
+
+	// File logins need no --verify; two profiles can share one too.
+	env = newTestEnv(t, twoProfiles)
+	if err := env.App.InstallProfiles(env.load(t), InstallOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	names := SortedProfileNames(env.load(t))
+	for _, name := range names {
+		mustWrite(t, filepath.Join(env.profilesBase(), name, ".credentials.json"), blob("file"))
+	}
+	c, ok = shared(env, DoctorOptions{})
+	want := "profile " + names[0] + " and profile " + names[1] + " share one refresh token"
+	if !ok || !strings.Contains(c.Detail, want) || c.Fix != "claude-"+names[1]+" auth logout && claude-"+names[1]+" auth login" {
+		t.Errorf("shared file login: %+v", c)
+	}
+}
+
+func TestRefreshTokenHash(t *testing.T) {
+	t.Parallel()
+	a := refreshTokenHash([]byte(`{"claudeAiOauth":{"refreshToken":"sk-ant-ort01-x"}}`))
+	if len(a) != 16 || strings.Contains(a, "sk-ant") {
+		t.Errorf("hash = %q", a)
+	}
+	if b := refreshTokenHash([]byte(`{"claudeAiOauth":{"refreshToken":"sk-ant-ort01-y"}}`)); b == a {
+		t.Error("different tokens, same hash")
+	}
+	for _, in := range []string{``, `{oops`, `{}`, `{"claudeAiOauth":{"accessToken":"x"}}`, `[1]`} {
+		if got := refreshTokenHash([]byte(in)); got != "" {
+			t.Errorf("refreshTokenHash(%q) = %q", in, got)
+		}
 	}
 }

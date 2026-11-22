@@ -83,7 +83,7 @@ func doctorCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "output as JSON")
-	cmd.Flags().BoolVar(&opts.Verify, "verify", false, "read Keychain tokens to check expiry (macOS, may prompt)")
+	cmd.Flags().BoolVar(&opts.Verify, "verify", false, "read Keychain tokens to check expiry and shared logins (macOS, may prompt)")
 	cmd.Flags().BoolVar(&fix, "fix", false, "repair what cpm install can (missing or outdated wrappers, directories, symlinks)")
 	return cmd
 }
